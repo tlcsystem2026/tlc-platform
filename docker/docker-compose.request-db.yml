@@ -1,0 +1,15 @@
+services:
+  request-postgres:
+    image: postgres:16
+    container_name: tlc-request-postgres
+    environment:
+      POSTGRES_DB: tlc_platform
+      POSTGRES_USER: tlc
+      POSTGRES_PASSWORD: tlc
+    ports:
+      - "15432:5432"
+    volumes:
+      - request_pgdata:/var/lib/postgresql/data
+
+volumes:
+  request_pgdata:

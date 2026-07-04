@@ -1,0 +1,477 @@
+[
+  {
+    "path": "FULL_PACKAGE_README.md",
+    "sha256": "dcf9f9929e3af2df093d9dad270d34a6da8b02d46320e8e66da69d81524ec4a5",
+    "final_source_build": "full-package-generated"
+  },
+  {
+    "path": "FULL_RELEASE_MANIFEST.json",
+    "sha256": "66905aee2f6dafdf6882eacd9ff0642677aa8617323960d083c02c5af50c83c6",
+    "final_source_build": "full-package-generated"
+  },
+  {
+    "path": "RELEASE_MANIFEST.json",
+    "sha256": "8a66c413108198e87a2addee12a9ec753ef094e08fe16e49d90bf1a19a752435",
+    "final_source_build": "Sprint1_Build_015_Pilot"
+  },
+  {
+    "path": "VERSION",
+    "sha256": "bf1d005ab60fbcd7fd07c4acbde89c97edd26e4147e2f8f5f095bc78a48a6c72",
+    "final_source_build": "Sprint1_Build_015_Pilot"
+  },
+  {
+    "path": "apps/request-employee/.env.example",
+    "sha256": "2cf1c4a82cfd7c14c9b76bd58f24cf08bc5231f615eb8d1844f4e21edb6bee35",
+    "final_source_build": "Sprint1_Build_009"
+  },
+  {
+    "path": "apps/request-employee/README.md",
+    "sha256": "35fb02a5c2ec8baf8ea98cfb3b52e12a903e0e1ba6bbb17db3a8952b96891bb8",
+    "final_source_build": "Sprint1_Build_005"
+  },
+  {
+    "path": "apps/request-employee/README_BUILD006.md",
+    "sha256": "6d47f574d8eee509b2e8231e902c7698bc250470f54010b532880451f6768378",
+    "final_source_build": "Sprint1_Build_006"
+  },
+  {
+    "path": "apps/request-employee/README_BUILD007.md",
+    "sha256": "64b0763ce4d7f48de7c276ed093174b777512317fa932f4f9b1c9a8197e7fa3a",
+    "final_source_build": "Sprint1_Build_007"
+  },
+  {
+    "path": "apps/request-employee/README_BUILD008.md",
+    "sha256": "2c1e8849a9930ada21240caea822c4c7fd595a0ba20bb15e28b60c13b4e523ff",
+    "final_source_build": "Sprint1_Build_008"
+  },
+  {
+    "path": "apps/request-employee/requirements.txt",
+    "sha256": "bccaab7775aface35c552d1c7ecc1f3bcae8ee49f9e0ed8df06b7adcce0f55e8",
+    "final_source_build": "Sprint1_Build_008"
+  },
+  {
+    "path": "apps/request-employee/src/batch.py",
+    "sha256": "9605a44351d5a92085a8a39b9addea4f23ec5882a9bce217a1f16dafedbd7a7a",
+    "final_source_build": "Sprint1_Build_011"
+  },
+  {
+    "path": "apps/request-employee/src/batch_main.py",
+    "sha256": "fae386c40fd1ca1e6001ee23693f287fd9e904024ef63d2940a94324fd7d2857",
+    "final_source_build": "Sprint1_Build_007"
+  },
+  {
+    "path": "apps/request-employee/src/batch_stable.py",
+    "sha256": "8425cc133ec28e59553be5bc1e8186bd04e53470a0f06347dbe95f5cab6fef26",
+    "final_source_build": "Sprint1_Build_014"
+  },
+  {
+    "path": "apps/request-employee/src/batch_stable_main.py",
+    "sha256": "a5296132498d97e3bfd5056eec3b9712823247f600589acd47d8633d46276be5",
+    "final_source_build": "Sprint1_Build_014"
+  },
+  {
+    "path": "apps/request-employee/src/compare/compare_engine.py",
+    "sha256": "32b0001667d6f3029a661b59c4ba05c30cac1083e8b6760138ae3136ae02cb33",
+    "final_source_build": "Sprint1_Build_007"
+  },
+  {
+    "path": "apps/request-employee/src/compare/difference_classifier.py",
+    "sha256": "60adad2a6b4551875ea42a69b213917918fc012db79c8971fd1553d0edc9ac0e",
+    "final_source_build": "Sprint1_Build_013"
+  },
+  {
+    "path": "apps/request-employee/src/compare/line_matcher.py",
+    "sha256": "42dba4e799ec09247c6c76498729e653e724962a6b020c3625ed11bb71fc6c09",
+    "final_source_build": "Sprint1_Build_013"
+  },
+  {
+    "path": "apps/request-employee/src/compare/severity.py",
+    "sha256": "96d469cfa55fe6c41e0b7155c57f686eb19d99c34a12e97b1565fcb948e4c3b5",
+    "final_source_build": "Sprint1_Build_007"
+  },
+  {
+    "path": "apps/request-employee/src/database/connection.py",
+    "sha256": "40ec76fce3e5df271b8d1deffe5f06df8fda1af9049a141a27780db0a8afa9d2",
+    "final_source_build": "Sprint1_Build_009"
+  },
+  {
+    "path": "apps/request-employee/src/database/repository.py",
+    "sha256": "17ce198c031eca6fc718e6d9c9086cf75d1de78da58837ba82cae3ea9a7c0405",
+    "final_source_build": "Sprint1_Build_014"
+  },
+  {
+    "path": "apps/request-employee/src/diagnostics/parser_diagnostics.py",
+    "sha256": "a1d2154e1b0412122ffab970a61e6384f84a768b363d8ea3d40c080616bbe978",
+    "final_source_build": "Sprint1_Build_011"
+  },
+  {
+    "path": "apps/request-employee/src/diagnostics/raw_export.py",
+    "sha256": "62a9d6418e26b3ac2d6573bb99f6fc6e8f7d2cb8ef338a5ced3a52581fd8862c",
+    "final_source_build": "Sprint1_Build_012"
+  },
+  {
+    "path": "apps/request-employee/src/io/job_fingerprint.py",
+    "sha256": "b18263b8a6d981c78c7a87382a5d71f43e64c7f8254bfeab643771248f596213",
+    "final_source_build": "Sprint1_Build_014"
+  },
+  {
+    "path": "apps/request-employee/src/io/job_registry.py",
+    "sha256": "305465dc38dc5dd874314c016bd8689416a913a12b71625b8919de5ba3b31a0d",
+    "final_source_build": "Sprint1_Build_014"
+  },
+  {
+    "path": "apps/request-employee/src/io/json_store.py",
+    "sha256": "134f061d46423f0deb53e9de9f40a412fdcd929ab7a709ef69c73a345f509a8a",
+    "final_source_build": "Sprint1_Build_006"
+  },
+  {
+    "path": "apps/request-employee/src/logging_config.py",
+    "sha256": "89b498b65fa0d7341045854f260d4ff107acfe351b5072168b049e8ca25d4231",
+    "final_source_build": "Sprint1_Build_006"
+  },
+  {
+    "path": "apps/request-employee/src/main.py",
+    "sha256": "828b012ddc8c512a14b61bdf7dddf499ce83b0e295871a4467c80c92d84c4999",
+    "final_source_build": "Sprint1_Build_005"
+  },
+  {
+    "path": "apps/request-employee/src/models/request.py",
+    "sha256": "25e77779c6e366ef5d5ab9c951f0ba07857ebda621dfa8df411703f48b0e935e",
+    "final_source_build": "Sprint1_Build_005"
+  },
+  {
+    "path": "apps/request-employee/src/pairing/file_pairer.py",
+    "sha256": "42d2c9a6ecbda33171be7e4701710b37036170f020a4efc36138d5b3fcae6292",
+    "final_source_build": "Sprint1_Build_007"
+  },
+  {
+    "path": "apps/request-employee/src/parser/excel_parser.py",
+    "sha256": "56d080ad1b43f6ad31d5d7b42d73a297a3f4e32ebcf38db3978a5a4b606f2d0f",
+    "final_source_build": "Sprint1_Build_005"
+  },
+  {
+    "path": "apps/request-employee/src/parser/field_mapper.py",
+    "sha256": "f59d88f11534dce3d8065bae1c9abe4721dc2b2b6d93dffa624adc7437b0d846",
+    "final_source_build": "Sprint1_Build_001"
+  },
+  {
+    "path": "apps/request-employee/src/parser/normalizer.py",
+    "sha256": "524d723339c88a890fed2152a2a4ed7688e6ec66d1eebbf185d3d96bd4fe95b2",
+    "final_source_build": "Sprint1_Build_005"
+  },
+  {
+    "path": "apps/request-employee/src/parser/pdf_parser.py",
+    "sha256": "52f8d3d320182486c651b8dbbce82e47f260e9a527c4edc1adf02e2b088f19d7",
+    "final_source_build": "Sprint1_Build_005"
+  },
+  {
+    "path": "apps/request-employee/src/parser/pdf_text_extractor.py",
+    "sha256": "fe5ed8e5f9996a423157c6865c9c3d0fe2557cf53ca712b236e69e1cad53e915",
+    "final_source_build": "Sprint1_Build_004"
+  },
+  {
+    "path": "apps/request-employee/src/parser/tokyo_koibito_excel_parser.py",
+    "sha256": "adf90621b655765753860f252d3c1ed7ec24b68f300e38fb17a83fa5b7ff1fad",
+    "final_source_build": "Sprint1_Build_008"
+  },
+  {
+    "path": "apps/request-employee/src/parser/tokyo_koibito_pdf_parser.py",
+    "sha256": "c9e6292f7c34429e475c98927324c76fbf5062f8ffa0a38e4ab6c25c8537e799",
+    "final_source_build": "Sprint1_Build_011"
+  },
+  {
+    "path": "apps/request-employee/src/report/diagnostics_report.py",
+    "sha256": "b51aca0b828aae4f71857df646652a083f69c85b23cdc6dd4079ebd81fd95fe6",
+    "final_source_build": "Sprint1_Build_011"
+  },
+  {
+    "path": "apps/request-employee/src/report/difference_report.py",
+    "sha256": "a86aa9896a4539a873ca89109447db39f7087836bb751a1b95b4b781d07bef79",
+    "final_source_build": "Sprint1_Build_007"
+  },
+  {
+    "path": "apps/request-employee/src/report/html_report.py",
+    "sha256": "eca1d3525a93682edd2d1e4ef8d728cb80316d3540afc4e85e7306aa71a95a25",
+    "final_source_build": "Sprint1_Build_007"
+  },
+  {
+    "path": "apps/request-employee/src/report/report_generator.py",
+    "sha256": "2392c300cd3165fa80f46b2fd3c12a82807ef3c80a821131ab5d278bbb368349",
+    "final_source_build": "Sprint1_Build_003"
+  },
+  {
+    "path": "apps/request-employee/src/repository/request_repository.py",
+    "sha256": "27689f7069db0c5a70860bfdca1e033ad769ad87ce0e7a31453769d8c71e291b",
+    "final_source_build": "Sprint1_Build_003"
+  },
+  {
+    "path": "apps/request-employee/src/tokyo_main.py",
+    "sha256": "b41729dcac175e44b330d4b20a05dc09cd37ab913db166b067d3fcfb3431b2be",
+    "final_source_build": "Sprint1_Build_013"
+  },
+  {
+    "path": "apps/request-employee/src/validate_output_main.py",
+    "sha256": "f1a7a3f4b602ee0de2cdddb5017e3959dcff445f9e4396f691ac1fb05dea6f0a",
+    "final_source_build": "Sprint1_Build_010"
+  },
+  {
+    "path": "apps/request-employee/src/validation/acceptance_score.py",
+    "sha256": "a19509b75cdd594765ce726e485e261ed549f3e998f8b02d1756b144949db509",
+    "final_source_build": "Sprint1_Build_012"
+  },
+  {
+    "path": "apps/request-employee/src/validation/reconciliation.py",
+    "sha256": "32fa7232ada76f02ddba42060d0bcf552e88da979a4354ead6d2a293805f5d85",
+    "final_source_build": "Sprint1_Build_013"
+  },
+  {
+    "path": "apps/request-employee/src/validation/run_result_validator.py",
+    "sha256": "40b9f07b9de2541aced74609502116ad92c38099a51be1e706fcf04d36909c99",
+    "final_source_build": "Sprint1_Build_010"
+  },
+  {
+    "path": "apps/request-employee/tests/test_acceptance_score.py",
+    "sha256": "c37f896799176f50a571486341da4e80d806a28109fc9f5fed0be2443954d4ea",
+    "final_source_build": "Sprint1_Build_012"
+  },
+  {
+    "path": "apps/request-employee/tests/test_compare_engine.py",
+    "sha256": "a031f41e8585c02e69f2480a8fc2fd9efbb0e62c13f616bfee94322ff83b0039",
+    "final_source_build": "Sprint1_Build_005"
+  },
+  {
+    "path": "apps/request-employee/tests/test_difference_classifier.py",
+    "sha256": "72d5e31b4695bfe25a1896ae4fa80652dbabfab7ecd19743b58e982b41934f96",
+    "final_source_build": "Sprint1_Build_014"
+  },
+  {
+    "path": "apps/request-employee/tests/test_file_pairer.py",
+    "sha256": "b74eeeb8733c35ea826618e6e2c4a0df96586597ca2ff459624b84f5b76da000",
+    "final_source_build": "Sprint1_Build_007"
+  },
+  {
+    "path": "apps/request-employee/tests/test_job_registry.py",
+    "sha256": "f1412e176ac5ad1519a2271db8fae5704500bf203dd9a79982ae6f66c81d937e",
+    "final_source_build": "Sprint1_Build_014"
+  },
+  {
+    "path": "apps/request-employee/tests/test_line_matcher.py",
+    "sha256": "61b1376d38d5cb225369a81ca1fc7c372a8cd77130bca5952cc0e4b8b0375d8a",
+    "final_source_build": "Sprint1_Build_006"
+  },
+  {
+    "path": "apps/request-employee/tests/test_normalizer.py",
+    "sha256": "709ece70fcd80f85bdadcf574dcfc2ad9caa7a3247c241c523163f9326fe8a77",
+    "final_source_build": "Sprint1_Build_005"
+  },
+  {
+    "path": "apps/request-employee/tests/test_reconciliation.py",
+    "sha256": "8b9e8418bf6e72bdc015ec8026c487f5db5889da1d90f4d2fc9555177bd64fb1",
+    "final_source_build": "Sprint1_Build_013"
+  },
+  {
+    "path": "apps/request-employee/tests/test_repository_smoke.py",
+    "sha256": "aae7fd8a47da8b1b22f2d6a0287a7c9b991a1cf0847542b0587b6bfdea5497fe",
+    "final_source_build": "Sprint1_Build_009"
+  },
+  {
+    "path": "database/001_init.sql",
+    "sha256": "7192e71474ffe8febe33cc5ed02f49e1b46de52de606715389b32b446cfa0196",
+    "final_source_build": "Sprint1_Build_001"
+  },
+  {
+    "path": "database/002_compare_result.sql",
+    "sha256": "0ef38790ccf879c591ed697e3abd0804fb00b8eb89b8770df3709da187310fbd",
+    "final_source_build": "Sprint1_Build_002"
+  },
+  {
+    "path": "database/003_request_tables.sql",
+    "sha256": "d78234c370d0613c5d247957d6c9adf88539204f189b8008e7d20028eddc2e14",
+    "final_source_build": "Sprint1_Build_003"
+  },
+  {
+    "path": "database/004_indexes.sql",
+    "sha256": "5fa3e0f7dfdd1f8c9fe898a2e779411fcfb96be06d82d717b243f87d5e53cbff",
+    "final_source_build": "Sprint1_Build_004"
+  },
+  {
+    "path": "database/schema/005_request_employee_tables.sql",
+    "sha256": "8c339bd061e180844c240eab6eaa98ba94f403f5cc23aca511dcbdb0d7e14a5d",
+    "final_source_build": "Sprint1_Build_008"
+  },
+  {
+    "path": "docker/docker-compose.request-db.yml",
+    "sha256": "fe1c06b98215c79ec0f7a90a972228b9d07707ab9b520ec41abeca15ab83fddc",
+    "final_source_build": "Sprint1_Build_009"
+  },
+  {
+    "path": "docker/docker-compose.yml",
+    "sha256": "f766696e32043b4e5d19c6f444d2cf2a8d07760f8bca69e139069b8467b28bbd",
+    "final_source_build": "Sprint1_Build_003"
+  },
+  {
+    "path": "docs/BUILD004.md",
+    "sha256": "25271aff5afe0d40efc5ddaaf9af4a439225f5da23dc4ec7a155bff79f746047",
+    "final_source_build": "Sprint1_Build_004"
+  },
+  {
+    "path": "docs/BUILD005.md",
+    "sha256": "c58a0eb38783cdabc47ae70e1a3141a0ced7cc264b0cb653069b90eacb1e207c",
+    "final_source_build": "Sprint1_Build_005"
+  },
+  {
+    "path": "docs/BUILD006.md",
+    "sha256": "f33400c13bf9c358588e24fbe53b611985e591f1562c69837229e8e540c5cd7e",
+    "final_source_build": "Sprint1_Build_006"
+  },
+  {
+    "path": "docs/BUILD007.md",
+    "sha256": "b9e08896182f58024a084cd8f537173f169d5eaae462760c68c01a5fded3a2ea",
+    "final_source_build": "Sprint1_Build_007"
+  },
+  {
+    "path": "docs/BUILD008.md",
+    "sha256": "0ac26fdcfa6ec5ad5df412861c829946077de45f09057db4016522aeac39ef07",
+    "final_source_build": "Sprint1_Build_008"
+  },
+  {
+    "path": "docs/BUILD009.md",
+    "sha256": "5ef84efb0d471893306159033412b1387442aca4094ede9103398e778d6826ef",
+    "final_source_build": "Sprint1_Build_009"
+  },
+  {
+    "path": "docs/BUILD010.md",
+    "sha256": "e60bd1603f222eac6c397e54354b49059f3618e68b489e819b7ba700d057add7",
+    "final_source_build": "Sprint1_Build_010"
+  },
+  {
+    "path": "docs/BUILD011.md",
+    "sha256": "cecba7d8139dff48ed827173d69aa1debc26b5ed87fdff54d615055cd4029a04",
+    "final_source_build": "Sprint1_Build_011"
+  },
+  {
+    "path": "docs/BUILD012.md",
+    "sha256": "319bbe3940b178733ba5f0d9e946f462184200f1c20debe83fbb9cd2b4dd2399",
+    "final_source_build": "Sprint1_Build_012"
+  },
+  {
+    "path": "docs/BUILD013.md",
+    "sha256": "30d1b84a4f4ce78340b3278baf5ff9c4778737a1aa2792dcc52bc00f7bf318c3",
+    "final_source_build": "Sprint1_Build_013"
+  },
+  {
+    "path": "docs/BUILD014.md",
+    "sha256": "50cca7315b05759a4e7e7d6d9544b8cf169331de96aa20674a7405c57bfc4c6d",
+    "final_source_build": "Sprint1_Build_014"
+  },
+  {
+    "path": "docs/BUILD015.md",
+    "sha256": "e4690cbccb185221179b8a61e1fc47336a5adaf5c538bbf17a1148b992b8d53b",
+    "final_source_build": "Sprint1_Build_015_Pilot"
+  },
+  {
+    "path": "docs/BUILD_NOTES.md",
+    "sha256": "31dd82da647d496af300b4489c41ac45b04f5a2ead2f90def12eae90c7fc2e5e",
+    "final_source_build": "Sprint1_Build_002"
+  },
+  {
+    "path": "docs/request-employee/ACCEPTANCE_CHECKLIST.md",
+    "sha256": "f8fbeba1f6399543e476a8eb5801ae1071899eda8c44e993409313814ee5fa54",
+    "final_source_build": "Sprint1_Build_010"
+  },
+  {
+    "path": "docs/request-employee/BUILD014_TEST_PLAN.md",
+    "sha256": "40776444f97e129efdc50ee05ea81650d475dc554ba9f2c18b71475c7ccf920c",
+    "final_source_build": "Sprint1_Build_014"
+  },
+  {
+    "path": "docs/request-employee/PILOT_ACCEPTANCE_GATE.md",
+    "sha256": "4a4fa5d1ddf51bb84ceda9090b8d2307b7856bd075c5467fa282017ef65b520b",
+    "final_source_build": "Sprint1_Build_015_Pilot"
+  },
+  {
+    "path": "docs/request-employee/PILOT_OPERATOR_GUIDE.md",
+    "sha256": "d2a1a62d2530db12730459fc2a4dc2d3d2d11057d24ba09904d2458c6d3979ba",
+    "final_source_build": "Sprint1_Build_015_Pilot"
+  },
+  {
+    "path": "docs/request-employee/ROLLBACK.md",
+    "sha256": "ba840250aed12f486cf69c10d53c6c36d241b3fe481956ddffd70f393f400b88",
+    "final_source_build": "Sprint1_Build_015_Pilot"
+  },
+  {
+    "path": "docs/request-employee/RUNBOOK.md",
+    "sha256": "ab7e5e005cf1cab94002e8a5409ab47ad40a27134f238b8fc8787cdccff29341",
+    "final_source_build": "Sprint1_Build_010"
+  },
+  {
+    "path": "scripts/request-check-folders.ps1",
+    "sha256": "8ef4358b79352e1b793d3b0e26e69c04eafecf67f01a3c9bb1a6103ee77ec526",
+    "final_source_build": "Sprint1_Build_010"
+  },
+  {
+    "path": "scripts/request-init-db.ps1",
+    "sha256": "bb899c88f69cfef34bf71eb23967bcd60e610d1e2d7b25596d89673b9a975f50",
+    "final_source_build": "Sprint1_Build_009"
+  },
+  {
+    "path": "scripts/request-open-output.ps1",
+    "sha256": "72883af591d999d25c8eff9c1396bcb587d4ddb03f18c84ddac0c5dc965eaa92",
+    "final_source_build": "Sprint1_Build_010"
+  },
+  {
+    "path": "scripts/request-pilot-rollback.ps1",
+    "sha256": "20f9f0588a57c565e2d9df1067239fb96de03d0d79aa5da3298e9c8f19ed62ab",
+    "final_source_build": "Sprint1_Build_015_Pilot"
+  },
+  {
+    "path": "scripts/request-pilot-start.ps1",
+    "sha256": "5ba04b86697d1f0c9ca2e76aa7ac028bbba9bd460553bdb4d233e19925b238d1",
+    "final_source_build": "Sprint1_Build_015_Pilot"
+  },
+  {
+    "path": "scripts/request-pilot-status.ps1",
+    "sha256": "97dadc7fe1467c88b97f8d0dc3048cf78e62a5a5b0a3598c5ead8eb799c72679",
+    "final_source_build": "Sprint1_Build_015_Pilot"
+  },
+  {
+    "path": "scripts/request-preflight.ps1",
+    "sha256": "d33dd137dfcbdf2a0ef3a7b81cbe2b9c86443bf75bef657293f0f4212827f38a",
+    "final_source_build": "Sprint1_Build_015_Pilot"
+  },
+  {
+    "path": "scripts/request-run-batch.ps1",
+    "sha256": "3151781128f1a45b59c2b38f705e06b5c62908c87b2c38a89a79ea8978bb6280",
+    "final_source_build": "Sprint1_Build_010"
+  },
+  {
+    "path": "scripts/request-run-build012.ps1",
+    "sha256": "0e7de50650c2dc96c2b1e335b13ada5d907edbad513b21fe28579c571355dce1",
+    "final_source_build": "Sprint1_Build_012"
+  },
+  {
+    "path": "scripts/request-run-stable-batch.ps1",
+    "sha256": "9809cec614f012ea3b83d8cb5dc83ec28008d4b855ef7385b0cc16dbaaaa8eaa",
+    "final_source_build": "Sprint1_Build_014"
+  },
+  {
+    "path": "scripts/request-run-tokyo.ps1",
+    "sha256": "6b09a5a4aa665f72ad4dda13dfc9076d24eca9fe41313d5a1f3e8d640565747c",
+    "final_source_build": "Sprint1_Build_009"
+  },
+  {
+    "path": "scripts/request-smoke-test.ps1",
+    "sha256": "97ad7da794f78e10f5bcb262a1afa4c83192e3d4af16dc3445785f8bb656b5f0",
+    "final_source_build": "Sprint1_Build_014"
+  },
+  {
+    "path": "scripts/request-validate-output.ps1",
+    "sha256": "14a628d75a7ef2a39054fc0b465cc7f6abbabd2a9e4e9c0a27fe54104f400b66",
+    "final_source_build": "Sprint1_Build_010"
+  },
+  {
+    "path": "tests/README.md",
+    "sha256": "de71465c027659b0b260c6fd866fd72dd58a5a15cd1c474fe968c03bf087daa9",
+    "final_source_build": "Sprint1_Build_003"
+  }
+]

@@ -1,2 +1,1 @@
-# Sprint1 Core
-Initial runnable skeleton.
+# S1-003 + S1-004

@@ -1,0 +1,26 @@
+{
+  "name": "TLC Request Employee",
+  "version": "0.1.0-pilot",
+  "package_type": "full-cumulative-pilot",
+  "merge_policy": "Build001→Build015 chronological merge; later same-path file overwrites earlier file",
+  "source_builds": [
+    "Sprint1_Build_001",
+    "Sprint1_Build_002",
+    "Sprint1_Build_003",
+    "Sprint1_Build_004",
+    "Sprint1_Build_005",
+    "Sprint1_Build_006",
+    "Sprint1_Build_007",
+    "Sprint1_Build_008",
+    "Sprint1_Build_009",
+    "Sprint1_Build_010",
+    "Sprint1_Build_011",
+    "Sprint1_Build_012",
+    "Sprint1_Build_013",
+    "Sprint1_Build_014",
+    "Sprint1_Build_015_Pilot"
+  ],
+  "generated_at_utc": "2026-07-04T15:27:05.060600+00:00",
+  "status": "controlled-pilot",
+  "production_note": "Not approved for unattended production use"
+}

@@ -1,0 +1,15 @@
+{
+  "name": "TLC Platform Request Employee Pilot",
+  "version": "0.1.0-pilot",
+  "sprint": "Sprint1",
+  "build": "015",
+  "status": "pilot",
+  "scope": [
+    "Request Employee",
+    "PDF/Excel compare",
+    "Difference reports",
+    "Stable batch",
+    "Pilot runbook"
+  ],
+  "not_for": "unattended production"
+}
