@@ -1,2 +1,2 @@
-# TLC Platform
-Enterprise AI Platform
+# Sprint1 Core
+Initial runnable skeleton.
