@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 import argparse,json
 from pathlib import Path
 from parser.tokyo_koibito_pdf_parser import TokyoKoibitoPDFParser
@@ -11,7 +11,7 @@ from validation.acceptance_score import acceptance_score
 from validation.reconciliation import reconcile
 from report.difference_report import write_difference_report
 from report.html_report import write_html_report
-from io.json_store import save_json
+from tlc_io.json_store import save_json
 
 def main():
     p=argparse.ArgumentParser();p.add_argument("--pdf",required=True);p.add_argument("--excel",required=True)
@@ -30,3 +30,4 @@ def main():
     write_difference_report(diffs,out/"differences.xlsx");write_html_report(diffs,out/"differences.html")
     print(json.dumps({"request_no":pdf.request_no,"differences":len(diffs),"reconciliation":recon,"acceptance":score,"output":str(out)},ensure_ascii=False,indent=2))
 if __name__=="__main__":main()
+

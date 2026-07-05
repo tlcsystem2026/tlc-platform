@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 import json
 import logging
 from parser.pdf_parser import PDFParser
@@ -8,7 +8,7 @@ from report.difference_report import write_difference_report
 from report.html_report import write_html_report
 from report.diagnostics_report import write_diagnostics_workbook
 from diagnostics.parser_diagnostics import document_diagnostics
-from io.json_store import save_json
+from tlc_io.json_store import save_json
 from pairing.file_pairer import FilePairer
 
 log = logging.getLogger(__name__)
@@ -63,3 +63,4 @@ def process_directory(pdf_dir, excel_dir, output_dir, money_tolerance="0"):
     save_json(diagnostics_rows, out / "parser_diagnostics.json")
     write_diagnostics_workbook(diagnostics_rows, out / "parser_diagnostics.xlsx")
     return results
+

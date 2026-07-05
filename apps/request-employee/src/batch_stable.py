@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 from pathlib import Path
 import logging
 
@@ -12,9 +12,9 @@ from validation.reconciliation import reconcile
 from validation.acceptance_score import acceptance_score
 from report.difference_report import write_difference_report
 from report.html_report import write_html_report
-from io.json_store import save_json
-from io.job_fingerprint import pair_fingerprint
-from io.job_registry import JobRegistry
+from tlc_io.json_store import save_json
+from tlc_io.job_fingerprint import pair_fingerprint
+from tlc_io.job_registry import JobRegistry
 
 log = logging.getLogger(__name__)
 
@@ -82,3 +82,4 @@ def process_directory_stable(pdf_dir, excel_dir, output_dir, money_tolerance="0"
 
     save_json(results, out / "batch_stable_summary.json")
     return results
+
