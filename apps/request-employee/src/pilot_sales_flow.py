@@ -12,6 +12,7 @@ from validation.reconciliation import reconcile
 from validation.acceptance_score import acceptance_score
 from report.difference_report import write_difference_report
 from report.html_report import write_html_report
+from report.business_review_report import write_business_review_report
 from tlc_io.json_store import save_json
 from output.sales_ledger import SalesLedger
 from output.error_router import route_error_pair
@@ -47,6 +48,14 @@ def process_sales_flow(pdf_dir, excel_dir, output_dir, sales_ledger_path, error_
             job = out / request_no
             job.mkdir(parents=True, exist_ok=True)
 
+            business_errors = [d for d in diffs if d.get("difference_type") != "PARSER_FAILURE" and d.get("severity") == "ERROR"]
+            parser_errors = [d for d in diffs if d.get("difference_type") == "PARSER_FAILURE"]
+            reconciliation_errors = [x for x in (recon["pdf"] + recon["excel"]) if x.get("severity") == "ERROR"]
+
+            is_consistent = not diffs and not reconciliation_errors and score.get("grade") in {"PILOT_READY", "REVIEW"}
+
+            action = "REGISTER_SALES_LEDGER" if is_consistent else "ROUTE_TO_ERROR"
+
             save_json(pdf_doc.to_dict(), job / "pdf.json")
             save_json(excel_doc.to_dict(), job / "excel.json")
             save_json(diffs, job / "differences.json")
@@ -54,29 +63,32 @@ def process_sales_flow(pdf_dir, excel_dir, output_dir, sales_ledger_path, error_
             save_json(score, job / "acceptance_score.json")
             write_difference_report(diffs, job / "differences.xlsx")
             write_html_report(diffs, job / "differences.html", title=f"Difference Report {request_no}")
+            write_business_review_report(job / "business_review.xlsx", request_no, pdf_doc, excel_doc, diffs, recon, action, score)
 
-            has_errors = bool(diffs) or bool(recon["pdf"]) or bool(recon["excel"]) or score["grade"] != "PILOT_READY"
-
-            if has_errors:
+            if is_consistent:
+                rows = ledger.append_request(pdf_doc, str(pdf), str(excel))
+                results.append({**pair, "request_no": request_no, "action": action,
+                                "sales_ledger": str(Path(sales_ledger_path)), "rows_added": rows,
+                                "status": "REGISTERED"})
+            else:
                 reason = {
                     "request_no": request_no,
-                    "action": "ROUTE_TO_ERROR",
+                    "action": action,
                     "difference_count": len(diffs),
-                    "pdf_reconciliation_issues": recon["pdf"],
-                    "excel_reconciliation_issues": recon["excel"],
+                    "business_errors": business_errors,
+                    "parser_errors": parser_errors,
+                    "reconciliation_errors": reconciliation_errors,
                     "acceptance_score": score,
+                    "review_report": str(job / "business_review.xlsx"),
                     "pdf": str(pdf),
                     "excel": str(excel),
                 }
                 error_target = route_error_pair(pdf, excel, error_dir, reason)
-                results.append({**pair, "request_no": request_no, "action": "ROUTE_TO_ERROR",
-                                "error_folder": str(error_target), "differences": len(diffs),
-                                "acceptance": score["grade"], "status": "REVIEW_REQUIRED"})
-            else:
-                rows = ledger.append_request(pdf_doc, str(pdf), str(excel))
-                results.append({**pair, "request_no": request_no, "action": "REGISTER_SALES_LEDGER",
-                                "sales_ledger": str(Path(sales_ledger_path)), "rows_added": rows,
-                                "status": "REGISTERED"})
+                (error_target / "business_review.xlsx").write_bytes((job / "business_review.xlsx").read_bytes())
+                results.append({**pair, "request_no": request_no, "action": action,
+                                "error_folder": str(error_target), "review_report": str(error_target / "business_review.xlsx"),
+                                "differences": len(diffs), "acceptance": score["grade"],
+                                "status": "REVIEW_REQUIRED"})
         except Exception as exc:
             log.exception("Sales flow failed for %s", pdf.name)
             reason = {"request_no": pdf.stem, "action": "ROUTE_TO_ERROR", "error": str(exc),

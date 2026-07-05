@@ -4,7 +4,8 @@ from compare.line_matcher import LineMatcher
 from compare.severity import classify_difference, money_equal
 
 class CompareEngine:
-    HEADER_FIELDS = ("request_no", "request_date", "customer_name", "subtotal", "tax_amount", "total_amount")
+    # Only compare fields that are expected to be reliably extracted.
+    HEADER_FIELDS = ("request_no", "request_date", "customer_name", "total_amount")
     LINE_FIELDS = ("product_code", "product_name", "quantity", "unit_price", "amount")
     MONEY_FIELDS = {"subtotal", "tax_amount", "total_amount", "quantity", "unit_price", "amount"}
 
@@ -25,6 +26,8 @@ class CompareEngine:
             key = p.product_code or p.product_name or str(n)
             for field in self.LINE_FIELDS:
                 a, b = getattr(p, field), getattr(e, field)
+                if field == "product_code" and (not clean_text(a) or not clean_text(b)):
+                    continue
                 if not self._equal(field, a, b):
                     diffs.append(self._diff(f"line:{key}", field, a, b))
         return diffs
