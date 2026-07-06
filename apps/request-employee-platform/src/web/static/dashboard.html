@@ -1,1 +1,66 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"/><title>TLC Business Navigator</title><style>body{margin:0;font-family:"Microsoft YaHei","Segoe UI",sans-serif;background:#f6f8fb;color:#1f2937}header{padding:24px 32px;background:linear-gradient(90deg,#1e3a8a,#2563eb);color:white}main{padding:24px 32px;max-width:1440px;margin:0 auto}.grid{display:grid;gap:16px}.kpi{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}.layout{grid-template-columns:1.2fr .8fr}.card{background:white;border-radius:16px;padding:18px;box-shadow:0 8px 24px rgba(16,24,40,.06);border:1px solid #e5e7eb}.value{font-size:26px;font-weight:700}.desc{color:#667085}.todo{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid #eef2f7}.badge{border-radius:999px;padding:4px 10px;color:white;font-weight:700}.high{background:#d97706}.normal{background:#2563eb}.nav{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}a{text-decoration:none;color:inherit}.navitem{border:1px solid #e5e7eb;border-radius:14px;padding:14px;background:#fff;min-height:112px}.cat{font-size:12px;color:#2563eb;background:#eff6ff;border-radius:999px;padding:3px 8px}</style></head><body><header><h1>TLC Business Navigator</h1><p>今日TODO・业绩・异常・业务入口｜Build030 TRUE FULL</p></header><main><section class="grid kpi" id="kpis"></section><section class="grid layout" style="margin-top:16px"><div class="card"><h2>今日TODO</h2><div id="todos"></div></div><div class="card"><h2>重要异常</h2><div id="alerts"></div></div></section><section class="card" style="margin-top:16px"><h2>业务入口</h2><div class="grid nav" id="navigator"></div></section><div class="desc" id="footer" style="margin-top:20px"></div></main><script>async function loadDashboard(){let r=await fetch('/api/dashboard/summary');let d=await r.json();kpis.innerHTML=d.performance.map(x=>`<a class="card" href="${x.href}"><div class="desc">${x.title}</div><div class="value">${x.value} ${x.unit||''}</div><div>${x.trend||''}</div></a>`).join('');let th=x=>`<a class="todo" href="${x.href}"><span>${x.title}</span><span class="badge ${x.priority}">${x.count}</span></a>`;todos.innerHTML=d.todos.map(th).join('');alerts.innerHTML=d.alerts.map(th).join('');navigator.innerHTML=d.navigator.map(x=>`<a class="navitem" href="${x.href}"><span class="cat">${x.category}</span><h3>${x.title}</h3><div class="desc">${x.description}</div></a>`).join('');footer.textContent=`Environment: ${d.environment} | Date: ${d.date} | Build030`}loadDashboard()</script></body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>TLC Business Navigator</title>
+<style>
+:root{--bg:#f6f8fb;--card:#fff;--ink:#1f2937;--muted:#667085;--blue:#2563eb;--indigo:#4f46e5;--red:#dc2626;--amber:#d97706;--green:#059669;--border:#e5e7eb}
+*{box-sizing:border-box}body{margin:0;font-family:"Microsoft YaHei","Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}
+header{padding:26px 34px;background:linear-gradient(90deg,#172554,#2563eb,#0891b2);color:white}
+header h1{margin:0;font-size:30px}header p{margin:8px 0 0;opacity:.92}
+main{padding:24px 32px;max-width:1500px;margin:0 auto}.grid{display:grid;gap:16px}.kpi{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+.layout{grid-template-columns:1.15fr .85fr;align-items:start}.card{background:white;border:1px solid var(--border);border-radius:18px;padding:18px;box-shadow:0 8px 24px rgba(16,24,40,.06)}
+.card h2{margin:0 0 14px;font-size:18px}.metric .value{font-size:28px;font-weight:800}.unit,.desc{color:var(--muted);font-size:14px}
+.todo{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid #eef2f7;color:inherit;text-decoration:none}.todo:last-child{border-bottom:0}
+.badge{min-width:42px;text-align:center;border-radius:999px;padding:4px 10px;color:white;font-weight:700}.high{background:var(--amber)}.critical{background:var(--red)}.normal{background:var(--blue)}
+.nav{grid-template-columns:repeat(auto-fit,minmax(245px,1fr))}a{color:inherit;text-decoration:none}.navitem{border:1px solid var(--border);border-radius:15px;padding:15px;background:#fff;transition:.15s;min-height:118px}
+.navitem:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(37,99,235,.13);border-color:#bfdbfe}.cat{display:inline-block;font-size:12px;color:var(--blue);background:#eff6ff;border-radius:999px;padding:3px 8px;margin-bottom:8px}
+.pill{display:inline-flex;gap:6px;align-items:center;border-radius:999px;background:#eef2ff;color:#3730a3;padding:5px 10px;font-size:12px;margin:3px 5px 3px 0}
+.agent-grid{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}.agent{border:1px solid var(--border);border-radius:15px;padding:14px;background:linear-gradient(180deg,#fff,#f8fafc)}.agent .name{font-weight:800;margin-bottom:7px}
+.status{display:inline-block;border-radius:999px;padding:3px 8px;font-size:12px;color:white}.running{background:var(--green)}.waiting{background:var(--blue)}.manual{background:var(--amber)}
+input{width:100%;padding:10px 12px;border:1px solid #d0d5dd;border-radius:10px;font-size:14px}label{display:block;margin:10px 0;color:var(--muted);font-size:14px}
+button{border:0;border-radius:10px;padding:11px 16px;background:var(--blue);color:white;font-weight:700;cursor:pointer;margin-right:8px}button.secondary{background:#475467}button.ai{background:var(--indigo)}
+pre{white-space:pre-wrap;background:#101828;color:#d1fadf;padding:14px;border-radius:12px;max-height:420px;overflow:auto}.section{margin-top:16px}.two{grid-template-columns:1fr 1fr}
+@media(max-width:950px){.layout,.two{grid-template-columns:1fr}main{padding:16px}header{padding:20px 16px}}
+</style>
+</head>
+<body>
+<header><h1>TLC Business Navigator</h1><p>今日TODO・经营状态・数字员工・请求书/销售/应收/银行到账・AI业务支持｜Build031R1 Dashboard Recovery</p></header>
+<main>
+<section class="grid kpi" id="kpis"></section>
+<section class="grid layout section"><div class="card"><h2>今日业务TODO</h2><div id="todos"></div></div><div class="card"><h2>重要异常与领导关注</h2><div id="alerts"></div></div></section>
+<section id="digital-employees" class="card section"><h2>数字员工中心</h2><div class="grid agent-grid">
+<div class="agent"><div class="name">请求书核对员</div><span class="status running">运行中</span><p class="desc">PDF/Excel解析、金额核对、异常生成。</p></div>
+<div class="agent"><div class="name">销售登记员</div><span class="status waiting">等待任务</span><p class="desc">一致请求书进入销售数据一览。</p></div>
+<div class="agent"><div class="name">应收管理员</div><span class="status waiting">规划中</span><p class="desc">到期、逾期、部分到账提醒。</p></div>
+<div class="agent"><div class="name">银行到账核对员</div><span class="status manual">需人工确认</span><p class="desc">流水导入、候选匹配、低置信复核。</p></div>
+<div class="agent"><div class="name">异常审核助手</div><span class="status running">运行中</span><p class="desc">生成中文/日文可读差异说明。</p></div>
+<div class="agent"><div class="name">知识库助手</div><span class="status waiting">待接入</span><p class="desc">公司制度、客户规则、业务问答。</p></div>
+</div></section>
+<section class="grid two section"><div id="ai-support" class="card"><h2>AI业务支持系统</h2><span class="pill">AI Server: 待接入健康检查</span><span class="pill">Knowledge Base: 规划中</span><span class="pill">Tools: 规划中</span><span class="pill">Model Service: 规划中</span><p class="desc">下一步把 Linux/UT AI Server、知识库、Tools 与数字员工状态接入这里。</p><button class="ai" onclick="loadOps()">查看下一步AI任务</button></div>
+<div class="card"><h2>系统运维</h2><button onclick="checkRuntime()">检查当前版本</button><button class="secondary" onclick="checkDb()">检查数据库</button><button class="secondary" onclick="location.href='/docs'">API文档</button><pre id="opsOutput" style="display:none"></pre></div></section>
+<section class="card section"><h2>受控部署（TEST）</h2><p class="desc">只允许部署 Y:\TLC-BOS\Downloads 下的 ZIP 包名。不接受路径或任意命令。测试失败不应启动API。</p><label>Package Name<input id="packageName" value="TLC_BUILD031_DASHBOARD_RECOVERY_FULL.zip"/></label><label><input id="runTests" type="checkbox" checked style="width:auto"/> 部署后运行自动测试</label><label><input id="startApi" type="checkbox" style="width:auto"/> 部署后尝试启动API</label><button id="deployBtn" onclick="deployPackage()">部署下载包</button><button class="secondary" onclick="checkRuntime()">检查当前版本</button><pre id="deployOutput" style="display:none"></pre></section>
+
+  <section class="card section" id="static-business-entrances">
+    <h2>核心业务快捷入口</h2>
+    <div class="grid nav">
+      <a class="navitem" href="/review"><span class="cat">业务</span><h3>请求书审核台</h3><div class="desc">PDF/Excel 核对异常、人工处理、领导审核。</div></a>
+      <a class="navitem" href="/sales"><span class="cat">业务</span><h3>销售数据一览</h3><div class="desc">一致请求书进入销售数据库，查询与统计。</div></a>
+      <a class="navitem" href="/dashboard#bank"><span class="cat">财务</span><h3>银行到账核对</h3><div class="desc">流水导入、到账候选匹配、人工确认。</div></a>
+      <a class="navitem" href="/dashboard#digital-employees"><span class="cat">AI</span><h3>AI数字员工</h3><div class="desc">自动处理、异常提示、人工接管状态。</div></a>
+    </div>
+  </section>
+
+<section class="card section"><h2>业务入口</h2><div class="grid nav" id="navigator"></div></section>
+<div class="desc" id="footer" style="margin-top:20px"></div></main>
+<script>
+function show(id,obj){const o=document.getElementById(id);o.style.display='block';o.textContent=typeof obj==='string'?obj:JSON.stringify(obj,null,2)}
+async function loadDashboard(){const r=await fetch('/api/dashboard/summary');const d=await r.json();kpis.innerHTML=d.performance.map(x=>`<a class="card metric" href="${x.href}"><div class="desc">${x.title}</div><div><span class="value">${x.value}</span><span class="unit"> ${x.unit||''}</span></div><div style="color:#059669;font-size:13px">${x.trend||' '}</div></a>`).join('');const item=x=>`<a class="todo" href="${x.href}"><span>${x.title}</span><span class="badge ${x.priority}">${x.count}</span></a>`;todos.innerHTML=d.todos.map(item).join('');alerts.innerHTML=d.alerts.map(item).join('');navigator.innerHTML=d.navigator.map(x=>`<a class="navitem" href="${x.href}"><span class="cat">${x.category}</span><h3 style="margin:0 0 8px">${x.title}</h3><div class="desc">${x.description}</div></a>`).join('');footer.textContent=`Environment: ${d.environment} | Date: ${d.date} | Build031R1 Dashboard Recovery`}
+async function deployPackage(){const pn=packageName.value.trim();if(!/^[A-Za-z0-9_.-]+\.zip$/.test(pn)){alert('请输入 ZIP 包文件名');return}deployBtn.disabled=true;show('deployOutput','部署中，请等待...');try{const r=await fetch('/api/deploy/local',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({package_name:pn,run_tests:runTests.checked,start_api:startApi.checked})});show('deployOutput',await r.json())}catch(e){show('deployOutput',String(e))}finally{deployBtn.disabled=false}}
+async function checkRuntime(){const r=await fetch('/api/system/runtime');const j=await r.json();show('opsOutput',j);show('deployOutput',j)}
+async function checkDb(){const r=await fetch('/api/db/status');show('opsOutput',await r.json())}
+async function loadOps(){const r=await fetch('/api/ops/next-actions');show('opsOutput',await r.json())}
+loadDashboard().catch(e=>document.body.innerHTML='<pre>'+e+'</pre>')
+</script>
+</body></html>
