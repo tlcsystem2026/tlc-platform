@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: tlc_platform_test
+      POSTGRES_USER: tlc_test
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - tlc_pg_test:/var/lib/postgresql/data
+    restart: unless-stopped
+volumes:
+  tlc_pg_test:
