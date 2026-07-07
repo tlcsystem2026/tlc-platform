@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8"/>
@@ -26,56 +26,41 @@ pre{white-space:pre-wrap;background:#101828;color:#d1fadf;padding:14px;border-ra
 </style>
 </head>
 <body>
-<header><h1>TLC Business Navigator</h1><p>莉頑律TODO繝ｻ扈剰是迥ｶ諤√・謨ｰ蟄怜遭蟾･繝ｻ隸ｷ豎ゆｹｦ/髞蜚ｮ/蠎疲噺/體ｶ陦悟芦雍ｦ繝ｻAI荳壼苅謾ｯ謖・ｽ廝uild031R1 Dashboard Recovery</p></header>
+<header><h1>TLC Business Navigator</h1><p>今日TODO・经营状态・数字员工・请求书/销售/应收/银行到账・AI业务支持｜Build031R1 Dashboard Recovery</p></header>
 <main>
 <section class="grid kpi" id="kpis"></section>
-<section class="grid layout section"><div class="card"><h2>莉頑律荳壼苅TODO</h2><div id="todos"></div></div><div class="card"><h2>驥崎ｦ∝ｼょｸｸ荳朱｢・ｯｼ蜈ｳ豕ｨ</h2><div id="alerts"></div></div></section>
-<section id="digital-employees" class="card section"><h2>謨ｰ蟄怜遭蟾･荳ｭ蠢・/h2><div class="grid agent-grid">
-<div class="agent"><div class="name">隸ｷ豎ゆｹｦ譬ｸ蟇ｹ蜻・/div><span class="status running">霑占｡御ｸｭ</span><p class="desc">PDF/Excel隗｣譫舌・≡鬚晄ｸ蟇ｹ縲∝ｼょｸｸ逕滓・縲・/p></div>
-<div class="agent"><div class="name">髞蜚ｮ逋ｻ隶ｰ蜻・/div><span class="status waiting">遲牙ｾ・ｻｻ蜉｡</span><p class="desc">荳閾ｴ隸ｷ豎ゆｹｦ霑帛・髞蜚ｮ謨ｰ謐ｮ荳隗医・/p></div>
-<div class="agent"><div class="name">蠎疲噺邂｡逅・遭</div><span class="status waiting">隗・・荳ｭ</span><p class="desc">蛻ｰ譛溘・ｾ譛溘・Κ蛻・芦雍ｦ謠宣・縲・/p></div>
-<div class="agent"><div class="name">體ｶ陦悟芦雍ｦ譬ｸ蟇ｹ蜻・/div><span class="status manual">髴莠ｺ蟾･遑ｮ隶､</span><p class="desc">豬∵ｰｴ蟇ｼ蜈･縲∝咎牙源驟阪∽ｽ守ｽｮ菫｡螟肴ｸ縲・/p></div>
-<div class="agent"><div class="name">蠑ょｸｸ螳｡譬ｸ蜉ｩ謇・/div><span class="status running">霑占｡御ｸｭ</span><p class="desc">逕滓・荳ｭ譁・譌･譁・庄隸ｻ蟾ｮ蠑りｯｴ譏弱・/p></div>
-<div class="agent"><div class="name">遏･隸・ｺ灘勧謇・/div><span class="status waiting">蠕・磁蜈･</span><p class="desc">蜈ｬ蜿ｸ蛻ｶ蠎ｦ縲∝ｮ｢謌ｷ隗・・縲∽ｸ壼苅髣ｮ遲斐・/p></div>
+<section class="grid layout section"><div class="card"><h2>今日业务TODO</h2><div id="todos"></div></div><div class="card"><h2>重要异常与领导关注</h2><div id="alerts"></div></div></section>
+<section id="digital-employees" class="card section"><h2>数字员工中心</h2><div class="grid agent-grid">
+<div class="agent"><div class="name">请求书核对员</div><span class="status running">运行中</span><p class="desc">PDF/Excel解析、金额核对、异常生成。</p></div>
+<div class="agent"><div class="name">销售登记员</div><span class="status waiting">等待任务</span><p class="desc">一致请求书进入销售数据一览。</p></div>
+<div class="agent"><div class="name">应收管理员</div><span class="status waiting">规划中</span><p class="desc">到期、逾期、部分到账提醒。</p></div>
+<div class="agent"><div class="name">银行到账核对员</div><span class="status manual">需人工确认</span><p class="desc">流水导入、候选匹配、低置信复核。</p></div>
+<div class="agent"><div class="name">异常审核助手</div><span class="status running">运行中</span><p class="desc">生成中文/日文可读差异说明。</p></div>
+<div class="agent"><div class="name">知识库助手</div><span class="status waiting">待接入</span><p class="desc">公司制度、客户规则、业务问答。</p></div>
 </div></section>
-<section class="grid two section"><div id="ai-support" class="card"><h2>AI荳壼苅謾ｯ謖∫ｳｻ扈・/h2><span class="pill">AI Server: 蠕・磁蜈･蛛･蠎ｷ譽譟･</span><span class="pill">Knowledge Base: 隗・・荳ｭ</span><span class="pill">Tools: 隗・・荳ｭ</span><span class="pill">Model Service: 隗・・荳ｭ</span><p class="desc">荳倶ｸ豁･謚・Linux/UT AI Server縲∫衍隸・ｺ薙ゝools 荳取焚蟄怜遭蟾･迥ｶ諤∵磁蜈･霑咎㈹縲・/p><button class="ai" onclick="loadOps()">譟･逵倶ｸ倶ｸ豁･AI莉ｻ蜉｡</button></div>
-<div class="card"><h2>邉ｻ扈溯ｿ千ｻｴ</h2><button onclick="checkRuntime()">譽譟･蠖灘燕迚域悽</button><button class="secondary" onclick="checkDb()">譽譟･謨ｰ謐ｮ蠎・/button><button class="secondary" onclick="location.href='/docs'">API譁・｡｣</button><pre id="opsOutput" style="display:none"></pre></div></section>
-<section class="card section"><h2>蜿玲而驛ｨ鄂ｲ・・EST・・/h2><p class="desc">蜿ｪ蜈∬ｮｸ驛ｨ鄂ｲ Y:\TLC-BOS\Downloads 荳狗噪 ZIP 蛹・錐縲ゆｸ肴磁蜿苓ｷｯ蠕・・莉ｻ諢丞多莉､縲よｵ玖ｯ募､ｱ雍･荳榊ｺ泌星蜉ｨAPI縲・/p><label>Package Name<input id="packageName" value="TLC_BUILD031_DASHBOARD_RECOVERY_FULL.zip"/></label><label><input id="runTests" type="checkbox" checked style="width:auto"/> 驛ｨ鄂ｲ蜷手ｿ占｡瑚・蜉ｨ豬玖ｯ・/label><label><input id="startApi" type="checkbox" style="width:auto"/> 驛ｨ鄂ｲ蜷主ｰ晁ｯ募星蜉ｨAPI</label><button id="deployBtn" onclick="deployPackage()">驛ｨ鄂ｲ荳玖ｽｽ蛹・/button><button class="secondary" onclick="checkRuntime()">譽譟･蠖灘燕迚域悽</button><pre id="deployOutput" style="display:none"></pre></section>
+<section class="grid two section"><div id="ai-support" class="card"><h2>AI业务支持系统</h2><span class="pill">AI Server: 待接入健康检查</span><span class="pill">Knowledge Base: 规划中</span><span class="pill">Tools: 规划中</span><span class="pill">Model Service: 规划中</span><p class="desc">下一步把 Linux/UT AI Server、知识库、Tools 与数字员工状态接入这里。</p><button class="ai" onclick="loadOps()">查看下一步AI任务</button></div>
+<div class="card"><h2>系统运维</h2><button onclick="checkRuntime()">检查当前版本</button><button class="secondary" onclick="checkDb()">检查数据库</button><button class="secondary" onclick="location.href='/docs'">API文档</button><pre id="opsOutput" style="display:none"></pre></div></section>
+<section class="card section"><h2>受控部署（TEST）</h2><p class="desc">只允许部署 Y:\TLC-BOS\Downloads 下的 ZIP 包名。不接受路径或任意命令。测试失败不应启动API。</p><label>Package Name<input id="packageName" value="TLC_BUILD031_DASHBOARD_RECOVERY_FULL.zip"/></label><label><input id="runTests" type="checkbox" checked style="width:auto"/> 部署后运行自动测试</label><label><input id="startApi" type="checkbox" style="width:auto"/> 部署后尝试启动API</label><button id="deployBtn" onclick="deployPackage()">部署下载包</button><button class="secondary" onclick="checkRuntime()">检查当前版本</button><pre id="deployOutput" style="display:none"></pre></section>
 
   <section class="card section" id="static-business-entrances">
-    <h2>譬ｸ蠢・ｸ壼苅蠢ｫ謐ｷ蜈･蜿｣</h2>
+    <h2>核心业务快捷入口</h2>
     <div class="grid nav">
-      <a class="navitem" href="/review"><span class="cat">荳壼苅</span><h3>隸ｷ豎ゆｹｦ螳｡譬ｸ蜿ｰ</h3><div class="desc">PDF/Excel 譬ｸ蟇ｹ蠑ょｸｸ縲∽ｺｺ蟾･螟・炊縲・｢・ｯｼ螳｡譬ｸ縲・/div></a>
-      <a class="navitem" href="/sales"><span class="cat">荳壼苅</span><h3>髞蜚ｮ謨ｰ謐ｮ荳隗・/h3><div class="desc">荳閾ｴ隸ｷ豎ゆｹｦ霑帛・髞蜚ｮ謨ｰ謐ｮ蠎難ｼ梧衍隸｢荳守ｻ溯ｮ｡縲・/div></a>
-      <a class="navitem" href="/dashboard#bank"><span class="cat">雍｢蜉｡</span><h3>體ｶ陦悟芦雍ｦ譬ｸ蟇ｹ</h3><div class="desc">豬∵ｰｴ蟇ｼ蜈･縲∝芦雍ｦ蛟咎牙源驟阪∽ｺｺ蟾･遑ｮ隶､縲・/div></a>
-      <a class="navitem" href="/dashboard#digital-employees"><span class="cat">AI</span><h3>AI謨ｰ蟄怜遭蟾･</h3><div class="desc">閾ｪ蜉ｨ螟・炊縲∝ｼょｸｸ謠千､ｺ縲∽ｺｺ蟾･謗･邂｡迥ｶ諤√・/div></a>
+      <a class="navitem" href="/review"><span class="cat">业务</span><h3>请求书审核台</h3><div class="desc">PDF/Excel 核对异常、人工处理、领导审核。</div></a>
+      <a class="navitem" href="/sales"><span class="cat">业务</span><h3>销售数据一览</h3><div class="desc">一致请求书进入销售数据库，查询与统计。</div></a>
+      <a class="navitem" href="/dashboard#bank"><span class="cat">财务</span><h3>银行到账核对</h3><div class="desc">流水导入、到账候选匹配、人工确认。</div></a>
+      <a class="navitem" href="/dashboard#digital-employees"><span class="cat">AI</span><h3>AI数字员工</h3><div class="desc">自动处理、异常提示、人工接管状态。</div></a>
     </div>
   </section>
 
-<section class="card section"><h2>荳壼苅蜈･蜿｣</h2><div class="grid nav" id="navigator"></div></section>
-<div class="desc" id="footer" style="margin-top:20px"></div><section class="card section" id="feature-progress">
-  <h2>蜉溯・霑帛ｺｦ譬ｸ蟇ｹ陦ｨ</h2>
-  <p class="desc">蜿ｯ鬪梧噺蜉溯・蠢・｡ｻ謠蝉ｾ帶桃菴懈欠蜊暦ｼ帛・蜿｣螻慕､ｺ蠢・｡ｻ譬・ｳｨ譛ｪ螳梧・縲・/p>
-  <div id="featureProgressRows" class="grid nav"></div>
-  <p><a href="/acceptance">謇灘ｼ螳梧紛蜉溯・霑帛ｺｦ譬ｸ蟇ｹ陦ｨ / 謫堺ｽ懈欠蜊・/a></p>
-</section>
-</main>
+<section class="card section"><h2>业务入口</h2><div class="grid nav" id="navigator"></div></section>
+<div class="desc" id="footer" style="margin-top:20px"></div></main>
 <script>
 function show(id,obj){const o=document.getElementById(id);o.style.display='block';o.textContent=typeof obj==='string'?obj:JSON.stringify(obj,null,2)}
 async function loadDashboard(){const r=await fetch('/api/dashboard/summary');const d=await r.json();kpis.innerHTML=d.performance.map(x=>`<a class="card metric" href="${x.href}"><div class="desc">${x.title}</div><div><span class="value">${x.value}</span><span class="unit"> ${x.unit||''}</span></div><div style="color:#059669;font-size:13px">${x.trend||' '}</div></a>`).join('');const item=x=>`<a class="todo" href="${x.href}"><span>${x.title}</span><span class="badge ${x.priority}">${x.count}</span></a>`;todos.innerHTML=d.todos.map(item).join('');alerts.innerHTML=d.alerts.map(item).join('');navigator.innerHTML=d.navigator.map(x=>`<a class="navitem" href="${x.href}"><span class="cat">${x.category}</span><h3 style="margin:0 0 8px">${x.title}</h3><div class="desc">${x.description}</div></a>`).join('');footer.textContent=`Environment: ${d.environment} | Date: ${d.date} | Build031R1 Dashboard Recovery`}
-async function deployPackage(){const pn=packageName.value.trim();if(!/^[A-Za-z0-9_.-]+\.zip$/.test(pn)){alert('隸ｷ霎灘・ ZIP 蛹・枚莉ｶ蜷・);return}deployBtn.disabled=true;show('deployOutput','驛ｨ鄂ｲ荳ｭ・瑚ｯｷ遲牙ｾ・..');try{const r=await fetch('/api/deploy/local',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({package_name:pn,run_tests:runTests.checked,start_api:startApi.checked})});show('deployOutput',await r.json())}catch(e){show('deployOutput',String(e))}finally{deployBtn.disabled=false}}
+async function deployPackage(){const pn=packageName.value.trim();if(!/^[A-Za-z0-9_.-]+\.zip$/.test(pn)){alert('请输入 ZIP 包文件名');return}deployBtn.disabled=true;show('deployOutput','部署中，请等待...');try{const r=await fetch('/api/deploy/local',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({package_name:pn,run_tests:runTests.checked,start_api:startApi.checked})});show('deployOutput',await r.json())}catch(e){show('deployOutput',String(e))}finally{deployBtn.disabled=false}}
 async function checkRuntime(){const r=await fetch('/api/system/runtime');const j=await r.json();show('opsOutput',j);show('deployOutput',j)}
 async function checkDb(){const r=await fetch('/api/db/status');show('opsOutput',await r.json())}
 async function loadOps(){const r=await fetch('/api/ops/next-actions');show('opsOutput',await r.json())}
 loadDashboard().catch(e=>document.body.innerHTML='<pre>'+e+'</pre>')
 </script>
-<script>
-async function loadFeatureProgress(){
-  try{const r=await fetch('/api/features'); const d=await r.json(); const el=document.getElementById('featureProgressRows'); if(!el){return}
-    el.innerHTML=d.features.map(x=>{const color=x.status==='蜿ｯ鬪梧噺'?'#dcfce7':(x.status==='蟾ｲ螳梧・'?'#dbeafe':'#fee2e2'); const ink=x.status==='蜿ｯ鬪梧噺'?'#166534':(x.status==='蟾ｲ螳梧・'?'#1e40af':'#991b1b'); const guide=x.guide_path?`<a href="${x.guide_path}">謫堺ｽ懈欠蜊・/a>`:'<span class="desc">譛ｪ螳梧・・壽嘯譌謖・漉</span>'; return `<div class="navitem"><span class="cat">${x.category}</span><h3 style="margin:0 0 8px">${x.title}</h3><div style="display:inline-block;border-radius:999px;padding:4px 9px;background:${color};color:${ink};font-weight:700;font-size:12px">${x.dashboard_label}</div><div class="desc" style="margin-top:8px">${x.note}</div><div style="margin-top:10px">${guide}</div></div>`}).join('');
-  }catch(e){console.log(e)}
-}
-loadFeatureProgress();
-</script>
 </body></html>
-
