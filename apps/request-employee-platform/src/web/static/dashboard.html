@@ -59,6 +59,11 @@ pre{white-space:pre-wrap;background:#101828;color:#d1fadf;padding:14px;border-ra
   <div id="featureProgressRows" class="grid nav"></div>
   <p><a href="/acceptance">謇灘ｼ螳梧紛蜉溯・霑帛ｺｦ譬ｸ蟇ｹ陦ｨ / 謫堺ｽ懈欠蜊・/a></p>
 </section>
+<section class="card section" id="customer-reconciliation-cutoff">
+  <h2>客户对账清款基准设置 <span class="pill">可验收 / 待社长测试</span></h2>
+  <p class="desc">实际业务功能：按客户设置请求日截至日与银行到账日截至日；收款来源包括银行进账、现金收款、特别核销和手工调整。不是按银行账户设置。</p>
+  <button onclick="location.href='/api/customer-reconciliation/page'">进入客户对账清款基准设置</button>
+</section>
 </main>
 <script>
 function show(id,obj){const o=document.getElementById(id);o.style.display='block';o.textContent=typeof obj==='string'?obj:JSON.stringify(obj,null,2)}
@@ -78,4 +83,5 @@ async function loadFeatureProgress(){
 loadFeatureProgress();
 </script>
 </body></html>
+
 
