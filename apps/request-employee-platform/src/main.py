@@ -14,6 +14,7 @@ from src.api.routes.system import router as system_router
 from src.api.routes.ops import router as ops_router
 from src.api.routes.documents import router as documents_router
 from src.api.routes.bank import router as bank_router
+from src.api.routes.customer_reconciliation import router as customer_reconciliation_router
 
 init_db()
 app = FastAPI(title="TLC Group Request Platform", version="0.31.1-dashboard-recovery")
@@ -22,5 +23,5 @@ app = FastAPI(title="TLC Group Request Platform", version="0.31.1-dashboard-reco
 def root():
     return RedirectResponse(url="/dashboard")
 
-for r in (health_router, dashboard_router, review_page_router, sales_page_router, request_compare_router, request_auto_compare_router, sales_router, db_status_router, deploy_router, system_router, ops_router, documents_router, bank_router):
+for r in (health_router, dashboard_router, review_page_router, sales_page_router, request_compare_router, request_auto_compare_router, sales_router, db_status_router, deploy_router, system_router, ops_router, documents_router, bank_router, customer_reconciliation_router):
     app.include_router(r)
