@@ -5,7 +5,7 @@ from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, Field
 from src.core.settings import get_settings
 from src.services.export_service import export_pdf, export_xlsx
@@ -139,9 +139,123 @@ def _export_rows(rows:list[dict], lang:str, filters:dict)->list[dict]:
 @router.get("/cutoffs/export/excel")
 def export_cutoffs_excel(lang:str="zh",keyword:str="",customer_id:str="",customer_name:str="",status:str="",currency:str="",confirmed_by:str="",request_date_from:str="",request_date_to:str="",bank_received_date_from:str="",bank_received_date_to:str=""):
     filters={k:v for k,v in locals().items() if k!="lang"}; rows=_search(**filters); return export_xlsx(_export_rows(rows,lang,filters),"customer_reconciliation_cutoffs")
+
+def _pdf_hex(text:object)->str:
+    # UTF-16BE with BOM; works with Type0 Identity-H CJK fonts.
+    return ("feff" + str(text if text is not None else "").encode("utf-16-be").hex())
+
+def _pdf_escape_ascii(text:object)->str:
+    return str(text if text is not None else "").replace("\\","\\\\").replace("(","\\(").replace(")","\\)")
+
+def _build_wysiwyg_pdf(rows:list[dict], lang:str)->bytes:
+    """
+    Build PDF from the exact same translated visible rows used by Excel/list export.
+    No Edit/Action column. No filter metadata. Includes totals.
+    Uses uncompressed content streams so generated PDFs can be self-checked.
+    """
+    tr=I18N.get(lang,I18N["zh"])
+    visible=_export_rows(rows,lang,{})
+    headers=[tr[k] for k in LABEL_KEYS]
+    # Landscape A4-ish points. Compact table; repeat header each page.
+    page_w,page_h=842,595
+    left,top=24,560
+    row_h=18
+    widths=[55,78,65,72,58,55,55,55,55,55,62,55,82,75]
+    assert len(widths)==len(headers)
+
+    def text_cmd(x,y,text,size=6):
+        return f"BT /F1 {size} Tf {x:.1f} {y:.1f} Td <{_pdf_hex(text)}> Tj ET\n"
+
+    def line_cmd(x1,y1,x2,y2):
+        return f"{x1:.1f} {y1:.1f} m {x2:.1f} {y2:.1f} l S\n"
+
+    pages=[]
+    per_page=25
+    chunks=[visible[i:i+per_page] for i in range(0,len(visible),per_page)] or [[]]
+    for chunk in chunks:
+        cmds=["0.4 w\n"]
+        y=top
+        # title
+        cmds.append(text_cmd(left,y,tr["title"],11)); y-=24
+        # header row
+        x=left
+        for h,w in zip(headers,widths):
+            cmds.append(line_cmd(x,y+4,x+w,y+4)); cmds.append(line_cmd(x,y-row_h+4,x+w,y-row_h+4))
+            cmds.append(line_cmd(x,y+4,x,y-row_h+4)); cmds.append(line_cmd(x+w,y+4,x+w,y-row_h+4))
+            cmds.append(text_cmd(x+2,y-8,h,5.5)); x+=w
+        y-=row_h
+        for row in chunk:
+            x=left
+            for h,w in zip(headers,widths):
+                value=row.get(h,"")
+                # prevent a long note/name from destroying the visible table layout
+                txt=str(value)
+                if len(txt)>22: txt=txt[:21]+"…"
+                cmds.append(line_cmd(x,y+4,x+w,y+4)); cmds.append(line_cmd(x,y-row_h+4,x+w,y-row_h+4))
+                cmds.append(line_cmd(x,y+4,x,y-row_h+4)); cmds.append(line_cmd(x+w,y+4,x+w,y-row_h+4))
+                cmds.append(text_cmd(x+2,y-8,txt,5.2)); x+=w
+            y-=row_h
+        pages.append("".join(cmds).encode("ascii"))
+
+    objects=[]
+    def add(obj:bytes)->int:
+        objects.append(obj); return len(objects)
+
+    # CJK Type0 font. STSong-Light is a standard Adobe CJK font name;
+    # Identity-H + UTF-16BE hex strings also preserves Latin/numeric data.
+    cid=add(b"<< /Type /Font /Subtype /CIDFontType0 /BaseFont /STSong-Light /CIDSystemInfo << /Registry (Adobe) /Ordering (GB1) /Supplement 4 >> >>")
+    font=add(f"<< /Type /Font /Subtype /Type0 /BaseFont /STSong-Light /Encoding /Identity-H /DescendantFonts [{cid} 0 R] >>".encode("ascii"))
+    content_ids=[]
+    page_ids=[]
+    # reserve Pages object later by placeholder
+    pages_id=add(b"")
+    for stream in pages:
+        content_ids.append(add(b"<< /Length "+str(len(stream)).encode()+b" >>\nstream\n"+stream+b"endstream"))
+        page_ids.append(add(b""))  # placeholder
+    for i,pid in enumerate(page_ids):
+        objects[pid-1]=f"<< /Type /Page /Parent {pages_id} 0 R /MediaBox [0 0 {page_w} {page_h}] /Resources << /Font << /F1 {font} 0 R >> >> /Contents {content_ids[i]} 0 R >>".encode("ascii")
+    objects[pages_id-1]=f"<< /Type /Pages /Kids [{' '.join(f'{x} 0 R' for x in page_ids)}] /Count {len(page_ids)} >>".encode("ascii")
+    catalog=add(f"<< /Type /Catalog /Pages {pages_id} 0 R >>".encode("ascii"))
+
+    buf=bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
+    offsets=[0]
+    for i,obj in enumerate(objects,1):
+        offsets.append(len(buf))
+        buf.extend(f"{i} 0 obj\n".encode()); buf.extend(obj); buf.extend(b"\nendobj\n")
+    xref=len(buf)
+    buf.extend(f"xref\n0 {len(objects)+1}\n".encode())
+    buf.extend(b"0000000000 65535 f \n")
+    for off in offsets[1:]:
+        buf.extend(f"{off:010d} 00000 n \n".encode())
+    buf.extend(f"trailer\n<< /Size {len(objects)+1} /Root {catalog} 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode())
+    return bytes(buf)
+
+def _selfcheck_pdf(pdf:bytes, rows:list[dict], lang:str)->None:
+    if not pdf.startswith(b"%PDF") or len(pdf)<700:
+        raise HTTPException(status_code=500,detail="PDF self-check failed: invalid or empty PDF")
+    # The stream is intentionally uncompressed. Verify first result row is physically present.
+    if rows:
+        sentinel=str(rows[0].get("customer_id",""))
+        encoded=("feff"+sentinel.encode("utf-16-be").hex()).encode("ascii")
+        if encoded not in pdf:
+            raise HTTPException(status_code=500,detail="PDF self-check failed: result data missing")
+    tr=I18N.get(lang,I18N["zh"])
+    header=("feff"+tr["customer_id"].encode("utf-16-be").hex()).encode("ascii")
+    if header not in pdf:
+        raise HTTPException(status_code=500,detail="PDF self-check failed: header missing")
+
+
 @router.get("/cutoffs/export/pdf")
 def export_cutoffs_pdf(lang:str="zh",keyword:str="",customer_id:str="",customer_name:str="",status:str="",currency:str="",confirmed_by:str="",request_date_from:str="",request_date_to:str="",bank_received_date_from:str="",bank_received_date_to:str=""):
-    filters={k:v for k,v in locals().items() if k!="lang"}; rows=_search(**filters); return export_pdf(_export_rows(rows,lang,filters),"customer_reconciliation_cutoffs",I18N.get(lang,I18N["zh"])["title"])
+    filters={k:v for k,v in locals().items() if k!="lang"}
+    rows=_search(**filters)
+    pdf=_build_wysiwyg_pdf(rows,lang)
+    _selfcheck_pdf(pdf,rows,lang)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition":'attachment; filename="customer_reconciliation_cutoffs.pdf"'}
+    )
 
 PAGE_HTML = r"""
 <!doctype html>
