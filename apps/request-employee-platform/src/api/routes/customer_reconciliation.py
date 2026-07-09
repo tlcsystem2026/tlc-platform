@@ -293,3 +293,43 @@ def export_customer_reconciliation_cutoffs_csv(
         filename="customer_reconciliation_cutoffs",
     )
 
+
+# === Build033R2 T003 Excel Export Engine endpoint ===
+from src.services.customer_reconciliation_route_export_bridge import (
+    export_customer_reconciliation_excel as _tlc_export_customer_reconciliation_excel,
+)
+
+def _tlc_r2t003_search_rows(customer_id: str = "", customer_name: str = "", keyword: str = "", status: str = ""):
+    import inspect
+    if "_search" not in globals():
+        raise HTTPException(status_code=500, detail="Customer reconciliation search function is missing")
+    raw = {
+        "customer_id": customer_id,
+        "customer_name": customer_name,
+        "keyword": keyword,
+        "status": status,
+    }
+    sig = inspect.signature(_search)
+    kwargs = {key: value for key, value in raw.items() if key in sig.parameters and value not in (None, "")}
+    return _search(**kwargs)
+
+@router.get("/cutoffs/export/excel")
+def export_customer_reconciliation_cutoffs_excel(
+    customer_id: str = "",
+    customer_name: str = "",
+    keyword: str = "",
+    status: str = "",
+    lang: str = "zh",
+):
+    rows = _tlc_r2t003_search_rows(
+        customer_id=customer_id,
+        customer_name=customer_name,
+        keyword=keyword,
+        status=status,
+    )
+    return _tlc_export_customer_reconciliation_excel(
+        rows,
+        language=lang,
+        filename="customer_reconciliation_cutoffs",
+    )
+
