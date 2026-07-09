@@ -1,0 +1,6 @@
+environment:
+  current: test
+  test:
+    allow_web_start_after_full_test: true
+  production:
+    deployment_strategy: separate_formal_approval

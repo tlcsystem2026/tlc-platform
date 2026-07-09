@@ -1,0 +1,11 @@
+export:
+  excel:
+    default_language: zh
+  pdf:
+    engine: reportlab
+    fonts:
+      zh: STSong-Light
+      ja: HeiseiKakuGo-W5
+      en: Helvetica
+  csv:
+    encoding: utf-8-sig

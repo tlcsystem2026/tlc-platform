@@ -1,0 +1,7 @@
+paths:
+  repository_root: Y:/TLC-BOS/Repository/projects/tlc-platform
+  document_root: Y:/TLC-BOS/Documents
+  export_root: Y:/TLC-BOS/Export
+  temp_root: Y:/TLC-BOS/Temp
+  backup_root: Y:/TLC-BOS/Backup
+  log_root: Y:/TLC-BOS/Logs

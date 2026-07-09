@@ -1,0 +1,4 @@
+database:
+  default:
+    engine: sqlite
+    url: sqlite:///./tlc-platform.db
