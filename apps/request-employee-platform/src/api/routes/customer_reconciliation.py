@@ -210,7 +210,6 @@ def _selfcheck_pdf(pdf:bytes, rows:list[dict], lang:str)->None:
     if rows and _pdf_hex(rows[0].get("customer_id","")).encode("ascii") not in pdf:
         raise HTTPException(status_code=500,detail="PDF self-check failed: result data missing")
 
-@router.get("/cutoffs/export/pdf")
 def export_cutoffs_pdf(lang:str="zh",keyword:str="",customer_id:str="",customer_name:str="",status:str="",currency:str="",confirmed_by:str="",request_date_from:str="",request_date_to:str="",bank_received_date_from:str="",bank_received_date_to:str=""):
     filters={k:v for k,v in locals().items() if k!="lang"}
     rows=_search(**filters)
@@ -328,6 +327,46 @@ def export_customer_reconciliation_cutoffs_excel(
         status=status,
     )
     return _tlc_export_customer_reconciliation_excel(
+        rows,
+        language=lang,
+        filename="customer_reconciliation_cutoffs",
+    )
+
+
+# === Build033R2 T004 PDF Export Engine endpoint ===
+from src.services.customer_reconciliation_route_export_bridge import (
+    export_customer_reconciliation_pdf as _tlc_export_customer_reconciliation_pdf,
+)
+
+def _tlc_r2t004_search_rows(customer_id: str = "", customer_name: str = "", keyword: str = "", status: str = ""):
+    import inspect
+    if "_search" not in globals():
+        raise HTTPException(status_code=500, detail="Customer reconciliation search function is missing")
+    raw = {
+        "customer_id": customer_id,
+        "customer_name": customer_name,
+        "keyword": keyword,
+        "status": status,
+    }
+    sig = inspect.signature(_search)
+    kwargs = {key: value for key, value in raw.items() if key in sig.parameters and value not in (None, "")}
+    return _search(**kwargs)
+
+@router.get("/cutoffs/export/pdf")
+def export_customer_reconciliation_cutoffs_pdf(
+    customer_id: str = "",
+    customer_name: str = "",
+    keyword: str = "",
+    status: str = "",
+    lang: str = "zh",
+):
+    rows = _tlc_r2t004_search_rows(
+        customer_id=customer_id,
+        customer_name=customer_name,
+        keyword=keyword,
+        status=status,
+    )
+    return _tlc_export_customer_reconciliation_pdf(
         rows,
         language=lang,
         filename="customer_reconciliation_cutoffs",
