@@ -27,3 +27,5 @@ for r in (health_router, dashboard_router, review_page_router, sales_page_router
     app.include_router(r)
 from src.api.routes.request_compare_report import router as request_compare_report_router
 app.include_router(request_compare_report_router)
+from src.api.routes.request_pending_review import router as request_pending_review_router
+app.include_router(request_pending_review_router)
