@@ -296,6 +296,68 @@ renderLang();load();
 })();
 </script>
 
+
+<script>
+/* Build033R3 T002 UI PDF Integration */
+(function () {
+  function valueOf(names) {
+    for (const name of names) {
+      const el = document.querySelector(`[name="${name}"], #${name}, [data-field="${name}"]`);
+      if (el && "value" in el) return String(el.value || "").trim();
+    }
+    return "";
+  }
+
+  function buildUrl() {
+    const p = new URLSearchParams();
+    const fields = {
+      keyword: ["keyword", "q", "search_keyword"],
+      customer_id: ["customer_id", "customerId"],
+      customer_name: ["customer_name", "customerName"],
+      status: ["status"],
+      lang: ["lang", "language"]
+    };
+
+    Object.entries(fields).forEach(([key, names]) => {
+      const value = valueOf(names);
+      if (value) p.set(key, value);
+    });
+
+    if (!p.has("lang")) {
+      const htmlLang = (document.documentElement.lang || "").toLowerCase();
+      p.set("lang", htmlLang.startsWith("ja") ? "ja" : htmlLang.startsWith("en") ? "en" : "zh");
+    }
+
+    return "/api/customer-reconciliation/cutoffs/export/pdf?" + p.toString();
+  }
+
+  function isPdfButton(el) {
+    const text = ((el.textContent || el.value || "") + " " + (el.id || "") + " " +
+      (el.getAttribute("name") || "") + " " + (el.getAttribute("data-action") || "")).toLowerCase();
+
+    return text.includes("pdf");
+  }
+
+  function bind() {
+    document.querySelectorAll("button,input[type=button],input[type=submit],a").forEach((el) => {
+      if (!isPdfButton(el) || el.dataset.tlcPdfBound === "1") return;
+      el.dataset.tlcPdfBound = "1";
+      el.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        window.location.href = buildUrl();
+      }, true);
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bind);
+  } else {
+    bind();
+  }
+})();
+</script>
+
 </body></html>
 """
 @router.get("/page",response_class=HTMLResponse)
