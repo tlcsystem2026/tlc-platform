@@ -1,0 +1,514 @@
+[
+  {
+    "category": "bank",
+    "path": "apps/request-employee-platform/src/api/routes/bank.py",
+    "symbol": "BankReconciliationSettingIn, list_reconciliation_settings, upsert_reconciliation_setting, export_reconciliation_settings_excel, export_reconciliation_settings_pdf, get_reconciliation_period, list_transactions, list_reconciliation",
+    "evidence": "/api/bank, bank reconciliation, transactions, reconciliation",
+    "score": 4,
+    "recommendation": "REUSE_OR_REFACTOR"
+  },
+  {
+    "category": "bank",
+    "path": "apps/request-employee-platform/tests/test_build032r1_delivery_smoke.py",
+    "symbol": "-",
+    "evidence": "/api/bank, reconciliation",
+    "score": 2,
+    "recommendation": "REUSE_TEST"
+  },
+  {
+    "category": "bank",
+    "path": "apps/request-employee-platform/tests/test_build032r3_bank_reconciliation_cutoff.py",
+    "symbol": "test_bank_reconciliation_cutoff_is_persistent_and_calculates_next_start, test_bank_reconciliation_period_endpoint, test_bank_reconciliation_settings_exports",
+    "evidence": "/api/bank, reconciliation",
+    "score": 2,
+    "recommendation": "REUSE_TEST"
+  },
+  {
+    "category": "bank",
+    "path": "apps/request-employee-platform/src/api/routes/customer_reconciliation.py",
+    "symbol": "CustomerReconciliationCutoffIn, get_next_reconciliation_scope, customer_reconciliation_page, export_customer_reconciliation_cutoffs_csv, export_customer_reconciliation_cutoffs_excel, export_customer_reconciliation_cutoffs_pdf",
+    "evidence": "reconciliation",
+    "score": 1,
+    "recommendation": "REVIEW_MANUALLY"
+  },
+  {
+    "category": "bank",
+    "path": "apps/request-employee-platform/src/main.py",
+    "symbol": "-",
+    "evidence": "reconciliation",
+    "score": 1,
+    "recommendation": "REVIEW_MANUALLY"
+  },
+  {
+    "category": "bank",
+    "path": "apps/request-employee-platform/src/services/customer_reconciliation_export_adapter.py",
+    "symbol": "customer_reconciliation_columns, normalize_customer_reconciliation_row, build_customer_reconciliation_export_model",
+    "evidence": "reconciliation",
+    "score": 1,
+    "recommendation": "REVIEW_MANUALLY"
+  },
+  {
+    "category": "bank",
+    "path": "apps/request-employee-platform/src/services/customer_reconciliation_route_export_bridge.py",
+    "symbol": "build_customer_reconciliation_route_export_model, export_customer_reconciliation_excel, export_customer_reconciliation_pdf, export_customer_reconciliation_csv",
+    "evidence": "reconciliation",
+    "score": 1,
+    "recommendation": "REVIEW_MANUALLY"
+  },
+  {
+    "category": "bank",
+    "path": "apps/request-employee-platform/tests/test_build032r4_customer_reconciliation_v2.py",
+    "symbol": "test_customer_reconciliation_page_available",
+    "evidence": "reconciliation",
+    "score": 1,
+    "recommendation": "REUSE_TEST"
+  },
+  {
+    "category": "bank",
+    "path": "apps/request-employee-platform/tests/test_build032r4_v21_dashboard_guard.py",
+    "symbol": "-",
+    "evidence": "reconciliation",
+    "score": 1,
+    "recommendation": "REUSE_TEST"
+  },
+  {
+    "category": "bank",
+    "path": "apps/request-employee-platform/tests/test_build032r4_v25_contract_multilang_search_edit_export.py",
+    "symbol": "-",
+    "evidence": "reconciliation",
+    "score": 1,
+    "recommendation": "REUSE_TEST"
+  },
+  {
+    "category": "bank",
+    "path": "apps/request-employee-platform/tests/test_build032r4_v261_pdf_data_selfcheck.py",
+    "symbol": "-",
+    "evidence": "reconciliation",
+    "score": 1,
+    "recommendation": "REUSE_TEST"
+  },
+  {
+    "category": "bank",
+    "path": "apps/request-employee-platform/tests/test_build032r4_v264_pdf_bom_compat_mixed_language.py",
+    "symbol": "-",
+    "evidence": "reconciliation",
+    "score": 1,
+    "recommendation": "REUSE_TEST"
+  },
+  {
+    "category": "bank",
+    "path": "apps/request-employee-platform/tests/test_build032r4_v26_priority_acceptance.py",
+    "symbol": "-",
+    "evidence": "reconciliation",
+    "score": 1,
+    "recommendation": "REUSE_TEST"
+  },
+  {
+    "category": "bank",
+    "path": "apps/request-employee-platform/tests/test_build033r2_t001_customer_route_export_bridge.py",
+    "symbol": "-",
+    "evidence": "reconciliation",
+    "score": 1,
+    "recommendation": "REUSE_TEST"
+  },
+  {
+    "category": "bank",
+    "path": "apps/request-employee-platform/tests/test_build033r2_t002_customer_csv_endpoint.py",
+    "symbol": "test_customer_reconciliation_csv_export_endpoint_uses_export_engine",
+    "evidence": "reconciliation",
+    "score": 1,
+    "recommendation": "REUSE_TEST"
+  },
+  {
+    "category": "bank",
+    "path": "apps/request-employee-platform/tests/test_build033r2_t003_customer_excel_endpoint.py",
+    "symbol": "test_customer_reconciliation_excel_export_endpoint_uses_export_engine_without_openpyxl",
+    "evidence": "reconciliation",
+    "score": 1,
+    "recommendation": "REUSE_TEST"
+  },
+  {
+    "category": "bank",
+    "path": "apps/request-employee-platform/tests/test_build033r2_t004_customer_pdf_endpoint.py",
+    "symbol": "test_customer_reconciliation_pdf_export_endpoint_uses_export_engine",
+    "evidence": "reconciliation",
+    "score": 1,
+    "recommendation": "REUSE_TEST"
+  },
+  {
+    "category": "bank",
+    "path": "apps/request-employee-platform/tests/test_build033r2a_customer_reconciliation_export_model.py",
+    "symbol": "test_customer_reconciliation_columns_multilang, test_customer_reconciliation_export_model_excludes_action_and_totals, test_normalize_customer_reconciliation_row_removes_ui_fields, test_customer_reconciliation_export_model_csv_bridge, test_customer_reconciliation_export_model_pdf_selfcheck",
+    "evidence": "reconciliation",
+    "score": 1,
+    "recommendation": "REUSE_TEST"
+  },
+  {
+    "category": "bank",
+    "path": "apps/request-employee-platform/tests/test_build033r3_t001_ui_excel_integration.py",
+    "symbol": "test_customer_reconciliation_page_contains_build033_excel_binding",
+    "evidence": "reconciliation",
+    "score": 1,
+    "recommendation": "REUSE_TEST"
+  },
+  {
+    "category": "bank",
+    "path": "apps/request-employee-platform/tests/test_build033r3_t002_ui_pdf_integration.py",
+    "symbol": "test_customer_reconciliation_page_contains_build033_pdf_binding",
+    "evidence": "reconciliation",
+    "score": 1,
+    "recommendation": "REUSE_TEST"
+  },
+  {
+    "category": "compare",
+    "path": "apps/request-employee-platform/src/services/request_compare_service.py",
+    "symbol": "-",
+    "evidence": "compare(, diff, mismatch, difference, CompareResult",
+    "score": 5,
+    "recommendation": "REUSE_OR_REFACTOR"
+  },
+  {
+    "category": "compare",
+    "path": "apps/request-employee-platform/src/domain/request_compare.py",
+    "symbol": "CompareDifference, RequestCompareResult",
+    "evidence": "diff, mismatch, difference, CompareResult",
+    "score": 4,
+    "recommendation": "REUSE_OR_REFACTOR"
+  },
+  {
+    "category": "compare",
+    "path": "apps/request-employee-platform/src/repositories/review_repository.py",
+    "symbol": "-",
+    "evidence": "compare(, diff, mismatch, difference",
+    "score": 4,
+    "recommendation": "REUSE_OR_REFACTOR"
+  },
+  {
+    "category": "compare",
+    "path": "apps/request-employee-platform/src/services/request_compare_persistence_service.py",
+    "symbol": "-",
+    "evidence": "compare(, diff, difference",
+    "score": 3,
+    "recommendation": "REUSE_OR_REFACTOR"
+  },
+  {
+    "category": "compare",
+    "path": "apps/request-employee-platform/src/api/routes/request_auto_compare.py",
+    "symbol": "-",
+    "evidence": "compare-parser-json, compare(",
+    "score": 2,
+    "recommendation": "REUSE_OR_REFACTOR"
+  },
+  {
+    "category": "compare",
+    "path": "apps/request-employee-platform/src/db/models.py",
+    "symbol": "-",
+    "evidence": "diff, difference",
+    "score": 2,
+    "recommendation": "REUSE_OR_REFACTOR"
+  },
+  {
+    "category": "compare",
+    "path": "apps/request-employee-platform/src/web/static/review.html",
+    "symbol": "-",
+    "evidence": "diff, difference",
+    "score": 2,
+    "recommendation": "REUSE_OR_REFACTOR"
+  },
+  {
+    "category": "compare",
+    "path": "apps/request-employee-platform/src/api/routes/request_compare.py",
+    "symbol": "-",
+    "evidence": "compare(",
+    "score": 1,
+    "recommendation": "REVIEW_MANUALLY"
+  },
+  {
+    "category": "error_report",
+    "path": "apps/request-employee-platform/src/domain/request_compare.py",
+    "symbol": "CompareDifference",
+    "evidence": "mismatch, difference",
+    "score": 2,
+    "recommendation": "REFACTOR"
+  },
+  {
+    "category": "error_report",
+    "path": "apps/request-employee-platform/src/repositories/review_repository.py",
+    "symbol": "-",
+    "evidence": "mismatch, difference",
+    "score": 2,
+    "recommendation": "REFACTOR"
+  },
+  {
+    "category": "error_report",
+    "path": "apps/request-employee-platform/src/services/request_compare_service.py",
+    "symbol": "-",
+    "evidence": "mismatch, difference",
+    "score": 2,
+    "recommendation": "REFACTOR"
+  },
+  {
+    "category": "error_report",
+    "path": "apps/request-employee-platform/src/db/models.py",
+    "symbol": "-",
+    "evidence": "difference",
+    "score": 1,
+    "recommendation": "REVIEW_MANUALLY"
+  },
+  {
+    "category": "error_report",
+    "path": "apps/request-employee-platform/src/services/request_compare_persistence_service.py",
+    "symbol": "-",
+    "evidence": "difference",
+    "score": 1,
+    "recommendation": "REVIEW_MANUALLY"
+  },
+  {
+    "category": "error_report",
+    "path": "apps/request-employee-platform/src/web/static/review.html",
+    "symbol": "-",
+    "evidence": "difference",
+    "score": 1,
+    "recommendation": "REVIEW_MANUALLY"
+  },
+  {
+    "category": "excel_parser",
+    "path": "apps/request-employee-platform/tests/test_build033r2_t003_customer_excel_endpoint.py",
+    "symbol": "_xlsx_text, test_customer_reconciliation_excel_export_endpoint_uses_export_engine_without_openpyxl",
+    "evidence": "openpyxl, xlsx",
+    "score": 2,
+    "recommendation": "REUSE_TEST"
+  },
+  {
+    "category": "excel_parser",
+    "path": "apps/request-employee-platform/src/api/routes/bank.py",
+    "symbol": "-",
+    "evidence": "xlsx",
+    "score": 1,
+    "recommendation": "REVIEW_MANUALLY"
+  },
+  {
+    "category": "excel_parser",
+    "path": "apps/request-employee-platform/src/api/routes/customer_reconciliation.py",
+    "symbol": "-",
+    "evidence": "xlsx",
+    "score": 1,
+    "recommendation": "REVIEW_MANUALLY"
+  },
+  {
+    "category": "excel_parser",
+    "path": "apps/request-employee-platform/src/api/routes/sales.py",
+    "symbol": "-",
+    "evidence": "xlsx",
+    "score": 1,
+    "recommendation": "REVIEW_MANUALLY"
+  },
+  {
+    "category": "excel_parser",
+    "path": "apps/request-employee-platform/src/services/export_engine.py",
+    "symbol": "-",
+    "evidence": "xlsx",
+    "score": 1,
+    "recommendation": "REVIEW_MANUALLY"
+  },
+  {
+    "category": "excel_parser",
+    "path": "apps/request-employee-platform/src/services/export_service.py",
+    "symbol": "export_xlsx",
+    "evidence": "xlsx",
+    "score": 1,
+    "recommendation": "REVIEW_MANUALLY"
+  },
+  {
+    "category": "excel_parser",
+    "path": "apps/request-employee-platform/tests/test_build032r2_sales_search_export.py",
+    "symbol": "test_sales_xlsx_export_is_real_zip_package",
+    "evidence": "xlsx",
+    "score": 1,
+    "recommendation": "REUSE_TEST"
+  },
+  {
+    "category": "excel_parser",
+    "path": "apps/request-employee-platform/tests/test_build032r3_bank_reconciliation_cutoff.py",
+    "symbol": "-",
+    "evidence": "xlsx",
+    "score": 1,
+    "recommendation": "REUSE_TEST"
+  },
+  {
+    "category": "excel_parser",
+    "path": "apps/request-employee-platform/tests/test_build032r4_customer_reconciliation_v2.py",
+    "symbol": "-",
+    "evidence": "xlsx",
+    "score": 1,
+    "recommendation": "REUSE_TEST"
+  },
+  {
+    "category": "excel_parser",
+    "path": "apps/request-employee-platform/tests/test_build032r4_v25_contract_multilang_search_edit_export.py",
+    "symbol": "-",
+    "evidence": "xlsx",
+    "score": 1,
+    "recommendation": "REUSE_TEST"
+  },
+  {
+    "category": "pdf_parser",
+    "path": "apps/request-employee-platform/src/api/routes/customer_reconciliation.py",
+    "symbol": "-",
+    "evidence": "application/pdf",
+    "score": 1,
+    "recommendation": "REVIEW_MANUALLY"
+  },
+  {
+    "category": "pdf_parser",
+    "path": "apps/request-employee-platform/src/services/export_engine.py",
+    "symbol": "-",
+    "evidence": "application/pdf",
+    "score": 1,
+    "recommendation": "REVIEW_MANUALLY"
+  },
+  {
+    "category": "pdf_parser",
+    "path": "apps/request-employee-platform/src/services/export_service.py",
+    "symbol": "-",
+    "evidence": "application/pdf",
+    "score": 1,
+    "recommendation": "REVIEW_MANUALLY"
+  },
+  {
+    "category": "review",
+    "path": "apps/request-employee-platform/src/api/routes/request_compare.py",
+    "symbol": "ResolveRequest, resolve",
+    "evidence": "review-tasks, resolve",
+    "score": 2,
+    "recommendation": "REUSE_OR_REFACTOR"
+  },
+  {
+    "category": "review",
+    "path": "apps/request-employee-platform/src/api/routes/customer_reconciliation.py",
+    "symbol": "-",
+    "evidence": "cancel",
+    "score": 1,
+    "recommendation": "REVIEW_MANUALLY"
+  },
+  {
+    "category": "review",
+    "path": "apps/request-employee-platform/src/db/migrations.py",
+    "symbol": "-",
+    "evidence": "resolve",
+    "score": 1,
+    "recommendation": "REVIEW_MANUALLY"
+  },
+  {
+    "category": "review",
+    "path": "apps/request-employee-platform/src/db/models.py",
+    "symbol": "-",
+    "evidence": "resolve",
+    "score": 1,
+    "recommendation": "REVIEW_MANUALLY"
+  },
+  {
+    "category": "review",
+    "path": "apps/request-employee-platform/src/repositories/review_repository.py",
+    "symbol": "resolve",
+    "evidence": "resolve",
+    "score": 1,
+    "recommendation": "REVIEW_MANUALLY"
+  },
+  {
+    "category": "review",
+    "path": "apps/request-employee-platform/src/web/static/review.html",
+    "symbol": "-",
+    "evidence": "review-tasks",
+    "score": 1,
+    "recommendation": "REVIEW_MANUALLY"
+  },
+  {
+    "category": "sales_db",
+    "path": "apps/request-employee-platform/src/api/routes/sales.py",
+    "symbol": "-",
+    "evidence": "SalesRecordORM, /api/sales, request_no",
+    "score": 3,
+    "recommendation": "REUSE_OR_REFACTOR"
+  },
+  {
+    "category": "sales_db",
+    "path": "apps/request-employee-platform/src/db/models.py",
+    "symbol": "SalesRecordORM",
+    "evidence": "SalesRecordORM, request_no, sales_record",
+    "score": 3,
+    "recommendation": "REUSE_OR_REFACTOR"
+  },
+  {
+    "category": "sales_db",
+    "path": "apps/request-employee-platform/src/web/static/sales.html",
+    "symbol": "-",
+    "evidence": "/api/sales, request_no",
+    "score": 2,
+    "recommendation": "REUSE_OR_REFACTOR"
+  },
+  {
+    "category": "sales_db",
+    "path": "apps/request-employee-platform/src/db/migrations.py",
+    "symbol": "-",
+    "evidence": "sales_record",
+    "score": 1,
+    "recommendation": "REVIEW_MANUALLY"
+  },
+  {
+    "category": "sales_db",
+    "path": "apps/request-employee-platform/src/domain/request_compare.py",
+    "symbol": "-",
+    "evidence": "request_no",
+    "score": 1,
+    "recommendation": "REVIEW_MANUALLY"
+  },
+  {
+    "category": "sales_db",
+    "path": "apps/request-employee-platform/src/repositories/review_repository.py",
+    "symbol": "-",
+    "evidence": "request_no",
+    "score": 1,
+    "recommendation": "REVIEW_MANUALLY"
+  },
+  {
+    "category": "sales_db",
+    "path": "apps/request-employee-platform/src/services/dashboard_service.py",
+    "symbol": "-",
+    "evidence": "SalesRecordORM",
+    "score": 1,
+    "recommendation": "REVIEW_MANUALLY"
+  },
+  {
+    "category": "sales_db",
+    "path": "apps/request-employee-platform/src/services/request_compare_service.py",
+    "symbol": "-",
+    "evidence": "request_no",
+    "score": 1,
+    "recommendation": "REVIEW_MANUALLY"
+  },
+  {
+    "category": "sales_db",
+    "path": "apps/request-employee-platform/src/services/request_snapshot_adapter.py",
+    "symbol": "-",
+    "evidence": "request_no",
+    "score": 1,
+    "recommendation": "REVIEW_MANUALLY"
+  },
+  {
+    "category": "sales_db",
+    "path": "apps/request-employee-platform/tests/fixtures/request_excel_parser_sample.json",
+    "symbol": "-",
+    "evidence": "request_no",
+    "score": 1,
+    "recommendation": "REUSE_TEST"
+  },
+  {
+    "category": "sales_db",
+    "path": "apps/request-employee-platform/tests/test_build032r2_sales_search_export.py",
+    "symbol": "-",
+    "evidence": "/api/sales",
+    "score": 1,
+    "recommendation": "REUSE_TEST"
+  }
+]
