@@ -25,3 +25,5 @@ def root():
 
 for r in (health_router, dashboard_router, review_page_router, sales_page_router, request_compare_router, request_auto_compare_router, sales_router, db_status_router, deploy_router, system_router, ops_router, documents_router, bank_router, customer_reconciliation_router):
     app.include_router(r)
+from src.api.routes.request_compare_report import router as request_compare_report_router
+app.include_router(request_compare_report_router)
