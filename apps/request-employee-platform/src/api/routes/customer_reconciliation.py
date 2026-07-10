@@ -246,7 +246,57 @@ async function save(){let fs=["customer_id","customer_name","request_date_cutoff
 function resetSearch(){["keyword","f_customer_id","f_customer_name","f_status","f_currency","f_confirmed_by","request_date_from","request_date_to","bank_received_date_from","bank_received_date_to"].forEach(f=>document.getElementById(f).value="");load()}
 function exp(t){let q=qs();q.set("lang",lang.value);location.href="/api/customer-reconciliation/cutoffs/export/"+t+"?"+q}
 renderLang();load();
-</script></body></html>
+</script>
+<script>
+/* Build033R3 T001 UI Excel Integration */
+(function () {
+  function valueOf(names) {
+    for (const name of names) {
+      const el = document.querySelector(`[name="${name}"], #${name}, [data-field="${name}"]`);
+      if (el && "value" in el) return String(el.value || "").trim();
+    }
+    return "";
+  }
+
+  function buildUrl() {
+    const p = new URLSearchParams();
+    const fields = {
+      keyword: ["keyword", "q", "search_keyword"],
+      customer_id: ["customer_id", "customerId"],
+      customer_name: ["customer_name", "customerName"],
+      status: ["status"],
+      lang: ["lang", "language"]
+    };
+    Object.entries(fields).forEach(([key, names]) => {
+      const value = valueOf(names);
+      if (value) p.set(key, value);
+    });
+    if (!p.has("lang")) p.set("lang", "zh");
+    return "/api/customer-reconciliation/cutoffs/export/excel?" + p.toString();
+  }
+
+  function bind() {
+    document.querySelectorAll("button,input[type=button],input[type=submit],a").forEach((el) => {
+      const text = ((el.textContent || el.value || "") + " " + (el.id || "") + " " + (el.getAttribute("name") || "")).toLowerCase();
+      if (!text.includes("excel") || el.dataset.tlcExcelBound === "1") return;
+      el.dataset.tlcExcelBound = "1";
+      el.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        window.location.href = buildUrl();
+      }, true);
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bind);
+  } else {
+    bind();
+  }
+})();
+</script>
+
+</body></html>
 """
 @router.get("/page",response_class=HTMLResponse)
 def customer_reconciliation_page():
