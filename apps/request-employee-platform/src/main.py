@@ -29,3 +29,5 @@ from src.api.routes.request_compare_report import router as request_compare_repo
 app.include_router(request_compare_report_router)
 from src.api.routes.request_pending_review import router as request_pending_review_router
 app.include_router(request_pending_review_router)
+from src.api.routes.request_pending_review_resolution import router as request_pending_review_resolution_router
+app.include_router(request_pending_review_resolution_router)
