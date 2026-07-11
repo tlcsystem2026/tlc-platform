@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>银行流水导入与查看</title>
+<style>
+body{font-family:Arial,"Microsoft YaHei",sans-serif;margin:0;background:#f6f7f9;color:#222}
+header{background:#1f4e78;color:#fff;padding:18px 24px}
+main{padding:20px}
+.card{background:#fff;border:1px solid #ddd;border-radius:8px;padding:16px;margin-bottom:18px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+input,select,button{padding:8px;border:1px solid #bbb;border-radius:4px}
+button{cursor:pointer;background:#1f4e78;color:#fff}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{border:1px solid #ddd;padding:8px;text-align:left}
+th{background:#eef3f8}
+.credit{color:#0b6e3f;font-weight:bold}
+.debit{color:#b00020;font-weight:bold}
+.summary{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.metric{background:#eef3f8;border-radius:6px;padding:12px}
+.small{font-size:12px;color:#666}
+@media(max-width:900px){.summary{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>银行流水导入与查看</h1>
+  <div>巣鴨信用金庫 / ゆうちょう銀行</div>
+</header>
+<main>
+<section class="card">
+<h2>CSV 导入</h2>
+<div class="toolbar">
+  <input id="bankFile" type="file" accept=".csv,text/csv">
+  <button onclick="uploadCsv()">导入</button>
+  <span id="uploadMessage" class="small"></span>
+</div>
+</section>
+
+<section class="card">
+<h2>流水检索</h2>
+<div class="toolbar">
+  <select id="bankCode">
+    <option value="">全部银行</option>
+    <option value="SUGAMO_SHINKIN">巣鴨信用金庫</option>
+    <option value="JAPAN_POST_BANK">ゆうちょう銀行</option>
+  </select>
+  <select id="direction">
+    <option value="">全部方向</option>
+    <option value="CREDIT">入金</option>
+    <option value="DEBIT">出金</option>
+  </select>
+  <input id="dateFrom" type="date">
+  <input id="dateTo" type="date">
+  <input id="counterparty" placeholder="对方名称">
+  <button onclick="loadAll()">检索</button>
+</div>
+</section>
+
+<section class="card">
+<div class="summary">
+  <div class="metric">件数<br><strong id="txCount">0</strong></div>
+  <div class="metric">入金件数<br><strong id="creditCount">0</strong></div>
+  <div class="metric">入金合计<br><strong id="creditTotal">0</strong></div>
+  <div class="metric">出金件数<br><strong id="debitCount">0</strong></div>
+  <div class="metric">出金合计<br><strong id="debitTotal">0</strong></div>
+</div>
+</section>
+
+<section class="card">
+<h2>银行流水一览</h2>
+<div id="listMessage" class="small"></div>
+<div style="overflow:auto">
+<table>
+<thead>
+<tr>
+<th>银行</th><th>日期</th><th>方向</th><th>金额</th><th>对方</th><th>摘要</th><th>余额</th><th>流水ID</th>
+</tr>
+</thead>
+<tbody id="txBody"></tbody>
+</table>
+</div>
+</section>
+</main>
+
+<script>
+function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+async function api(url,options){
+  const r=await fetch(url,options);
+  const b=await r.json();
+  if(!r.ok) throw new Error(b.detail||JSON.stringify(b));
+  return b;
+}
+function params(){
+  const p=new URLSearchParams();
+  const bank=document.getElementById("bankCode").value;
+  const direction=document.getElementById("direction").value;
+  const from=document.getElementById("dateFrom").value;
+  const to=document.getElementById("dateTo").value;
+  const cp=document.getElementById("counterparty").value.trim();
+  if(bank)p.set("bank_code",bank);
+  if(direction)p.set("direction",direction);
+  if(from)p.set("transaction_date_from",from);
+  if(to)p.set("transaction_date_to",to);
+  if(cp)p.set("counterparty",cp);
+  p.set("limit","1000");
+  return p;
+}
+async function uploadCsv(){
+  const file=document.getElementById("bankFile").files[0];
+  if(!file){alert("请选择CSV文件");return}
+  const buf=await file.arrayBuffer();
+  try{
+    const result=await api("/api/bank-import/csv?source_name="+encodeURIComponent(file.name),{
+      method:"POST",
+      headers:{"Content-Type":"text/csv"},
+      body:buf
+    });
+    document.getElementById("uploadMessage").textContent=
+      `${result.bank_code}: parsed=${result.parsed}, created=${result.created}, existing=${result.existing}`;
+    await loadAll();
+  }catch(e){alert(e.message)}
+}
+async function loadAll(){
+  const p=params();
+  const summaryParams=new URLSearchParams();
+  for(const k of ["bank_code","transaction_date_from","transaction_date_to"]){
+    if(p.has(k))summaryParams.set(k,p.get(k));
+  }
+  const [rows,summary]=await Promise.all([
+    api("/api/bank-import/transactions?"+p.toString()),
+    api("/api/bank-import/summary?"+summaryParams.toString())
+  ]);
+  document.getElementById("txCount").textContent=summary.transaction_count;
+  document.getElementById("creditCount").textContent=summary.credit_count;
+  document.getElementById("creditTotal").textContent=summary.credit_total;
+  document.getElementById("debitCount").textContent=summary.debit_count;
+  document.getElementById("debitTotal").textContent=summary.debit_total;
+  const body=document.getElementById("txBody");body.innerHTML="";
+  rows.forEach(row=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${esc(row.bank_name)}</td><td>${esc(row.transaction_date)}</td>
+      <td class="${row.direction==='CREDIT'?'credit':'debit'}">${esc(row.direction)}</td>
+      <td>${esc(row.amount)}</td><td>${esc(row.counterparty)}</td><td>${esc(row.description)}</td>
+      <td>${esc(row.balance)}</td><td>${esc(row.transaction_id)}</td>`;
+    body.appendChild(tr);
+  });
+  document.getElementById("listMessage").textContent=`${rows.length} records`;
+}
+loadAll().catch(e=>document.getElementById("listMessage").textContent=e.message);
+</script>
+</body>
+</html>

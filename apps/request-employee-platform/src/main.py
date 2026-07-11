@@ -37,3 +37,5 @@ from src.api.routes.request_review_workbench import router as request_review_wor
 app.include_router(request_review_workbench_router)
 from src.api.routes.multi_bank_import import router as multi_bank_import_router
 app.include_router(multi_bank_import_router)
+from src.api.routes.bank_import_ui import router as bank_import_ui_router
+app.include_router(bank_import_ui_router)
