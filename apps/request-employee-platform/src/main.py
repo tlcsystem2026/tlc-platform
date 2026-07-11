@@ -33,3 +33,5 @@ from src.api.routes.request_pending_review_resolution import router as request_p
 app.include_router(request_pending_review_resolution_router)
 from src.api.routes.formal_sales_ledger import router as formal_sales_ledger_router
 app.include_router(formal_sales_ledger_router)
+from src.api.routes.request_review_workbench import router as request_review_workbench_router
+app.include_router(request_review_workbench_router)

@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>销售请求书审核工作台</title>
+<style>
+body{font-family:Arial,"Microsoft YaHei",sans-serif;margin:0;background:#f6f7f9;color:#222}
+header{background:#1f4e78;color:#fff;padding:18px 24px}
+main{padding:20px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+input,select,button,textarea{padding:8px;border:1px solid #bbb;border-radius:4px}
+button{cursor:pointer}
+.primary{background:#1f4e78;color:#fff}
+.danger{background:#a61b1b;color:#fff}
+.warn{background:#9a6700;color:#fff}
+.ok{background:#1f7a3f;color:#fff}
+.card{background:#fff;border:1px solid #ddd;border-radius:8px;padding:16px;margin-bottom:18px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{border:1px solid #ddd;padding:8px;text-align:left;vertical-align:top}
+th{background:#eef3f8}
+.status{font-weight:bold}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.small{font-size:12px;color:#666}
+.actions{display:flex;gap:6px;flex-wrap:wrap}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>销售请求书审核工作台</h1>
+  <div>待审核 → 审核处理 → 正式销售请求一览</div>
+</header>
+
+<main>
+<div class="grid">
+<section class="card">
+<h2>待审核请求书</h2>
+<div class="toolbar">
+  <select id="reviewStatus">
+    <option value="PENDING_REVIEW">PENDING_REVIEW</option>
+    <option value="APPROVED">APPROVED</option>
+    <option value="REJECTED">REJECTED</option>
+    <option value="CANCELLED">CANCELLED</option>
+    <option value="DUPLICATE">DUPLICATE</option>
+    <option value="">全部</option>
+  </select>
+  <input id="reviewer" placeholder="审核人" value="web-reviewer">
+  <input id="note" placeholder="审核备注">
+  <button class="primary" onclick="loadPending()">刷新</button>
+</div>
+<div id="pendingMessage" class="small"></div>
+<div style="overflow:auto">
+<table>
+<thead>
+<tr>
+<th>请求书编号</th><th>客户</th><th>日期</th><th>金额</th><th>状态</th><th>操作</th>
+</tr>
+</thead>
+<tbody id="pendingBody"></tbody>
+</table>
+</div>
+</section>
+
+<section class="card">
+<h2>正式销售请求一览</h2>
+<div class="toolbar">
+  <input id="salesCustomerId" placeholder="Customer ID">
+  <input id="salesCustomerName" placeholder="Customer Name">
+  <input id="salesRequestNo" placeholder="Request No">
+  <button class="primary" onclick="loadSales()">检索</button>
+</div>
+<div id="salesMessage" class="small"></div>
+<div style="overflow:auto">
+<table>
+<thead>
+<tr>
+<th>请求书编号</th><th>客户</th><th>日期</th><th>币种</th><th>总金额</th><th>审核人</th><th>状态</th>
+</tr>
+</thead>
+<tbody id="salesBody"></tbody>
+</table>
+</div>
+</section>
+</div>
+</main>
+
+<script>
+async function api(url, options){
+  const response = await fetch(url, options);
+  let body = null;
+  try { body = await response.json(); } catch(e) { body = await response.text(); }
+  if(!response.ok){
+    const detail = body && body.detail ? body.detail : String(body);
+    throw new Error(detail);
+  }
+  return body;
+}
+
+function esc(v){
+  return String(v ?? "").replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[c]));
+}
+
+async function loadPending(){
+  const status = document.getElementById("reviewStatus").value;
+  const qs = new URLSearchParams();
+  if(status) qs.set("status", status);
+  qs.set("limit","500");
+  const rows = await api("/api/requests/pending-review?"+qs.toString());
+  const body = document.getElementById("pendingBody");
+  body.innerHTML = "";
+  rows.forEach(row => {
+    const canResolve = row.status === "PENDING_REVIEW";
+    const canPost = row.status === "APPROVED" && !row.sales_ledger_id;
+    const actions = [];
+    if(canResolve){
+      actions.push(`<button class="ok" onclick="resolveRecord('${esc(row.id)}','APPROVE')">通过</button>`);
+      actions.push(`<button class="danger" onclick="resolveRecord('${esc(row.id)}','REJECT')">驳回</button>`);
+      actions.push(`<button class="warn" onclick="resolveRecord('${esc(row.id)}','CANCEL')">取消</button>`);
+      actions.push(`<button onclick="resolveRecord('${esc(row.id)}','MARK_DUPLICATE')">重复</button>`);
+    }
+    if(canPost){
+      actions.push(`<button class="primary" onclick="postLedger('${esc(row.id)}')">进入正式台账</button>`);
+    }
+    if(row.sales_ledger_id){
+      actions.push(`<span class="small">已入台账</span>`);
+    }
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${esc(row.request_no)}</td>
+      <td>${esc(row.customer_id)}<br>${esc(row.customer_name)}</td>
+      <td>${esc(row.request_date)}</td>
+      <td>${esc(row.currency)} ${esc(row.total_amount)}</td>
+      <td class="status">${esc(row.status)}</td>
+      <td><div class="actions">${actions.join("")}</div></td>`;
+    body.appendChild(tr);
+  });
+  document.getElementById("pendingMessage").textContent = `${rows.length} records`;
+}
+
+async function resolveRecord(id, action){
+  const reviewed_by = document.getElementById("reviewer").value.trim();
+  const note = document.getElementById("note").value.trim();
+  if(!reviewed_by){ alert("请输入审核人"); return; }
+  try{
+    await api(`/api/requests/pending-review/${id}/resolve`, {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({action, reviewed_by, note})
+    });
+    await loadPending();
+  }catch(e){ alert(e.message); }
+}
+
+async function postLedger(id){
+  try{
+    await api(`/api/sales-ledger/from-pending-review/${id}`, {method:"POST"});
+    await loadPending();
+    await loadSales();
+  }catch(e){ alert(e.message); }
+}
+
+async function loadSales(){
+  const qs = new URLSearchParams();
+  const customerId = document.getElementById("salesCustomerId").value.trim();
+  const customerName = document.getElementById("salesCustomerName").value.trim();
+  const requestNo = document.getElementById("salesRequestNo").value.trim();
+  if(customerId) qs.set("customer_id", customerId);
+  if(customerName) qs.set("customer_name", customerName);
+  if(requestNo) qs.set("request_no", requestNo);
+  qs.set("limit","500");
+  const rows = await api("/api/sales-ledger?"+qs.toString());
+  const body = document.getElementById("salesBody");
+  body.innerHTML = "";
+  rows.forEach(row => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${esc(row.request_no)}</td>
+      <td>${esc(row.customer_id)}<br>${esc(row.customer_name)}</td>
+      <td>${esc(row.request_date)}</td>
+      <td>${esc(row.currency)}</td>
+      <td>${esc(row.total_amount)}</td>
+      <td>${esc(row.reviewed_by)}</td>
+      <td class="status">${esc(row.status)}</td>`;
+    body.appendChild(tr);
+  });
+  document.getElementById("salesMessage").textContent = `${rows.length} records`;
+}
+
+Promise.all([loadPending(), loadSales()]).catch(e => {
+  document.getElementById("pendingMessage").textContent = e.message;
+});
+</script>
+</body>
+</html>
