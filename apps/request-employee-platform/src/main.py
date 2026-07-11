@@ -31,3 +31,5 @@ from src.api.routes.request_pending_review import router as request_pending_revi
 app.include_router(request_pending_review_router)
 from src.api.routes.request_pending_review_resolution import router as request_pending_review_resolution_router
 app.include_router(request_pending_review_resolution_router)
+from src.api.routes.formal_sales_ledger import router as formal_sales_ledger_router
+app.include_router(formal_sales_ledger_router)
