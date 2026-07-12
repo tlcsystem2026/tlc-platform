@@ -69,3 +69,5 @@ from src.api.routes.tlc_batch_bank_center import router as tlc_batch_bank_center
 app.include_router(tlc_batch_bank_center_router)
 from src.api.routes.tlc_batch_reconciliation_center import router as tlc_batch_reconciliation_center_router
 app.include_router(tlc_batch_reconciliation_center_router)
+from src.api.routes.tlc_batch_lifecycle_overview import router as tlc_batch_lifecycle_overview_router
+app.include_router(tlc_batch_lifecycle_overview_router)

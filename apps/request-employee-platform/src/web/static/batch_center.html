@@ -43,6 +43,15 @@ else if(name==="reconciliation"){
  <div id="reconciliationLinks"></div>`;
  await refreshReconciliationLinks();
 }
+else if(name==="history"){
+ panel.innerHTML=`<h3>Batch Lifecycle Overview</h3>
+ <div class="toolbar"><button class="primary" onclick="refreshLifecycleOverview()">刷新总览</button></div>
+ <div id="lifecycleProgress" class="small"></div>
+ <div id="lifecycleChecks"></div>
+ <h4>Timeline</h4>
+ <div id="lifecycleTimeline"></div>`;
+ await refreshLifecycleOverview();
+}
 else panel.innerHTML=`<h3>${esc(name)}</h3><p>下一任务接入。</p>`}
 async function upload(type,input){if(!selected){alert("请先选择Batch");return}const f=document.getElementById(input).files[0];if(!f){alert("请选择文件");return}const p=new URLSearchParams({file_type:type,original_name:f.name,uploaded_by:createdBy.value||selected.created_by});const r=await api(`/api/tlc-batches/${selected.id}/request-files?${p}`,{method:"POST",headers:{"Content-Type":f.type||"application/octet-stream"},body:await f.arrayBuffer()});alert(r.status==="duplicate"?"重复文件已跳过":"上传成功");await refreshImport();selected=await api(`/api/tlc-batches/${selected.id}`);await loadBatches()}
 async function refreshImport(){if(!selected)return;const [r,f,l]=await Promise.all([api(`/api/tlc-batches/${selected.id}/request-import-readiness`),api(`/api/tlc-batches/${selected.id}/request-files`),api(`/api/tlc-batches/${selected.id}/import-logs`)]);ready.textContent=r.ready_for_compare?"Excel与PDF已齐备，可以进入Compare":"缺少："+r.missing_file_types.join(", ");files.innerHTML='<table><tr><th>类型</th><th>文件</th><th>版本</th><th>状态</th></tr>'+f.map(x=>`<tr><td>${x.file_type}</td><td>${esc(x.original_name)}</td><td>v${x.version_no}</td><td>${x.active?"当前":"历史"}</td></tr>`).join("")+'</table>';logs.innerHTML='<table><tr><th>时间</th><th>文件</th><th>结果</th></tr>'+l.map(x=>`<tr><td>${esc(x.created_at)}</td><td>${esc(x.original_name)}</td><td>${esc(x.status)}</td></tr>`).join("")+'</table>'}
@@ -145,6 +154,24 @@ async function finishReconciliationBatch(){
   await refreshReconciliationLinks();
   alert("Batch 已完成");
  }catch(e){alert(e.message)}
+}
+async function refreshLifecycleOverview(){
+ if(!selected)return;
+ const [overview,timeline]=await Promise.all([
+  api(`/api/tlc-batches/${selected.id}/lifecycle-overview`),
+  api(`/api/tlc-batches/${selected.id}/lifecycle-timeline`)
+ ]);
+ const progress=document.getElementById("lifecycleProgress");
+ const checks=document.getElementById("lifecycleChecks");
+ const timelineDiv=document.getElementById("lifecycleTimeline");
+ if(!progress)return;
+ progress.textContent=`Completion ${overview.completion_percent}% (${overview.completed_step_count}/${overview.total_step_count}) / Batch Status=${overview.batch.status}`;
+ checks.innerHTML='<table><tr><th>阶段</th><th>完成</th><th>说明</th></tr>'+
+  overview.checks.map(x=>`<tr><td>${esc(x.step)}</td><td>${x.complete?"YES":"NO"}</td><td>${esc(x.detail)}</td></tr>`).join("")+
+  '</table>';
+ timelineDiv.innerHTML='<table><tr><th>时间</th><th>事件</th><th>状态</th><th>操作人</th><th>说明</th></tr>'+
+  timeline.map(x=>`<tr><td>${esc(x.event_at)}</td><td>${esc(x.event_type)}</td><td>${esc(x.old_status)} -> ${esc(x.new_status)}</td><td>${esc(x.operator)}</td><td>${esc(x.message)}</td></tr>`).join("")+
+  '</table>';
 }
 async function runCompare(){if(!selected){alert("请先选择Batch");return}const r=await api(`/api/tlc-batches/${selected.id}/compare`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({compared_by:createdBy.value||selected.created_by})});alert(r.status==="exists"?"当前文件版本已比较":"比较完成");selected=await api(`/api/tlc-batches/${selected.id}`);await loadBatches();await refreshCompare()}
 async function refreshCompare(){if(!selected)return;const [x,h]=await Promise.all([api(`/api/tlc-batches/${selected.id}/compare/latest`),api(`/api/tlc-batches/${selected.id}/compare/history`)]);if(!x.id){compareSummary.textContent="尚未执行比较";compareDetails.innerHTML=""}else{compareSummary.textContent=x.matched?`MATCHED / ${x.request_no}`:`ERROR / Differences: ${x.difference_count}`;const d=(x.result&&x.result.differences)||[];compareDetails.innerHTML='<table><tr><th>字段</th><th>Excel</th><th>PDF</th><th>说明</th></tr>'+d.map(v=>`<tr><td>${esc(v.field)}</td><td>${esc(v.excel_value)}</td><td>${esc(v.pdf_value)}</td><td>${esc(v.message)}</td></tr>`).join("")+'</table>'}compareHistory.innerHTML='<table><tr><th>时间</th><th>请求书</th><th>结果</th><th>差异数</th></tr>'+h.map(v=>`<tr><td>${esc(v.compared_at)}</td><td>${esc(v.request_no)}</td><td>${v.matched?"MATCHED":"ERROR"}</td><td>${v.difference_count}</td></tr>`).join("")+'</table>'}
