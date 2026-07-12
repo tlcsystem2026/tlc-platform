@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>客户档案</title>
+<style>
+body{font-family:Arial,"Microsoft YaHei",sans-serif;margin:0;background:#f6f7f9;color:#222}
+header{background:#1f4e78;color:white;padding:16px 22px}
+main{padding:16px}
+.layout{display:grid;grid-template-columns:380px 1fr;gap:14px}
+.panel{background:white;border:1px solid #ddd;border-radius:8px;padding:14px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+input,select,textarea,button{padding:8px;border:1px solid #bbb;border-radius:4px}
+button{cursor:pointer}.primary{background:#1f4e78;color:#fff}
+.list{max-height:72vh;overflow:auto;border:1px solid #ddd}
+.item{padding:10px;border-bottom:1px solid #eee;cursor:pointer}
+.item:hover,.item.active{background:#eaf2fb}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(180px,1fr));gap:10px}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px}
+textarea{min-height:90px}
+.small{font-size:12px;color:#666}
+@media(max-width:900px){.layout{grid-template-columns:1fr}.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+<h1>客户档案</h1>
+<div>One Screen：列表、检索、别名与编辑集中在一个画面</div>
+</header>
+<main>
+<div class="layout">
+<section class="panel">
+  <div class="toolbar">
+    <input id="query" placeholder="Customer ID / 名称 / 别名">
+    <button onclick="loadRecords()">检索</button>
+    <button class="primary" onclick="newRecord()">新增</button>
+  </div>
+  <div id="recordList" class="list"></div>
+</section>
+
+<section class="panel">
+  <div class="toolbar">
+    <button class="primary" onclick="saveRecord()">保存</button>
+    <button onclick="openCodeMaster()">客户状态Code</button>
+  </div>
+  <input id="recordId" type="hidden">
+  <div class="grid">
+    <label>Customer ID<input id="customerId"></label>
+    <label>启用<input id="active" type="checkbox" checked></label>
+    <label>正式名称<input id="formalName"></label>
+    <label>状态<select id="statusCode"></select></label>
+    <label>平假名<input id="hiraganaName"></label>
+    <label>片假名<input id="katakanaName"></label>
+    <label>略称<input id="shortName"></label>
+    <label>别名1<input id="alias1"></label>
+    <label>别名2<input id="alias2"></label>
+    <label>别名3<input id="alias3"></label>
+    <label>别名4<input id="alias4"></label>
+    <label>别名5<input id="alias5"></label>
+    <label style="grid-column:1/-1">备注<textarea id="note"></textarea></label>
+  </div>
+  <div class="small">正式名称、平假名、片假名、略称及别名1～5都会用于银行对方名称匹配。</div>
+</section>
+</div>
+</main>
+<script>
+let records=[];
+function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+async function api(url,options){const r=await fetch(url,options);const b=await r.json();if(!r.ok)throw new Error(b.detail||JSON.stringify(b));return b}
+async function loadStatus(){
+  let values=await api("/api/tlc-codes/values?category_code=CUSTOMER_STATUS");
+  const s=document.getElementById("statusCode");s.innerHTML="";
+  if(!values.length){
+    values=[{code:"ACTIVE",name_zh:"启用"},{code:"INACTIVE",name_zh:"停用"}];
+  }
+  values.forEach(v=>{const o=document.createElement("option");o.value=v.code;o.textContent=`${v.code} / ${v.name_zh||v.name_ja||v.name_en||""}`;s.appendChild(o)})
+}
+async function loadRecords(){
+  const p=new URLSearchParams();
+  const q=document.getElementById("query").value.trim();
+  if(q)p.set("query",q);
+  records=await api("/api/tlc-customers?"+p.toString());
+  const list=document.getElementById("recordList");list.innerHTML="";
+  records.forEach(r=>{
+    const div=document.createElement("div");div.className="item";
+    div.innerHTML=`<strong>${esc(r.customer_id)}</strong><br>${esc(r.formal_name)}<br><span class="small">${esc(r.short_name||r.katakana_name||"")}</span>`;
+    div.onclick=()=>selectRecord(r);
+    list.appendChild(div);
+  })
+}
+function selectRecord(r){
+  document.getElementById("recordId").value=r.id;
+  document.getElementById("customerId").value=r.customer_id;
+  document.getElementById("formalName").value=r.formal_name||"";
+  document.getElementById("hiraganaName").value=r.hiragana_name||"";
+  document.getElementById("katakanaName").value=r.katakana_name||"";
+  document.getElementById("shortName").value=r.short_name||"";
+  for(let i=1;i<=5;i++)document.getElementById("alias"+i).value=r["alias_"+i]||"";
+  document.getElementById("statusCode").value=r.status_code||"ACTIVE";
+  document.getElementById("active").checked=!!r.active;
+  document.getElementById("note").value=r.note||"";
+}
+function newRecord(){
+  ["recordId","customerId","formalName","hiraganaName","katakanaName","shortName","alias1","alias2","alias3","alias4","alias5","note"].forEach(id=>document.getElementById(id).value="");
+  document.getElementById("statusCode").value="ACTIVE";
+  document.getElementById("active").checked=true;
+}
+async function saveRecord(){
+  const payload={
+    id:document.getElementById("recordId").value,
+    customer_id:document.getElementById("customerId").value,
+    formal_name:document.getElementById("formalName").value,
+    hiragana_name:document.getElementById("hiraganaName").value,
+    katakana_name:document.getElementById("katakanaName").value,
+    short_name:document.getElementById("shortName").value,
+    alias_1:document.getElementById("alias1").value,
+    alias_2:document.getElementById("alias2").value,
+    alias_3:document.getElementById("alias3").value,
+    alias_4:document.getElementById("alias4").value,
+    alias_5:document.getElementById("alias5").value,
+    status_code:document.getElementById("statusCode").value,
+    active:document.getElementById("active").checked,
+    note:document.getElementById("note").value
+  };
+  try{await api("/api/tlc-customers",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});await loadRecords();newRecord()}
+  catch(e){alert(e.message)}
+}
+function openCodeMaster(){window.open("/tlc-code-master","_blank")}
+Promise.all([loadStatus(),loadRecords()]).catch(e=>alert(e.message));
+</script>
+</body>
+</html>
