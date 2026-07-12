@@ -39,3 +39,5 @@ from src.api.routes.multi_bank_import import router as multi_bank_import_router
 app.include_router(multi_bank_import_router)
 from src.api.routes.bank_import_ui import router as bank_import_ui_router
 app.include_router(bank_import_ui_router)
+from src.api.routes.tlc_code_master import router as tlc_code_master_router
+app.include_router(tlc_code_master_router)
