@@ -41,3 +41,5 @@ from src.api.routes.bank_import_ui import router as bank_import_ui_router
 app.include_router(bank_import_ui_router)
 from src.api.routes.tlc_code_master import router as tlc_code_master_router
 app.include_router(tlc_code_master_router)
+from src.api.routes.tlc_bank_account_profile import router as tlc_bank_account_profile_router
+app.include_router(tlc_bank_account_profile_router)
