@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>客户销售与入金区间核对</title>
+<style>
+body{font-family:Arial,"Microsoft YaHei",sans-serif;margin:0;background:#f6f7f9;color:#222}
+header{background:#1f4e78;color:#fff;padding:16px 22px}
+main{padding:16px}
+.card{background:#fff;border:1px solid #ddd;border-radius:8px;padding:14px;margin-bottom:14px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px}
+input,button{padding:8px;border:1px solid #bbb;border-radius:4px}
+button{cursor:pointer;background:#1f4e78;color:#fff}
+.summary{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.metric{background:#eef3f8;border-radius:6px;padding:12px}
+.status{font-size:20px;font-weight:bold}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border:1px solid #ddd;padding:7px;text-align:left}
+th{background:#eef3f8}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.small{font-size:12px;color:#666}
+@media(max-width:900px){.summary{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+<h1>客户销售与入金区间核对</h1>
+<div>上次截止日之后 ～ 本次截止日（含）</div>
+</header>
+<main>
+<section class="card">
+<div class="toolbar">
+  <label>Customer ID
+    <input id="customerId" ondblclick="openCustomerMaster()" placeholder="双击打开客户档案">
+  </label>
+  <label>上次请求截止日<input id="previousRequest" type="date"></label>
+  <label>本次请求截止日<input id="currentRequest" type="date"></label>
+  <label>上次银行截止日<input id="previousBank" type="date"></label>
+  <label>本次银行截止日<input id="currentBank" type="date"></label>
+  <button onclick="runSummary()">核对</button>
+  <button onclick="openCustomerMaster()">客户档案</button>
+</div>
+<div class="small">计算区间：previous &lt; date ≤ current。本次截止日默认当天。</div>
+</section>
+
+<section class="card">
+<div class="summary">
+  <div class="metric">销售件数<br><strong id="salesCount">0</strong></div>
+  <div class="metric">销售总额<br><strong id="salesTotal">0</strong></div>
+  <div class="metric">入金件数<br><strong id="paymentCount">0</strong></div>
+  <div class="metric">入金总额<br><strong id="paymentTotal">0</strong></div>
+  <div class="metric">本期未付<br><strong id="outstanding">0</strong></div>
+</div>
+<p>状态：<span id="status" class="status">-</span></p>
+<p id="customerName"></p>
+</section>
+
+<div class="grid">
+<section class="card">
+<h2>本期销售明细</h2>
+<div style="overflow:auto">
+<table><thead><tr><th>请求书</th><th>日期</th><th>客户</th><th>币种</th><th>金额</th></tr></thead>
+<tbody id="salesBody"></tbody></table>
+</div>
+</section>
+
+<section class="card">
+<h2>本期入金明细</h2>
+<div style="overflow:auto">
+<table><thead><tr><th>银行</th><th>日期</th><th>流水ID</th><th>对方</th><th>金额</th></tr></thead>
+<tbody id="paymentBody"></tbody></table>
+</div>
+</section>
+</div>
+</main>
+<script>
+function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+async function api(url){const r=await fetch(url);const b=await r.json();if(!r.ok)throw new Error(b.detail||JSON.stringify(b));return b}
+function today(){return new Date().toISOString().slice(0,10)}
+function openCustomerMaster(){window.open("/tlc-customer-master","_blank")}
+async function runSummary(){
+  const p=new URLSearchParams({
+    customer_id:document.getElementById("customerId").value.trim(),
+    previous_request_cutoff:document.getElementById("previousRequest").value,
+    current_request_cutoff:document.getElementById("currentRequest").value,
+    previous_bank_cutoff:document.getElementById("previousBank").value,
+    current_bank_cutoff:document.getElementById("currentBank").value
+  });
+  try{
+    const b=await api("/api/customer-payment-reconciliation/summary?"+p.toString());
+    document.getElementById("salesCount").textContent=b.sales_count;
+    document.getElementById("salesTotal").textContent=b.sales_total;
+    document.getElementById("paymentCount").textContent=b.payment_count;
+    document.getElementById("paymentTotal").textContent=b.payment_total;
+    document.getElementById("outstanding").textContent=b.period_outstanding;
+    document.getElementById("status").textContent=b.status;
+    document.getElementById("customerName").textContent=b.customer_name||"";
+
+    const sb=document.getElementById("salesBody");sb.innerHTML="";
+    b.sales.forEach(r=>{
+      const tr=document.createElement("tr");
+      tr.innerHTML=`<td>${esc(r.request_no)}</td><td>${esc(r.request_date)}</td><td>${esc(r.customer_name)}</td><td>${esc(r.currency)}</td><td>${esc(r.total_amount)}</td>`;
+      sb.appendChild(tr);
+    });
+
+    const pb=document.getElementById("paymentBody");pb.innerHTML="";
+    b.payments.forEach(r=>{
+      const tr=document.createElement("tr");
+      tr.innerHTML=`<td>${esc(r.bank_name)}</td><td>${esc(r.transaction_date)}</td><td>${esc(r.transaction_id)}</td><td>${esc(r.counterparty)}</td><td>${esc(r.amount)}</td>`;
+      pb.appendChild(tr);
+    });
+  }catch(e){alert(e.message)}
+}
+document.getElementById("currentRequest").value=today();
+document.getElementById("currentBank").value=today();
+</script>
+</body>
+</html>

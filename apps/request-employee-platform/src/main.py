@@ -47,3 +47,5 @@ from src.api.routes.tlc_customer_master import router as tlc_customer_master_rou
 app.include_router(tlc_customer_master_router)
 from src.api.routes.customer_bank_name_matching import router as customer_bank_name_matching_router
 app.include_router(customer_bank_name_matching_router)
+from src.api.routes.customer_period_reconciliation import router as customer_period_reconciliation_router
+app.include_router(customer_period_reconciliation_router)
