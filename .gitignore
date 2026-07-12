@@ -27,3 +27,5 @@ build/
 
 # Windows
 Thumbs.db
+
+apps/request-employee-platform/data/
