@@ -50,7 +50,7 @@ table{border-collapse:collapse;width:100%;font-size:13px}th,td{border:1px solid 
 <div class="toolbar" style="margin-top:10px">
 <button onclick="openBatch()">打开 Batch Center</button><button onclick="syncSelectedRequestFiles()">同步请求书导入任务</button>
 <button onclick="window.open('/bank-import','_blank')">打开银行流水导入</button><button onclick="stageBankDocument()">暂存银行Excel/PDF</button><button onclick="registerBankCsvImport()">登记银行CSV导入结果</button>
-<button onclick="window.open('/requests/review-workbench','_blank')">打开请求书审核</button>
+<button onclick="window.open('/requests/review-workbench','_blank')">打开请求书审核</button><button onclick="stagePurchaseDocument()">暂存采购Excel/PDF/图片</button>
 </div>
 </section>
 
@@ -167,6 +167,47 @@ async function stageBankDocument(){
     body:await file.arrayBuffer()
    });
    alert(result.status==="exists"?"相同文件已暂存":"银行文件暂存成功");
+   await loadAll();
+  }catch(e){alert(e.message)}
+ };
+ picker.click();
+}
+async function stagePurchaseDocument(){
+ if(!batchId.value){alert("请选择 Batch");return}
+ if(!operator.value.trim()){alert("请输入操作人");return}
+ const picker=document.createElement("input");
+ picker.type="file";
+ picker.accept=".xlsx,.xlsm,.xls,.pdf,.png,.jpg,.jpeg,.webp";
+ picker.onchange=async()=>{
+  const file=picker.files[0];
+  if(!file)return;
+  const lower=file.name.toLowerCase();
+  let type="PURCHASE_IMAGE";
+  if(lower.endsWith(".pdf"))type="PURCHASE_PDF";
+  else if(lower.endsWith(".xlsx")||lower.endsWith(".xlsm")||lower.endsWith(".xls"))type="PURCHASE_EXCEL";
+  const supplierName=prompt("请输入供应商名称：","")||"";
+  const requestReference=prompt("请输入采购/请款编号：","")||"";
+  const currency=prompt("请输入币种：","JPY")||"JPY";
+  const totalAmount=prompt("请输入总金额：","0")||"0";
+  const sourceReference=`purchase-document:${batchId.value}:${file.name}:${file.size}`;
+  const params=new URLSearchParams({
+   batch_id:batchId.value,
+   document_type:type,
+   original_name:file.name,
+   source_reference:sourceReference,
+   staged_by:operator.value,
+   supplier_name:supplierName,
+   request_reference:requestReference,
+   currency,
+   total_amount:totalAmount
+  });
+  try{
+   const result=await api(`/api/tlc-import-jobs/stage-purchase-document?${params}`,{
+    method:"POST",
+    headers:{"Content-Type":file.type||"application/octet-stream"},
+    body:await file.arrayBuffer()
+   });
+   alert(result.status==="exists"?"相同采购文件已暂存":"采购文件暂存成功");
    await loadAll();
   }catch(e){alert(e.message)}
  };

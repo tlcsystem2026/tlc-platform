@@ -79,3 +79,5 @@ from src.api.routes.tlc_bank_csv_import_job import router as tlc_bank_csv_import
 app.include_router(tlc_bank_csv_import_job_router)
 from src.api.routes.tlc_bank_document_staging import router as tlc_bank_document_staging_router
 app.include_router(tlc_bank_document_staging_router)
+from src.api.routes.tlc_purchase_request_staging import router as tlc_purchase_request_staging_router
+app.include_router(tlc_purchase_request_staging_router)
