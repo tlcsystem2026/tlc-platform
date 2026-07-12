@@ -63,3 +63,5 @@ from src.api.routes.tlc_batch_error_center import router as tlc_batch_error_cent
 app.include_router(tlc_batch_error_center_router)
 from src.api.routes.tlc_batch_review_center import router as tlc_batch_review_center_router
 app.include_router(tlc_batch_review_center_router)
+from src.api.routes.tlc_batch_sales_ledger_center import router as tlc_batch_sales_ledger_center_router
+app.include_router(tlc_batch_sales_ledger_center_router)
