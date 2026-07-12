@@ -53,3 +53,5 @@ from src.api.routes.customer_reconciliation_history import router as customer_re
 app.include_router(customer_reconciliation_history_router)
 from src.api.routes.customer_reconciliation_workbench import router as customer_reconciliation_workbench_router
 app.include_router(customer_reconciliation_workbench_router)
+from src.api.routes.tlc_batch_center import router as tlc_batch_center_router
+app.include_router(tlc_batch_center_router)
