@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Unified Import Center</title>
+<style>
+body{font-family:Arial,"Microsoft YaHei",sans-serif;margin:0;background:#f5f6f8;color:#222}
+header{background:#1f4e78;color:#fff;padding:16px 22px}
+main{padding:16px}
+.card{background:#fff;border:1px solid #ddd;border-radius:8px;padding:14px;margin-bottom:14px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px}
+input,select,button,textarea{padding:8px;border:1px solid #bbb;border-radius:4px}
+button{cursor:pointer}.primary{background:#1f4e78;color:#fff}.success{background:#1f7a3f;color:#fff}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(220px,1fr));gap:10px}
+.stats{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:10px}
+.stat{background:#eef3f8;border-radius:6px;padding:12px;text-align:center}
+table{border-collapse:collapse;width:100%;font-size:13px}th,td{border:1px solid #ddd;padding:7px;text-align:left}th{background:#eef3f8}
+.small{font-size:12px;color:#666}
+@media(max-width:900px){.grid,.stats{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+<h1>Unified Import Center</h1>
+<div>统一管理请求书、银行流水与后续采购请款导入任务</div>
+</header>
+<main>
+<section class="card">
+<div class="toolbar">
+<label>Batch
+<select id="batchId"></select>
+</label>
+<label>导入类型
+<select id="importType"></select>
+</label>
+<label>来源名称
+<input id="sourceName" placeholder="request.xlsx / bank.csv">
+</label>
+<label>来源引用
+<input id="sourceReference" placeholder="文件ID、路径或外部记录ID">
+</label>
+<label>操作人
+<input id="operator">
+</label>
+<button class="primary" onclick="createJob()">登记导入任务</button>
+<button onclick="loadAll()">刷新</button>
+</div>
+<div class="toolbar" style="margin-top:10px">
+<button onclick="openBatch()">打开 Batch Center</button>
+<button onclick="window.open('/bank-import','_blank')">打开银行流水导入</button>
+<button onclick="window.open('/requests/review-workbench','_blank')">打开请求书审核</button>
+</div>
+</section>
+
+<section class="card">
+<div id="stats" class="stats"></div>
+</section>
+
+<section class="card">
+<h3>Import Jobs</h3>
+<div id="jobs"></div>
+</section>
+</main>
+<script>
+async function api(url,opt){
+ const r=await fetch(url,opt);
+ let b;try{b=await r.json()}catch(e){b=await r.text()}
+ if(!r.ok)throw new Error(b.detail||String(b));
+ return b
+}
+function esc(v){
+ return String(v??"").replace(/[&<>"']/g,c=>(
+  {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]
+ ))
+}
+async function loadBatches(){
+ const rows=await api("/api/tlc-batches?limit=1000");
+ batchId.innerHTML='<option value="">全部 Batch</option>'+
+  rows.map(x=>`<option value="${esc(x.id)}">${esc(x.batch_no)} / ${esc(x.title)}</option>`).join("")
+}
+async function loadTypes(){
+ const rows=await api("/api/tlc-import-jobs/types");
+ importType.innerHTML=rows.map(x=>`<option>${esc(x)}</option>`).join("")
+}
+async function loadAll(){
+ const batch=batchId.value;
+ const query=batch?`?batch_id=${encodeURIComponent(batch)}`:"";
+ const [summary,jobs]=await Promise.all([
+  api("/api/tlc-import-jobs-summary"+query),
+  api("/api/tlc-import-jobs"+query)
+ ]);
+ stats.innerHTML=[
+  ["任务数",summary.job_count],
+  ["处理中",summary.processing_count],
+  ["成功",summary.success_count],
+  ["错误",summary.error_count],
+  ["重复记录",summary.duplicate_record_count],
+ ].map(x=>`<div class="stat"><b>${esc(x[1])}</b><br><span class="small">${esc(x[0])}</span></div>`).join("");
+ document.getElementById("jobs").innerHTML=
+  '<table><tr><th>创建时间</th><th>Batch</th><th>类型</th><th>来源</th><th>状态</th><th>记录</th><th>成功</th><th>错误</th><th>重复</th><th>操作</th></tr>'+
+  jobs.map(j=>`<tr>
+   <td>${esc(j.created_at)}</td><td>${esc(j.batch_id)}</td><td>${esc(j.import_type)}</td>
+   <td>${esc(j.source_name||j.source_reference)}</td><td>${esc(j.status)}</td>
+   <td>${j.record_count}</td><td>${j.success_count}</td><td>${j.error_count}</td><td>${j.duplicate_count}</td>
+   <td><button onclick="advance('${j.id}','${j.status}')">更新</button></td>
+  </tr>`).join("")+'</table>';
+}
+async function createJob(){
+ if(!batchId.value){alert("请选择 Batch");return}
+ if(!operator.value.trim()){alert("请输入操作人");return}
+ if(!sourceReference.value.trim()){alert("请输入来源引用");return}
+ try{
+  const r=await api("/api/tlc-import-jobs",{
+   method:"POST",headers:{"Content-Type":"application/json"},
+   body:JSON.stringify({
+    batch_id:batchId.value,import_type:importType.value,
+    source_name:sourceName.value,source_reference:sourceReference.value,
+    created_by:operator.value
+   })
+  });
+  alert(r.status==="exists"?"该任务已登记":"任务登记成功");
+  await loadAll();
+ }catch(e){alert(e.message)}
+}
+async function advance(id,current){
+ const next=prompt("输入下一状态：NEW / STAGED / PROCESSING / SUCCESS / ERROR / CANCELLED",current);
+ if(!next)return;
+ const recordCount=prompt("总记录数：","0");
+ const successCount=prompt("成功数：","0");
+ const errorCount=prompt("错误数：","0");
+ const duplicateCount=prompt("重复数：","0");
+ try{
+  await api(`/api/tlc-import-jobs/${id}`,{
+   method:"PUT",headers:{"Content-Type":"application/json"},
+   body:JSON.stringify({
+    status:next,operator:operator.value||"operator",
+    record_count:Number(recordCount||0),success_count:Number(successCount||0),
+    error_count:Number(errorCount||0),duplicate_count:Number(duplicateCount||0)
+   })
+  });
+  await loadAll();
+ }catch(e){alert(e.message)}
+}
+function openBatch(){
+ if(!batchId.value){window.open("/batch-center","_blank");return}
+ window.open("/batch-center","_blank")
+}
+batchId.addEventListener("change",loadAll);
+Promise.all([loadBatches(),loadTypes()]).then(loadAll).catch(e=>alert(e.message));
+</script>
+</body>
+</html>
