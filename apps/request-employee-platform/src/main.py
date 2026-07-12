@@ -45,3 +45,5 @@ from src.api.routes.tlc_bank_account_profile import router as tlc_bank_account_p
 app.include_router(tlc_bank_account_profile_router)
 from src.api.routes.tlc_customer_master import router as tlc_customer_master_router
 app.include_router(tlc_customer_master_router)
+from src.api.routes.customer_bank_name_matching import router as customer_bank_name_matching_router
+app.include_router(customer_bank_name_matching_router)
