@@ -31,7 +31,18 @@ else if(name==="sales"){
 }
 else if(name==="bank")panel.innerHTML='<p><a target="_blank" href="/bank-import">打开银行流水导入</a></p>';
 else if(name==="bank"){panel.innerHTML=`<h3>Bank Center</h3><div class="toolbar"><button class="primary" onclick="registerBankLink()">登记银行流水</button><button onclick="refreshBankLinks()">刷新</button><button onclick="window.open('/bank-import','_blank')">打开银行流水导入</button></div><div id="bankSummary" class="small"></div><div id="bankLinks"></div>`;await refreshBankLinks()}
-else if(name==="reconciliation")panel.innerHTML='<p><a target="_blank" href="/customer-reconciliation-workbench">打开客户对账</a></p>';
+else if(name==="reconciliation"){
+ panel.innerHTML=`<h3>Reconciliation Center</h3>
+ <div class="toolbar">
+   <button class="primary" onclick="registerReconciliationLink()">登记对账结果</button>
+   <button onclick="refreshReconciliationLinks()">刷新</button>
+   <button onclick="finishReconciliationBatch()">完成Batch</button>
+   <button onclick="window.open('/customer-reconciliation-workbench','_blank')">打开客户对账工作台</button>
+ </div>
+ <div id="reconciliationSummary" class="small"></div>
+ <div id="reconciliationLinks"></div>`;
+ await refreshReconciliationLinks();
+}
 else panel.innerHTML=`<h3>${esc(name)}</h3><p>下一任务接入。</p>`}
 async function upload(type,input){if(!selected){alert("请先选择Batch");return}const f=document.getElementById(input).files[0];if(!f){alert("请选择文件");return}const p=new URLSearchParams({file_type:type,original_name:f.name,uploaded_by:createdBy.value||selected.created_by});const r=await api(`/api/tlc-batches/${selected.id}/request-files?${p}`,{method:"POST",headers:{"Content-Type":f.type||"application/octet-stream"},body:await f.arrayBuffer()});alert(r.status==="duplicate"?"重复文件已跳过":"上传成功");await refreshImport();selected=await api(`/api/tlc-batches/${selected.id}`);await loadBatches()}
 async function refreshImport(){if(!selected)return;const [r,f,l]=await Promise.all([api(`/api/tlc-batches/${selected.id}/request-import-readiness`),api(`/api/tlc-batches/${selected.id}/request-files`),api(`/api/tlc-batches/${selected.id}/import-logs`)]);ready.textContent=r.ready_for_compare?"Excel与PDF已齐备，可以进入Compare":"缺少："+r.missing_file_types.join(", ");files.innerHTML='<table><tr><th>类型</th><th>文件</th><th>版本</th><th>状态</th></tr>'+f.map(x=>`<tr><td>${x.file_type}</td><td>${esc(x.original_name)}</td><td>v${x.version_no}</td><td>${x.active?"当前":"历史"}</td></tr>`).join("")+'</table>';logs.innerHTML='<table><tr><th>时间</th><th>文件</th><th>结果</th></tr>'+l.map(x=>`<tr><td>${esc(x.created_at)}</td><td>${esc(x.original_name)}</td><td>${esc(x.status)}</td></tr>`).join("")+'</table>'}
@@ -83,6 +94,58 @@ async function refreshLedgerLinks(){
 }
 async function registerBankLink(){if(!selected){alert("请先选择Batch");return}const bankTransactionId=prompt("请输入银行流水记录 ID：","");if(!bankTransactionId)return;const transactionId=prompt("请输入银行流水编号：","")||"";const transactionDate=prompt("请输入交易日期 YYYY-MM-DD：","")||"";const direction=(prompt("请输入方向 CREDIT / DEBIT：","CREDIT")||"CREDIT").toUpperCase();const amount=prompt("请输入金额：","0")||"0";const counterparty=prompt("请输入对方名称：","")||"";try{const result=await api(`/api/tlc-batches/${selected.id}/bank/links`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({bank_transaction_id:bankTransactionId,transaction_id:transactionId,transaction_date:transactionDate,direction,amount,counterparty,linked_by:createdBy.value||selected.created_by,note:"Registered from Batch Center"})});alert(result.status==="exists"?"该流水已登记":"银行流水登记成功");selected=await api(`/api/tlc-batches/${selected.id}`);await loadBatches();await refreshBankLinks()}catch(e){alert(e.message)}}
 async function refreshBankLinks(){if(!selected)return;const [summary,rows]=await Promise.all([api(`/api/tlc-batches/${selected.id}/bank/summary`),api(`/api/tlc-batches/${selected.id}/bank/links`)]);const s=document.getElementById("bankSummary");const d=document.getElementById("bankLinks");if(!s)return;s.textContent=`Transactions=${summary.transaction_count}, Credit=${summary.credit_total}, Debit=${summary.debit_total}`;d.innerHTML='<table><tr><th>日期</th><th>银行流水ID</th><th>方向</th><th>金额</th><th>对方</th><th>登记人</th></tr>'+rows.map(r=>`<tr><td>${esc(r.transaction_date)}</td><td>${esc(r.transaction_id||r.bank_transaction_id)}</td><td>${esc(r.direction)}</td><td>${esc(r.amount)}</td><td>${esc(r.counterparty)}</td><td>${esc(r.linked_by)}</td></tr>`).join("")+'</table>'}
+async function registerReconciliationLink(){
+ if(!selected){alert("请先选择Batch");return}
+ const reconciliationId=prompt("请输入对账记录 ID：","");
+ if(!reconciliationId)return;
+ const customerId=prompt("请输入 Customer ID：","");
+ if(!customerId)return;
+ const status=(prompt("请输入对账状态 SETTLED / PARTIAL / UNPAID / OVERPAID / NO_ACTIVITY：","SETTLED")||"SETTLED").toUpperCase();
+ const closing=prompt("请输入期末未付金额：","0")||"0";
+ try{
+  const result=await api(`/api/tlc-batches/${selected.id}/reconciliation/links`,{
+   method:"POST",
+   headers:{"Content-Type":"application/json"},
+   body:JSON.stringify({
+    reconciliation_id:reconciliationId,
+    customer_id:customerId,
+    reconciliation_status:status,
+    closing_outstanding:closing,
+    linked_by:createdBy.value||selected.created_by,
+    note:"Registered from Batch Center"
+   })
+  });
+  alert(result.status==="exists"?"该对账结果已登记":"对账结果登记成功");
+  selected=await api(`/api/tlc-batches/${selected.id}`);
+  await loadBatches();
+  await refreshReconciliationLinks();
+ }catch(e){alert(e.message)}
+}
+async function refreshReconciliationLinks(){
+ if(!selected)return;
+ const [summary,rows]=await Promise.all([
+  api(`/api/tlc-batches/${selected.id}/reconciliation/summary`),
+  api(`/api/tlc-batches/${selected.id}/reconciliation/links`)
+ ]);
+ const summaryDiv=document.getElementById("reconciliationSummary");
+ const linksDiv=document.getElementById("reconciliationLinks");
+ if(!summaryDiv||!linksDiv)return;
+ summaryDiv.textContent=`Reconciliations=${summary.reconciliation_count}, Settled=${summary.settled_count}, Open=${summary.open_count}`;
+ linksDiv.innerHTML='<table><tr><th>客户</th><th>对账ID</th><th>销售</th><th>入金</th><th>期末未付</th><th>状态</th></tr>'+rows.map(r=>`<tr><td>${esc(r.customer_id)}</td><td>${esc(r.reconciliation_id)}</td><td>${esc(r.period_sales_total)}</td><td>${esc(r.period_payment_total)}</td><td>${esc(r.closing_outstanding)}</td><td>${esc(r.reconciliation_status)}</td></tr>`).join("")+'</table>';
+}
+async function finishReconciliationBatch(){
+ if(!selected||!confirm("确认完成此 Batch？"))return;
+ try{
+  selected=await api(`/api/tlc-batches/${selected.id}/reconciliation/finish`,{
+   method:"POST",
+   headers:{"Content-Type":"application/json"},
+   body:JSON.stringify({operator:createdBy.value||selected.created_by})
+  });
+  await loadBatches();
+  await refreshReconciliationLinks();
+  alert("Batch 已完成");
+ }catch(e){alert(e.message)}
+}
 async function runCompare(){if(!selected){alert("请先选择Batch");return}const r=await api(`/api/tlc-batches/${selected.id}/compare`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({compared_by:createdBy.value||selected.created_by})});alert(r.status==="exists"?"当前文件版本已比较":"比较完成");selected=await api(`/api/tlc-batches/${selected.id}`);await loadBatches();await refreshCompare()}
 async function refreshCompare(){if(!selected)return;const [x,h]=await Promise.all([api(`/api/tlc-batches/${selected.id}/compare/latest`),api(`/api/tlc-batches/${selected.id}/compare/history`)]);if(!x.id){compareSummary.textContent="尚未执行比较";compareDetails.innerHTML=""}else{compareSummary.textContent=x.matched?`MATCHED / ${x.request_no}`:`ERROR / Differences: ${x.difference_count}`;const d=(x.result&&x.result.differences)||[];compareDetails.innerHTML='<table><tr><th>字段</th><th>Excel</th><th>PDF</th><th>说明</th></tr>'+d.map(v=>`<tr><td>${esc(v.field)}</td><td>${esc(v.excel_value)}</td><td>${esc(v.pdf_value)}</td><td>${esc(v.message)}</td></tr>`).join("")+'</table>'}compareHistory.innerHTML='<table><tr><th>时间</th><th>请求书</th><th>结果</th><th>差异数</th></tr>'+h.map(v=>`<tr><td>${esc(v.compared_at)}</td><td>${esc(v.request_no)}</td><td>${v.matched?"MATCHED":"ERROR"}</td><td>${v.difference_count}</td></tr>`).join("")+'</table>'}
 loadBatches().then(newBatch).catch(e=>alert(e.message));
