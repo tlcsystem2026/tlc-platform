@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>客户对账工作台</title>
+<style>
+body{font-family:Arial,"Microsoft YaHei",sans-serif;margin:0;background:#f5f6f8;color:#222}
+header{background:#1f4e78;color:#fff;padding:16px 22px}
+main{padding:16px}
+.card{background:#fff;border:1px solid #ddd;border-radius:8px;padding:14px;margin-bottom:14px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px}
+input,select,button,textarea{padding:8px;border:1px solid #bbb;border-radius:4px}
+button{cursor:pointer}.primary{background:#1f4e78;color:#fff}.success{background:#1f7a3f;color:#fff}.warn{background:#9a6700;color:#fff}
+.layout{display:grid;grid-template-columns:360px 1fr;gap:14px}
+.summary{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.metric{background:#eef3f8;border-radius:6px;padding:12px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.list{max-height:440px;overflow:auto;border:1px solid #ddd}
+.item{padding:10px;border-bottom:1px solid #eee;cursor:pointer}
+.item:hover,.item.active{background:#eaf2fb}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border:1px solid #ddd;padding:7px;text-align:left;vertical-align:top}
+th{background:#eef3f8}
+.small{font-size:12px;color:#666}.error{color:#b00020}.ok{color:#136f3a}.status{font-size:18px;font-weight:bold}
+@media(max-width:1000px){.layout,.grid{grid-template-columns:1fr}.summary{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<header>
+<h1>客户对账工作台</h1>
+<div>客户选择 → 客户匹配 → 区间统计 → 对账确认 → 历史查看</div>
+</header>
+<main>
+<div class="layout">
+<section class="card">
+  <h2>客户</h2>
+  <div class="toolbar">
+    <input id="customerQuery" placeholder="ID / 名称 / 别名">
+    <button onclick="loadCustomers()">检索</button>
+    <button onclick="openCustomerMaster()">客户档案</button>
+  </div>
+  <div id="customerList" class="list"></div>
+</section>
+
+<section>
+  <section class="card">
+    <h2 id="customerTitle">请选择客户</h2>
+    <div class="toolbar">
+      <label>Customer ID<input id="customerId" readonly ondblclick="openCustomerMaster()"></label>
+      <label>上次请求截止日<input id="previousRequest" type="date"></label>
+      <label>本次请求截止日<input id="currentRequest" type="date"></label>
+      <label>上次银行截止日<input id="previousBank" type="date"></label>
+      <label>本次银行截止日<input id="currentBank" type="date"></label>
+      <label>期初未付<input id="openingOutstanding" placeholder="自动承接上次期末"></label>
+    </div>
+    <div class="toolbar">
+      <button class="warn" onclick="runBankMatching()">执行银行客户匹配</button>
+      <button class="primary" onclick="calculate()">计算对账</button>
+      <button onclick="openBankImport()">银行流水</button>
+      <button onclick="openSalesLedger()">销售台账</button>
+    </div>
+    <div id="matchingMessage" class="small"></div>
+  </section>
+
+  <section class="card">
+    <div class="summary">
+      <div class="metric">期初未付<br><strong id="opening">0</strong></div>
+      <div class="metric">本期销售<br><strong id="sales">0</strong></div>
+      <div class="metric">本期入金<br><strong id="payments">0</strong></div>
+      <div class="metric">期末未付<br><strong id="closing">0</strong></div>
+      <div class="metric">状态<br><strong id="status" class="status">-</strong></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="toolbar">
+      <label>确认人<input id="confirmedBy"></label>
+      <label style="min-width:360px">备注<textarea id="note"></textarea></label>
+      <button class="success" onclick="confirmResult()">确认并保存</button>
+    </div>
+    <div id="saveMessage" class="small"></div>
+  </section>
+</section>
+</div>
+
+<div class="grid">
+<section class="card">
+<h2>销售明细</h2>
+<div style="overflow:auto">
+<table><thead><tr><th>请求书</th><th>日期</th><th>客户</th><th>币种</th><th>金额</th></tr></thead>
+<tbody id="salesBody"></tbody></table>
+</div>
+</section>
+<section class="card">
+<h2>入金明细</h2>
+<div style="overflow:auto">
+<table><thead><tr><th>银行</th><th>日期</th><th>流水ID</th><th>对方</th><th>金额</th></tr></thead>
+<tbody id="paymentBody"></tbody></table>
+</div>
+</section>
+</div>
+
+<div class="grid">
+<section class="card">
+<h2>未匹配 / 歧义银行流水</h2>
+<div style="overflow:auto">
+<table><thead><tr><th>状态</th><th>对方</th><th>标准化名称</th><th>候选客户</th></tr></thead>
+<tbody id="exceptionBody"></tbody></table>
+</div>
+</section>
+<section class="card">
+<h2>对账历史</h2>
+<div style="overflow:auto">
+<table><thead><tr><th>确认时间</th><th>请求区间</th><th>银行区间</th><th>期初</th><th>销售</th><th>入金</th><th>期末</th><th>状态</th></tr></thead>
+<tbody id="historyBody"></tbody></table>
+</div>
+</section>
+</div>
+</main>
+
+<script>
+let selectedCustomer=null;
+let calculated=null;
+
+function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+async function api(url,options){
+  const r=await fetch(url,options);
+  let b;
+  try{b=await r.json()}catch(e){b=await r.text()}
+  if(!r.ok)throw new Error(b.detail||String(b));
+  return b;
+}
+function today(){return new Date().toISOString().slice(0,10)}
+function openCustomerMaster(){window.open("/tlc-customer-master","_blank")}
+function openBankImport(){window.open("/bank-import","_blank")}
+function openSalesLedger(){window.open("/requests/review-workbench","_blank")}
+
+async function loadCustomers(){
+  const p=new URLSearchParams();
+  const q=document.getElementById("customerQuery").value.trim();
+  if(q)p.set("query",q);
+  p.set("include_inactive","false");
+  p.set("limit","500");
+  const rows=await api("/api/tlc-customers?"+p.toString());
+  const list=document.getElementById("customerList");list.innerHTML="";
+  rows.forEach(r=>{
+    const div=document.createElement("div");
+    div.className="item"+(selectedCustomer&&selectedCustomer.id===r.id?" active":"");
+    div.innerHTML=`<strong>${esc(r.customer_id)}</strong><br>${esc(r.formal_name)}<br><span class="small">${esc(r.short_name||r.katakana_name||"")}</span>`;
+    div.onclick=()=>selectCustomer(r);
+    div.ondblclick=()=>{selectCustomer(r);openCustomerMaster()};
+    list.appendChild(div);
+  });
+}
+
+async function selectCustomer(r){
+  selectedCustomer=r;
+  document.getElementById("customerId").value=r.customer_id;
+  document.getElementById("customerTitle").textContent=`${r.customer_id} / ${r.formal_name}`;
+  await loadLatest();
+  await loadHistory();
+  await loadCustomers();
+}
+
+async function loadLatest(){
+  if(!selectedCustomer)return;
+  const latest=await api("/api/customer-payment-reconciliation/latest?customer_id="+encodeURIComponent(selectedCustomer.customer_id));
+  if(latest&&latest.id){
+    document.getElementById("previousRequest").value=latest.current_request_cutoff||"";
+    document.getElementById("previousBank").value=latest.current_bank_cutoff||"";
+    document.getElementById("openingOutstanding").value=latest.closing_outstanding||"";
+  }else{
+    document.getElementById("previousRequest").value="";
+    document.getElementById("previousBank").value="";
+    document.getElementById("openingOutstanding").value="";
+  }
+  document.getElementById("currentRequest").value=today();
+  document.getElementById("currentBank").value=today();
+}
+
+async function runBankMatching(){
+  try{
+    const result=await api("/api/customer-bank-matching/run?limit=1000",{method:"POST"});
+    document.getElementById("matchingMessage").textContent=
+      `processed=${result.processed}, matched=${result.matched}, unmatched=${result.unmatched}, ambiguous=${result.ambiguous}`;
+    renderExceptions(result.results||[]);
+  }catch(e){alert(e.message)}
+}
+
+function renderExceptions(rows){
+  const body=document.getElementById("exceptionBody");body.innerHTML="";
+  rows.filter(r=>r.status!=="MATCHED").forEach(r=>{
+    const candidates=(r.candidates||[]).map(x=>x.customer_id).join(", ");
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td class="error">${esc(r.status)}</td><td>${esc(r.counterparty)}</td><td>${esc(r.normalized_counterparty)}</td><td>${esc(candidates)}</td>`;
+    body.appendChild(tr);
+  });
+}
+
+function requestPayload(){
+  return {
+    customer_id:document.getElementById("customerId").value.trim(),
+    previous_request_cutoff:document.getElementById("previousRequest").value,
+    current_request_cutoff:document.getElementById("currentRequest").value,
+    previous_bank_cutoff:document.getElementById("previousBank").value,
+    current_bank_cutoff:document.getElementById("currentBank").value,
+    opening_outstanding:document.getElementById("openingOutstanding").value.trim()
+  };
+}
+
+async function calculate(){
+  const p=new URLSearchParams(requestPayload());
+  try{
+    calculated=await api("/api/customer-payment-reconciliation/calculate?"+p.toString());
+    document.getElementById("opening").textContent=calculated.opening_outstanding;
+    document.getElementById("sales").textContent=calculated.sales_total;
+    document.getElementById("payments").textContent=calculated.payment_total;
+    document.getElementById("closing").textContent=calculated.closing_outstanding;
+    document.getElementById("status").textContent=calculated.status;
+    renderSales(calculated.sales||[]);
+    renderPayments(calculated.payments||[]);
+  }catch(e){alert(e.message)}
+}
+
+function renderSales(rows){
+  const body=document.getElementById("salesBody");body.innerHTML="";
+  rows.forEach(r=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${esc(r.request_no)}</td><td>${esc(r.request_date)}</td><td>${esc(r.customer_name)}</td><td>${esc(r.currency)}</td><td>${esc(r.total_amount)}</td>`;
+    body.appendChild(tr);
+  });
+}
+
+function renderPayments(rows){
+  const body=document.getElementById("paymentBody");body.innerHTML="";
+  rows.forEach(r=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${esc(r.bank_name)}</td><td>${esc(r.transaction_date)}</td><td>${esc(r.transaction_id)}</td><td>${esc(r.counterparty)}</td><td>${esc(r.amount)}</td>`;
+    body.appendChild(tr);
+  });
+}
+
+async function confirmResult(){
+  const body={
+    ...requestPayload(),
+    confirmed_by:document.getElementById("confirmedBy").value.trim(),
+    note:document.getElementById("note").value
+  };
+  try{
+    const result=await api("/api/customer-payment-reconciliation/confirm",{
+      method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)
+    });
+    document.getElementById("saveMessage").textContent=result.status==="saved"?"保存成功":"该期间已保存";
+    await loadHistory();
+    await loadLatest();
+    await calculate();
+  }catch(e){alert(e.message)}
+}
+
+async function loadHistory(){
+  if(!selectedCustomer)return;
+  const rows=await api("/api/customer-payment-reconciliation/history?customer_id="+encodeURIComponent(selectedCustomer.customer_id));
+  const body=document.getElementById("historyBody");body.innerHTML="";
+  rows.forEach(r=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${esc(r.confirmed_at)}</td>
+      <td>${esc(r.previous_request_cutoff)} → ${esc(r.current_request_cutoff)}</td>
+      <td>${esc(r.previous_bank_cutoff)} → ${esc(r.current_bank_cutoff)}</td>
+      <td>${esc(r.opening_outstanding)}</td><td>${esc(r.period_sales_total)}</td>
+      <td>${esc(r.period_payment_total)}</td><td>${esc(r.closing_outstanding)}</td><td>${esc(r.status)}</td>`;
+    body.appendChild(tr);
+  });
+}
+
+document.getElementById("currentRequest").value=today();
+document.getElementById("currentBank").value=today();
+loadCustomers().catch(e=>alert(e.message));
+</script>
+</body>
+</html>
