@@ -73,3 +73,5 @@ from src.api.routes.tlc_batch_lifecycle_overview import router as tlc_batch_life
 app.include_router(tlc_batch_lifecycle_overview_router)
 from src.api.routes.tlc_import_center import router as tlc_import_center_router
 app.include_router(tlc_import_center_router)
+from src.api.routes.tlc_request_import_job_sync import router as tlc_request_import_job_sync_router
+app.include_router(tlc_request_import_job_sync_router)

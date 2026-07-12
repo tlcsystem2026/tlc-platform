@@ -48,7 +48,7 @@ table{border-collapse:collapse;width:100%;font-size:13px}th,td{border:1px solid 
 <button onclick="loadAll()">刷新</button>
 </div>
 <div class="toolbar" style="margin-top:10px">
-<button onclick="openBatch()">打开 Batch Center</button>
+<button onclick="openBatch()">打开 Batch Center</button><button onclick="syncSelectedRequestFiles()">同步请求书导入任务</button>
 <button onclick="window.open('/bank-import','_blank')">打开银行流水导入</button>
 <button onclick="window.open('/requests/review-workbench','_blank')">打开请求书审核</button>
 </div>
@@ -143,6 +143,7 @@ async function advance(id,current){
   await loadAll();
  }catch(e){alert(e.message)}
 }
+async function syncSelectedRequestFiles(){if(!batchId.value){alert("请选择 Batch");return}if(!operator.value.trim()){alert("请输入操作人");return}try{const result=await api(`/api/tlc-import-jobs/sync-request-files/${batchId.value}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({operator:operator.value})});alert(`同步完成：新增 ${result.created_job_count}，已存在 ${result.existing_job_count}`);await loadAll()}catch(e){alert(e.message)}}
 function openBatch(){
  if(!batchId.value){window.open("/batch-center","_blank");return}
  window.open("/batch-center","_blank")
