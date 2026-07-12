@@ -77,3 +77,5 @@ from src.api.routes.tlc_request_import_job_sync import router as tlc_request_imp
 app.include_router(tlc_request_import_job_sync_router)
 from src.api.routes.tlc_bank_csv_import_job import router as tlc_bank_csv_import_job_router
 app.include_router(tlc_bank_csv_import_job_router)
+from src.api.routes.tlc_bank_document_staging import router as tlc_bank_document_staging_router
+app.include_router(tlc_bank_document_staging_router)
