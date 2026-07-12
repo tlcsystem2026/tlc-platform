@@ -83,3 +83,5 @@ from src.api.routes.tlc_purchase_request_staging import router as tlc_purchase_r
 app.include_router(tlc_purchase_request_staging_router)
 from src.api.routes.tlc_import_error_retry import router as tlc_import_error_retry_router
 app.include_router(tlc_import_error_retry_router)
+from src.api.routes.tlc_monthly_close_control import router as tlc_monthly_close_control_router
+app.include_router(tlc_monthly_close_control_router)

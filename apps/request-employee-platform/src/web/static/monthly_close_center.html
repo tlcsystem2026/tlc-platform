@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Monthly Close Control Center</title>
+<style>
+body{font-family:Arial,"Microsoft YaHei",sans-serif;margin:0;background:#f4f6f8;color:#222}
+header{background:#264f73;color:#fff;padding:18px 24px}
+main{padding:18px}.card{background:#fff;border:1px solid #ddd;border-radius:8px;padding:14px;margin-bottom:14px}
+.toolbar{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px}
+input,button{padding:8px;border:1px solid #bbb;border-radius:4px}
+button{cursor:pointer}.primary{background:#264f73;color:#fff}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:10px}
+.stat{background:#eef3f7;border-radius:6px;padding:12px;text-align:center}
+.good{color:#137333}.bad{color:#b3261e}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid #ddd;padding:7px;text-align:left}th{background:#eef3f7}
+.small{font-size:12px;color:#666}
+@media(max-width:900px){.stats{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<header>
+<h1>Monthly Close Control Center</h1>
+<div>按年月集中检查导入、比较、审核、销售台账、银行流水及客户对账完成情况</div>
+</header>
+<main>
+<section class="card">
+<div class="toolbar">
+<label>业务年月
+<input id="businessMonth" type="month">
+</label>
+<button class="primary" onclick="loadOverview()">检查月结状态</button>
+<button onclick="window.open('/batch-center','_blank')">打开 Batch Center</button>
+<button onclick="window.open('/import-center','_blank')">打开 Import Center</button>
+</div>
+</section>
+
+<section class="card">
+<div id="stats" class="stats"></div>
+<div id="closeStatus" style="margin-top:12px"></div>
+</section>
+
+<section class="card">
+<h3>Batch 明细</h3>
+<div id="batchRows"></div>
+</section>
+
+<section class="card">
+<h3>月结阻塞事项</h3>
+<div id="blockers"></div>
+</section>
+</main>
+<script>
+async function api(url){
+ const r=await fetch(url);
+ let b;try{b=await r.json()}catch(e){b=await r.text()}
+ if(!r.ok)throw new Error(b.detail||String(b));
+ return b
+}
+function esc(v){
+ return String(v??"").replace(/[&<>"']/g,c=>(
+  {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]
+ ))
+}
+async function loadOverview(){
+ const month=businessMonth.value;
+ if(!month){alert("请选择业务年月");return}
+ try{
+  const data=await api(`/api/tlc-monthly-close/${month}`);
+  stats.innerHTML=[
+   ["Batch",data.batch_count],
+   ["已完成",data.finished_batch_count],
+   ["未完成",data.unfinished_batch_count],
+   ["导入错误记录",data.import_error_record_count],
+  ].map(x=>`<div class="stat"><b>${esc(x[1])}</b><br><span class="small">${esc(x[0])}</span></div>`).join("");
+
+  closeStatus.innerHTML=data.close_ready
+   ?'<b class="good">READY：本月满足关闭条件</b>'
+   :'<b class="bad">BLOCKED：本月仍有未完成事项</b>';
+
+  batchRows.innerHTML='<table><tr><th>Batch</th><th>状态</th><th>Import Jobs</th><th>Compare</th><th>Review</th><th>Sales Ledger</th><th>Bank</th><th>Reconciliation</th><th>阻塞</th></tr>'+
+   data.batch_summaries.map(x=>`<tr>
+    <td>${esc(x.batch.batch_no||x.batch.id)}<br><span class="small">${esc(x.batch.title)}</span></td>
+    <td>${esc(x.batch.status)}</td><td>${x.import_job_count}</td><td>${x.compare_count}</td>
+    <td>${x.review_count}</td><td>${x.sales_ledger_count}</td><td>${x.bank_count}</td>
+    <td>${x.reconciliation_count}</td><td>${esc(x.blockers.join("; "))}</td>
+   </tr>`).join("")+'</table>';
+
+  blockers.innerHTML=data.blockers.length
+   ?data.blockers.map(x=>`<div class="card"><b>${esc(x.batch_no||x.title||"Month")}</b><br>${x.items.map(esc).join("<br>")}</div>`).join("")
+   :'<span class="good">没有阻塞事项</span>';
+ }catch(e){alert(e.message)}
+}
+const now=new Date();
+businessMonth.value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+</script>
+</body>
+</html>
