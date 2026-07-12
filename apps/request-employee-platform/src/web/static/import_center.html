@@ -58,6 +58,8 @@ table{border-collapse:collapse;width:100%;font-size:13px}th,td{border:1px solid 
 <div id="stats" class="stats"></div>
 </section>
 
+<section class="card"><div id="importOperations"></div></section>
+
 <section class="card">
 <h3>Import Jobs</h3>
 <div id="jobs"></div>
@@ -104,7 +106,7 @@ async function loadAll(){
    <td>${esc(j.created_at)}</td><td>${esc(j.batch_id)}</td><td>${esc(j.import_type)}</td>
    <td>${esc(j.source_name||j.source_reference)}</td><td>${esc(j.status)}</td>
    <td>${j.record_count}</td><td>${j.success_count}</td><td>${j.error_count}</td><td>${j.duplicate_count}</td>
-   <td><button onclick="advance('${j.id}','${j.status}')">更新</button></td>
+   <td><button onclick="advance('${j.id}','${j.status}')">更新</button> <button onclick="createImportErrorForJob('${j.id}')">创建错误</button> <button onclick="requestImportRetry('${j.id}')">重试</button></td>
   </tr>`).join("")+'</table>';
 }
 async function createJob(){
@@ -212,6 +214,60 @@ async function stagePurchaseDocument(){
   }catch(e){alert(e.message)}
  };
  picker.click();
+}
+async function loadImportOperations(){
+ const batch=batchId.value;
+ const query=batch?`?batch_id=${encodeURIComponent(batch)}`:"";
+ const [summary,errors,retries]=await Promise.all([
+  api("/api/tlc-import-operations/summary"+query),
+  api("/api/tlc-import-operations/errors"+query),
+  api("/api/tlc-import-operations/retries"+query)
+ ]);
+ const box=document.getElementById("importOperations");
+ if(!box)return;
+ box.innerHTML=`<h3>Import Error / Retry Center</h3>
+ <div class="small">Open Errors=${summary.open_error_count}, Resolved=${summary.resolved_error_count}, Retries=${summary.retry_count}</div>
+ <table><tr><th>类型</th><th>Job</th><th>状态</th><th>说明</th><th>操作</th></tr>`+
+ errors.map(e=>`<tr><td>Error</td><td>${esc(e.import_job_id)}</td><td>${esc(e.status)}</td><td>${esc(e.message)}</td><td><button onclick="resolveImportError('${e.id}')">解决</button></td></tr>`).join("")+
+ retries.map(r=>`<tr><td>Retry #${r.retry_no}</td><td>${esc(r.import_job_id)}</td><td>${esc(r.status)}</td><td>${esc(r.message)}</td><td>${r.status==="PROCESSING"?`<button onclick="completeImportRetry('${r.id}','SUCCESS')">成功</button> <button onclick="completeImportRetry('${r.id}','ERROR')">失败</button>`:""}</td></tr>`).join("")+
+ '</table>';
+}
+async function createImportErrorForJob(jobId){
+ const message=prompt("错误说明：","");
+ if(!message)return;
+ await api("/api/tlc-import-operations/errors",{
+  method:"POST",headers:{"Content-Type":"application/json"},
+  body:JSON.stringify({import_job_id:jobId,message})
+ });
+ await loadImportOperations();
+}
+async function requestImportRetry(jobId){
+ if(!operator.value.trim()){alert("请输入操作人");return}
+ await api("/api/tlc-import-operations/retries",{
+  method:"POST",headers:{"Content-Type":"application/json"},
+  body:JSON.stringify({import_job_id:jobId,requested_by:operator.value})
+ });
+ await loadAll();
+ await loadImportOperations();
+}
+async function resolveImportError(errorId){
+ if(!operator.value.trim()){alert("请输入操作人");return}
+ const note=prompt("处理说明：","");
+ if(note===null)return;
+ await api(`/api/tlc-import-operations/errors/${errorId}`,{
+  method:"PUT",headers:{"Content-Type":"application/json"},
+  body:JSON.stringify({status:"RESOLVED",operator:operator.value,resolution_note:note})
+ });
+ await loadImportOperations();
+}
+async function completeImportRetry(retryId,status){
+ if(!operator.value.trim()){alert("请输入操作人");return}
+ await api(`/api/tlc-import-operations/retries/${retryId}/complete`,{
+  method:"PUT",headers:{"Content-Type":"application/json"},
+  body:JSON.stringify({status,operator:operator.value})
+ });
+ await loadAll();
+ await loadImportOperations();
 }
 function openBatch(){
  if(!batchId.value){window.open("/batch-center","_blank");return}

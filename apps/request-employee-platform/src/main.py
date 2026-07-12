@@ -81,3 +81,5 @@ from src.api.routes.tlc_bank_document_staging import router as tlc_bank_document
 app.include_router(tlc_bank_document_staging_router)
 from src.api.routes.tlc_purchase_request_staging import router as tlc_purchase_request_staging_router
 app.include_router(tlc_purchase_request_staging_router)
+from src.api.routes.tlc_import_error_retry import router as tlc_import_error_retry_router
+app.include_router(tlc_import_error_retry_router)
