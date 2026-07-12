@@ -49,7 +49,7 @@ table{border-collapse:collapse;width:100%;font-size:13px}th,td{border:1px solid 
 </div>
 <div class="toolbar" style="margin-top:10px">
 <button onclick="openBatch()">打开 Batch Center</button><button onclick="syncSelectedRequestFiles()">同步请求书导入任务</button>
-<button onclick="window.open('/bank-import','_blank')">打开银行流水导入</button>
+<button onclick="window.open('/bank-import','_blank')">打开银行流水导入</button><button onclick="registerBankCsvImport()">登记银行CSV导入结果</button>
 <button onclick="window.open('/requests/review-workbench','_blank')">打开请求书审核</button>
 </div>
 </section>
@@ -144,6 +144,7 @@ async function advance(id,current){
  }catch(e){alert(e.message)}
 }
 async function syncSelectedRequestFiles(){if(!batchId.value){alert("请选择 Batch");return}if(!operator.value.trim()){alert("请输入操作人");return}try{const result=await api(`/api/tlc-import-jobs/sync-request-files/${batchId.value}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({operator:operator.value})});alert(`同步完成：新增 ${result.created_job_count}，已存在 ${result.existing_job_count}`);await loadAll()}catch(e){alert(e.message)}}
+async function registerBankCsvImport(){if(!batchId.value){alert('请选择 Batch');return}if(!operator.value.trim()){alert('请输入操作人');return}const bankImportId=prompt('请输入银行导入批次 ID：','');if(!bankImportId)return;const source=prompt('请输入 CSV 文件名或来源引用：','');if(!source)return;const total=Number(prompt('总记录数：','0')||0);const success=Number(prompt('成功数：',String(total))||0);const errors=Number(prompt('错误数：','0')||0);const duplicates=Number(prompt('重复数：','0')||0);try{const result=await api('/api/tlc-import-jobs/register-bank-csv',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({batch_id:batchId.value,bank_import_id:bankImportId,source_name:source,source_reference:`bank-csv:${bankImportId}:${source}`,registered_by:operator.value,record_count:total,success_count:success,error_count:errors,duplicate_count:duplicates})});alert(result.status==='exists'?'该银行导入批次已登记':'银行CSV任务登记成功');await loadAll()}catch(e){alert(e.message)}}
 function openBatch(){
  if(!batchId.value){window.open("/batch-center","_blank");return}
  window.open("/batch-center","_blank")
