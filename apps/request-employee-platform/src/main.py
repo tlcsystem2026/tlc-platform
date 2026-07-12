@@ -49,3 +49,5 @@ from src.api.routes.customer_bank_name_matching import router as customer_bank_n
 app.include_router(customer_bank_name_matching_router)
 from src.api.routes.customer_period_reconciliation import router as customer_period_reconciliation_router
 app.include_router(customer_period_reconciliation_router)
+from src.api.routes.customer_reconciliation_history import router as customer_reconciliation_history_router
+app.include_router(customer_reconciliation_history_router)

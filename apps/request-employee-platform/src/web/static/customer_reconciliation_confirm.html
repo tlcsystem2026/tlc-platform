@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>客户对账确认与结转</title>
+<style>
+body{font-family:Arial,"Microsoft YaHei",sans-serif;margin:0;background:#f6f7f9;color:#222}
+header{background:#1f4e78;color:#fff;padding:16px 22px}
+main{padding:16px}
+.card{background:#fff;border:1px solid #ddd;border-radius:8px;padding:14px;margin-bottom:14px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px}
+input,button,textarea{padding:8px;border:1px solid #bbb;border-radius:4px}
+button{cursor:pointer;background:#1f4e78;color:#fff}
+.summary{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.metric{background:#eef3f8;border-radius:6px;padding:12px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border:1px solid #ddd;padding:7px;text-align:left}
+th{background:#eef3f8}
+.small{font-size:12px;color:#666}
+@media(max-width:900px){.summary{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<header>
+<h1>客户对账确认与结转</h1>
+<div>期初未付 + 本期销售 - 本期入金 = 期末未付</div>
+</header>
+<main>
+<section class="card">
+<div class="toolbar">
+  <label>Customer ID<input id="customerId" ondblclick="openCustomerMaster()"></label>
+  <label>上次请求截止日<input id="previousRequest" type="date"></label>
+  <label>本次请求截止日<input id="currentRequest" type="date"></label>
+  <label>上次银行截止日<input id="previousBank" type="date"></label>
+  <label>本次银行截止日<input id="currentBank" type="date"></label>
+  <label>期初未付<input id="openingOutstanding" placeholder="留空自动承接上次期末"></label>
+  <button onclick="calculate()">计算</button>
+</div>
+</section>
+
+<section class="card">
+<div class="summary">
+  <div class="metric">期初未付<br><strong id="opening">0</strong></div>
+  <div class="metric">本期销售<br><strong id="sales">0</strong></div>
+  <div class="metric">本期入金<br><strong id="payments">0</strong></div>
+  <div class="metric">期末未付<br><strong id="closing">0</strong></div>
+  <div class="metric">状态<br><strong id="status">-</strong></div>
+</div>
+</section>
+
+<section class="card">
+<div class="toolbar">
+  <label>确认人<input id="confirmedBy"></label>
+  <label style="min-width:420px">备注<textarea id="note"></textarea></label>
+  <button onclick="confirmResult()">确认并保存</button>
+  <button onclick="loadHistory()">刷新历史</button>
+</div>
+<div id="message" class="small"></div>
+</section>
+
+<section class="card">
+<h2>对账历史</h2>
+<div style="overflow:auto">
+<table>
+<thead>
+<tr>
+<th>确认时间</th><th>客户</th><th>请求区间</th><th>银行区间</th>
+<th>期初</th><th>销售</th><th>入金</th><th>期末</th><th>状态</th><th>确认人</th>
+</tr>
+</thead>
+<tbody id="historyBody"></tbody>
+</table>
+</div>
+</section>
+</main>
+<script>
+let latestCalculated=null;
+function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+async function api(url,options){
+  const r=await fetch(url,options);
+  const b=await r.json();
+  if(!r.ok)throw new Error(b.detail||JSON.stringify(b));
+  return b;
+}
+function today(){return new Date().toISOString().slice(0,10)}
+function openCustomerMaster(){window.open("/tlc-customer-master","_blank")}
+function payload(){
+  return {
+    customer_id:document.getElementById("customerId").value.trim(),
+    previous_request_cutoff:document.getElementById("previousRequest").value,
+    current_request_cutoff:document.getElementById("currentRequest").value,
+    previous_bank_cutoff:document.getElementById("previousBank").value,
+    current_bank_cutoff:document.getElementById("currentBank").value,
+    opening_outstanding:document.getElementById("openingOutstanding").value.trim()
+  };
+}
+async function calculate(){
+  const p=new URLSearchParams(payload());
+  try{
+    latestCalculated=await api("/api/customer-payment-reconciliation/calculate?"+p.toString());
+    document.getElementById("opening").textContent=latestCalculated.opening_outstanding;
+    document.getElementById("sales").textContent=latestCalculated.sales_total;
+    document.getElementById("payments").textContent=latestCalculated.payment_total;
+    document.getElementById("closing").textContent=latestCalculated.closing_outstanding;
+    document.getElementById("status").textContent=latestCalculated.status;
+  }catch(e){alert(e.message)}
+}
+async function confirmResult(){
+  const body={
+    ...payload(),
+    confirmed_by:document.getElementById("confirmedBy").value.trim(),
+    note:document.getElementById("note").value
+  };
+  try{
+    const result=await api("/api/customer-payment-reconciliation/confirm",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(body)
+    });
+    document.getElementById("message").textContent=
+      result.status==="saved" ? "保存成功" : "该期间已保存";
+    await calculate();
+    await loadHistory();
+  }catch(e){alert(e.message)}
+}
+async function loadHistory(){
+  const customerId=document.getElementById("customerId").value.trim();
+  const p=new URLSearchParams();
+  if(customerId)p.set("customer_id",customerId);
+  const rows=await api("/api/customer-payment-reconciliation/history?"+p.toString());
+  const body=document.getElementById("historyBody");body.innerHTML="";
+  rows.forEach(r=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${esc(r.confirmed_at)}</td><td>${esc(r.customer_id)}<br>${esc(r.customer_name)}</td>
+      <td>${esc(r.previous_request_cutoff)} → ${esc(r.current_request_cutoff)}</td>
+      <td>${esc(r.previous_bank_cutoff)} → ${esc(r.current_bank_cutoff)}</td>
+      <td>${esc(r.opening_outstanding)}</td><td>${esc(r.period_sales_total)}</td>
+      <td>${esc(r.period_payment_total)}</td><td>${esc(r.closing_outstanding)}</td>
+      <td>${esc(r.status)}</td><td>${esc(r.confirmed_by)}</td>`;
+    body.appendChild(tr);
+  });
+}
+document.getElementById("currentRequest").value=today();
+document.getElementById("currentBank").value=today();
+loadHistory().catch(()=>{});
+</script>
+</body>
+</html>
