@@ -57,3 +57,5 @@ from src.api.routes.tlc_batch_center import router as tlc_batch_center_router
 app.include_router(tlc_batch_center_router)
 from src.api.routes.tlc_batch_request_import import router as tlc_batch_request_import_router
 app.include_router(tlc_batch_request_import_router)
+from src.api.routes.tlc_batch_compare import router as tlc_batch_compare_router
+app.include_router(tlc_batch_compare_router)
