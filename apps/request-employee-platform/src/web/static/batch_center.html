@@ -1,143 +1,47 @@
 <!doctype html>
-<html lang="zh-CN">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Batch Center</title>
 <style>
-body{font-family:Arial,"Microsoft YaHei",sans-serif;margin:0;background:#f5f6f8;color:#222}
-header{background:#1f4e78;color:#fff;padding:16px 22px}
-main{padding:16px}
-.layout{display:grid;grid-template-columns:390px 1fr;gap:14px}
-.card{background:#fff;border:1px solid #ddd;border-radius:8px;padding:14px;margin-bottom:14px}
-.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
-label{display:flex;flex-direction:column;gap:4px;font-size:13px}
-input,select,textarea,button{padding:8px;border:1px solid #bbb;border-radius:4px}
-button{cursor:pointer}.primary{background:#1f4e78;color:#fff}.success{background:#1f7a3f;color:#fff}.danger{background:#a61b1b;color:#fff}
-.list{max-height:72vh;overflow:auto;border:1px solid #ddd}.item{padding:10px;border-bottom:1px solid #eee;cursor:pointer}.item:hover,.item.active{background:#eaf2fb}
-.grid{display:grid;grid-template-columns:repeat(2,minmax(180px,1fr));gap:10px}
-.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}.tab{background:#eef3f8}.tab.active{background:#1f4e78;color:#fff}
-.panel{border:1px solid #ddd;border-radius:6px;padding:12px;min-height:180px}
+body{font-family:Arial,"Microsoft YaHei";margin:0;background:#f5f6f8}header{background:#1f4e78;color:#fff;padding:16px 22px}
+main{padding:16px}.layout{display:grid;grid-template-columns:380px 1fr;gap:14px}.card{background:#fff;border:1px solid #ddd;border-radius:8px;padding:14px;margin-bottom:14px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:end}input,select,button,textarea{padding:8px;border:1px solid #bbb;border-radius:4px}
+button{cursor:pointer}.primary{background:#1f4e78;color:#fff}.list{max-height:70vh;overflow:auto;border:1px solid #ddd}.item{padding:10px;border-bottom:1px solid #eee;cursor:pointer}.item:hover{background:#eaf2fb}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}.tab{background:#eef3f8}.tab.active{background:#1f4e78;color:#fff}
 table{border-collapse:collapse;width:100%;font-size:13px}th,td{border:1px solid #ddd;padding:7px;text-align:left}th{background:#eef3f8}
-.badge{display:inline-block;padding:3px 7px;border-radius:12px;background:#eef3f8;font-size:12px}.small{font-size:12px;color:#666}
-@media(max-width:1000px){.layout{grid-template-columns:1fr}.grid{grid-template-columns:1fr}}
-</style>
-</head>
-<body>
-<header>
-<h1>Batch Center</h1>
-<div>业务年月与业务案件的统一入口</div>
-</header>
-<main>
+.small{font-size:12px;color:#666}@media(max-width:900px){.layout{grid-template-columns:1fr}}
+</style></head><body>
+<header><h1>Batch Center</h1><div>业务批次与请求书导入</div></header><main>
 <div class="layout">
-<section class="card">
-  <div class="toolbar">
-    <input id="filterMonth" type="month">
-    <select id="filterStatus"><option value="">全部状态</option></select>
-    <input id="filterQuery" placeholder="Batch / 标题 / 负责人">
-    <button onclick="loadBatches()">检索</button>
-    <button class="primary" onclick="newBatch()">新增</button>
-  </div>
-  <div id="batchList" class="list"></div>
-</section>
-
+<section class="card"><div class="toolbar"><input id="month" type="month"><button onclick="loadBatches()">检索</button><button class="primary" onclick="newBatch()">新增</button></div><div id="list" class="list"></div></section>
 <section>
-  <section class="card">
-    <div class="toolbar">
-      <button class="primary" onclick="saveBatch()">保存</button>
-      <button class="success" onclick="transitionSelected()">状态推进</button>
-      <button class="danger" onclick="finishSelected()">关闭Batch</button>
-    </div>
-    <input id="batchId" type="hidden">
-    <div class="grid">
-      <label>Batch No<input id="batchNo" readonly></label>
-      <label>业务年月<input id="businessMonth" type="month"></label>
-      <label>标题<input id="title"></label>
-      <label>状态<input id="status" readonly></label>
-      <label>创建人<input id="createdBy"></label>
-      <label>负责人<input id="owner"></label>
-      <label style="grid-column:1/-1">源文件目录<input id="sourceFolder"></label>
-      <label style="grid-column:1/-1">备注<textarea id="note"></textarea></label>
-    </div>
-  </section>
-
-  <section class="card">
-    <div class="tabs">
-      <button class="tab active" data-tab="basic" onclick="selectTab(this)">基本信息</button>
-      <button class="tab" data-tab="request" onclick="selectTab(this)">Request Import</button>
-      <button class="tab" data-tab="compare" onclick="selectTab(this)">Compare</button>
-      <button class="tab" data-tab="error" onclick="selectTab(this)">Error</button>
-      <button class="tab" data-tab="review" onclick="selectTab(this)">Review</button>
-      <button class="tab" data-tab="sales" onclick="selectTab(this)">Sales Ledger</button>
-      <button class="tab" data-tab="bank" onclick="selectTab(this)">Bank Import</button>
-      <button class="tab" data-tab="reconciliation" onclick="selectTab(this)">Reconciliation</button>
-      <button class="tab" data-tab="history" onclick="selectTab(this)">History</button>
-    </div>
-    <div id="tabPanel" class="panel"></div>
-  </section>
-</section>
-</div>
-</main>
+<div class="card"><div class="toolbar"><input id="id" type="hidden"><label>Batch No<input id="no" readonly></label><label>业务年月<input id="businessMonth" type="month"></label><label>标题<input id="title"></label><label>创建人<input id="createdBy"></label><button class="primary" onclick="saveBatch()">保存</button></div></div>
+<div class="card"><div class="tabs">
+<button class="tab active" onclick="showTab('basic',this)">基本信息</button>
+<button class="tab" onclick="showTab('request',this)">Request Import</button>
+<button class="tab" onclick="showTab('compare',this)">Compare</button>
+<button class="tab" onclick="showTab('error',this)">Error</button>
+<button class="tab" onclick="showTab('review',this)">Review</button>
+<button class="tab" onclick="showTab('sales',this)">Sales Ledger</button>
+<button class="tab" onclick="showTab('bank',this)">Bank Import</button>
+<button class="tab" onclick="showTab('reconciliation',this)">Reconciliation</button>
+<button class="tab" onclick="showTab('history',this)">History</button>
+</div><div id="panel"></div></div>
+</section></div></main>
 <script>
-let batches=[],selected=null,statuses=[];
+let selected=null;
 function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-async function api(url,options){const r=await fetch(url,options);let b;try{b=await r.json()}catch(e){b=await r.text()}if(!r.ok)throw new Error(b.detail||String(b));return b}
-async function loadStatuses(){
- statuses=await api("/api/tlc-batches/statuses");
- const f=document.getElementById("filterStatus");statuses.forEach(s=>{const o=document.createElement("option");o.value=s;o.textContent=s;f.appendChild(o)})
-}
-async function loadBatches(){
- const p=new URLSearchParams();const m=document.getElementById("filterMonth").value;const s=document.getElementById("filterStatus").value;const q=document.getElementById("filterQuery").value.trim();
- if(m)p.set("business_month",m);if(s)p.set("status",s);if(q)p.set("query",q);
- batches=await api("/api/tlc-batches?"+p.toString());const list=document.getElementById("batchList");list.innerHTML="";
- batches.forEach(b=>{const d=document.createElement("div");d.className="item"+(selected&&selected.id===b.id?" active":"");d.innerHTML=`<strong>${esc(b.batch_no)}</strong> <span class="badge">${esc(b.status)}</span><br>${esc(b.title||"(无标题)")}<br><span class="small">${esc(b.owner||b.created_by)}</span>`;d.onclick=()=>selectBatch(b);list.appendChild(d)})
-}
-function newBatch(){
- selected=null;["batchId","batchNo","title","status","owner","sourceFolder","note"].forEach(id=>document.getElementById(id).value="");
- document.getElementById("businessMonth").value=new Date().toISOString().slice(0,7);
- document.getElementById("createdBy").value="";
- renderTab("basic");
-}
-function selectBatch(b){
- selected=b;document.getElementById("batchId").value=b.id;document.getElementById("batchNo").value=b.batch_no;document.getElementById("businessMonth").value=b.business_month;document.getElementById("title").value=b.title||"";document.getElementById("status").value=b.status;document.getElementById("createdBy").value=b.created_by;document.getElementById("owner").value=b.owner||"";document.getElementById("sourceFolder").value=b.source_folder||"";document.getElementById("note").value=b.note||"";renderTab("basic");loadBatches()
-}
-async function saveBatch(){
- const id=document.getElementById("batchId").value;
- const payload={business_month:document.getElementById("businessMonth").value,title:document.getElementById("title").value,created_by:document.getElementById("createdBy").value,owner:document.getElementById("owner").value,source_folder:document.getElementById("sourceFolder").value,note:document.getElementById("note").value,operator:document.getElementById("createdBy").value};
- try{
-  const saved=id?await api("/api/tlc-batches/"+id,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}):await api("/api/tlc-batches",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
-  selected=saved;await loadBatches();selectBatch(saved);
- }catch(e){alert(e.message)}
-}
-async function transitionSelected(){
- if(!selected){alert("请先选择Batch");return}
- const next=prompt("输入下一状态：\\n"+statuses.join("\\n"),selected.status);
- if(!next)return;
- try{const b=await api(`/api/tlc-batches/${selected.id}/transition`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({new_status:next,operator:document.getElementById("createdBy").value,message:"Updated from Batch Center"})});selected=b;await loadBatches();selectBatch(b)}catch(e){alert(e.message)}
-}
-async function finishSelected(){
- if(!selected||!confirm("确认关闭此Batch？"))return;
- try{const b=await api(`/api/tlc-batches/${selected.id}/transition`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({new_status:"FINISHED",operator:document.getElementById("createdBy").value,message:"Batch closed"})});selected=b;await loadBatches();selectBatch(b)}catch(e){alert(e.message)}
-}
-function selectTab(btn){document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));btn.classList.add("active");renderTab(btn.dataset.tab)}
-async function renderTab(tab){
- const panel=document.getElementById("tabPanel");
- if(!selected&&tab!=="basic"){panel.innerHTML="<p>请先选择或创建Batch。</p>";return}
- const links={
-  request:'<h3>Request Import</h3><p>下一阶段将把请求书 Excel/PDF 导入挂接到当前 Batch。</p>',
-  compare:'<h3>Compare</h3><p>下一阶段将显示当前 Batch 的比较结果与重新比较入口。</p>',
-  error:'<h3>Error</h3><p>下一阶段将显示错误文件、错误明细与修正状态。</p>',
-  review:'<h3>Review</h3><p><a href="/requests/review-workbench" target="_blank">打开审核工作台</a></p>',
-  sales:'<h3>Sales Ledger</h3><p><a href="/requests/review-workbench" target="_blank">打开正式销售台账</a></p>',
-  bank:'<h3>Bank Import</h3><p><a href="/bank-import" target="_blank">打开银行流水导入</a></p>',
-  reconciliation:'<h3>Reconciliation</h3><p><a href="/customer-reconciliation-workbench" target="_blank">打开客户对账工作台</a></p>'
- };
- if(tab==="basic"){panel.innerHTML=`<h3>基本信息</h3><p>Batch No：${esc(selected?selected.batch_no:"新建")}</p><p>一个 Batch 代表一个业务案件，并以业务年月管理。</p>`}
- else if(tab==="history"){
-  const rows=await api(`/api/tlc-batches/${selected.id}/timeline`);panel.innerHTML='<h3>History</h3><table><thead><tr><th>时间</th><th>事件</th><th>状态</th><th>操作人</th><th>说明</th></tr></thead><tbody>'+rows.map(r=>`<tr><td>${esc(r.event_at)}</td><td>${esc(r.event_type)}</td><td>${esc(r.old_status)} → ${esc(r.new_status)}</td><td>${esc(r.operator)}</td><td>${esc(r.message)}</td></tr>`).join("")+'</tbody></table>';
- }else{panel.innerHTML=links[tab]||"<p>预留。</p>"}
-}
-Promise.all([loadStatuses(),loadBatches()]).then(()=>newBatch()).catch(e=>alert(e.message));
-</script>
-</body>
-</html>
+async function api(url,opt){const r=await fetch(url,opt);const b=await r.json();if(!r.ok)throw new Error(b.detail||JSON.stringify(b));return b}
+async function loadBatches(){const p=new URLSearchParams();if(month.value)p.set("business_month",month.value);const rows=await api("/api/tlc-batches?"+p);list.innerHTML="";rows.forEach(b=>{const d=document.createElement("div");d.className="item";d.innerHTML=`<b>${esc(b.batch_no)}</b> [${esc(b.status)}]<br>${esc(b.title)}`;d.onclick=()=>select(b);list.appendChild(d)})}
+function select(b){selected=b;id.value=b.id;no.value=b.batch_no;businessMonth.value=b.business_month;title.value=b.title;createdBy.value=b.created_by;showTab("basic")}
+function newBatch(){selected=null;id.value=no.value=title.value=createdBy.value="";businessMonth.value=new Date().toISOString().slice(0,7);showTab("basic")}
+async function saveBatch(){const body={business_month:businessMonth.value,title:title.value,created_by:createdBy.value};const b=selected?await api(`/api/tlc-batches/${selected.id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}):await api("/api/tlc-batches",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});select(b);await loadBatches()}
+async function showTab(name,btn){document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));if(btn)btn.classList.add("active");if(name==="request"){panel.innerHTML=`<h3>Request Import</h3><div class="toolbar"><input id="excel" type="file" accept=".xlsx,.xlsm,.xls"><button class="primary" onclick="upload('REQUEST_EXCEL','excel')">上传Excel</button><input id="pdf" type="file" accept=".pdf"><button class="primary" onclick="upload('REQUEST_PDF','pdf')">上传PDF</button><button onclick="refreshImport()">刷新</button></div><div id="ready" class="small"></div><div id="files"></div><h4>Import Log</h4><div id="logs"></div>`;await refreshImport()}
+else if(name==="basic")panel.innerHTML="<h3>基本信息</h3><p>一个 Batch 对应一个业务年月案件。</p>";
+else if(name==="review")panel.innerHTML='<p><a target="_blank" href="/requests/review-workbench">打开审核工作台</a></p>';
+else if(name==="bank")panel.innerHTML='<p><a target="_blank" href="/bank-import">打开银行流水导入</a></p>';
+else if(name==="reconciliation")panel.innerHTML='<p><a target="_blank" href="/customer-reconciliation-workbench">打开客户对账</a></p>';
+else panel.innerHTML=`<h3>${esc(name)}</h3><p>下一任务接入。</p>`}
+async function upload(type,input){if(!selected){alert("请先选择Batch");return}const f=document.getElementById(input).files[0];if(!f){alert("请选择文件");return}const p=new URLSearchParams({file_type:type,original_name:f.name,uploaded_by:createdBy.value||selected.created_by});const r=await api(`/api/tlc-batches/${selected.id}/request-files?${p}`,{method:"POST",headers:{"Content-Type":f.type||"application/octet-stream"},body:await f.arrayBuffer()});alert(r.status==="duplicate"?"重复文件已跳过":"上传成功");await refreshImport();selected=await api(`/api/tlc-batches/${selected.id}`);await loadBatches()}
+async function refreshImport(){if(!selected)return;const [r,f,l]=await Promise.all([api(`/api/tlc-batches/${selected.id}/request-import-readiness`),api(`/api/tlc-batches/${selected.id}/request-files`),api(`/api/tlc-batches/${selected.id}/import-logs`)]);ready.textContent=r.ready_for_compare?"Excel与PDF已齐备，可以进入Compare":"缺少："+r.missing_file_types.join(", ");files.innerHTML='<table><tr><th>类型</th><th>文件</th><th>版本</th><th>状态</th></tr>'+f.map(x=>`<tr><td>${x.file_type}</td><td>${esc(x.original_name)}</td><td>v${x.version_no}</td><td>${x.active?"当前":"历史"}</td></tr>`).join("")+'</table>';logs.innerHTML='<table><tr><th>时间</th><th>文件</th><th>结果</th><th>说明</th></tr>'+l.map(x=>`<tr><td>${esc(x.created_at)}</td><td>${esc(x.original_name)}</td><td>${esc(x.status)}</td><td>${esc(x.message)}</td></tr>`).join("")+'</table>'}
+loadBatches().then(newBatch).catch(e=>alert(e.message));
+</script></body></html>
