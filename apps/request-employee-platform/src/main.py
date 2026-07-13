@@ -89,3 +89,5 @@ from src.api.routes.tlc_monthly_close_checklist import router as tlc_monthly_clo
 app.include_router(tlc_monthly_close_checklist_router)
 from src.api.routes.tlc_cross_month_carry_forward import router as tlc_cross_month_carry_forward_router
 app.include_router(tlc_cross_month_carry_forward_router)
+from src.api.routes.tlc_monthly_close_authorization import router as tlc_monthly_close_authorization_router
+app.include_router(tlc_monthly_close_authorization_router)

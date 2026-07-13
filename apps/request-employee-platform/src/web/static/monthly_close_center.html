@@ -72,6 +72,17 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid 
 </section>
 
 <section class="card">
+<h3>关闭 / 重开授权与审计</h3>
+<div class="toolbar">
+<button onclick="requestCloseAuthorization()">申请关闭</button>
+<button onclick="requestReopenAuthorization()">申请重开</button>
+</div>
+<div id="authorizationRows"></div>
+<h4>Audit Trail</h4>
+<div id="authorizationAudit"></div>
+</section>
+
+<section class="card">
 <h3>月结阻塞事项</h3>
 <div id="blockers"></div>
 </section>
@@ -165,6 +176,43 @@ async function updateCarryForward(id,status){
  const note=prompt("处理说明：","")||"";
  const r=await fetch(`/api/tlc-monthly-close/carry-forwards/${id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({status,operator:closeOperator.value,resolution_note:note})});
  const b=await r.json();if(!r.ok)throw new Error(b.detail||"更新失败");await loadCarryForwardView();
+}
+async function loadAuthorizationView(){
+ const month=businessMonth.value;if(!month)return;
+ const data=await api(`/api/tlc-monthly-close/authorizations/control-view/${month}`);
+ const rows=document.getElementById("authorizationRows");
+ const audit=document.getElementById("authorizationAudit");
+ if(!rows)return;
+ rows.innerHTML='<table><tr><th>动作</th><th>状态</th><th>申请人</th><th>审批人</th><th>执行人</th><th>操作</th></tr>'+
+  data.authorizations.map(x=>`<tr><td>${esc(x.action)}</td><td>${esc(x.decision)}</td><td>${esc(x.requested_by)}</td><td>${esc(x.approved_by)}</td><td>${esc(x.executed_by)}</td><td>${x.decision==="PENDING"?`<button onclick="decideAuthorization('${x.id}','APPROVED')">批准</button> <button onclick="decideAuthorization('${x.id}','REJECTED')">驳回</button>`:""} ${x.decision==="APPROVED"?`<button onclick="executeAuthorization('${x.id}')">执行</button>`:""}</td></tr>`).join("")+
+  '</table>';
+ audit.innerHTML='<table><tr><th>时间</th><th>动作</th><th>事件</th><th>操作者</th><th>状态</th><th>说明</th></tr>'+
+  data.audit.map(x=>`<tr><td>${esc(x.event_at)}</td><td>${esc(x.action)}</td><td>${esc(x.event_type)}</td><td>${esc(x.actor)}</td><td>${esc(x.old_status)} -> ${esc(x.new_status)}</td><td>${esc(x.message)}</td></tr>`).join("")+
+  '</table>';
+}
+async function requestAuthorization(action){
+ if(!businessMonth.value||!closeOperator.value.trim()){alert("请选择月份并输入操作人");return}
+ const reason=prompt("申请理由：","")||"";
+ const r=await fetch("/api/tlc-monthly-close/authorizations",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({business_month:businessMonth.value,action,requested_by:closeOperator.value,reason})});
+ const b=await r.json();if(!r.ok)throw new Error(b.detail||"申请失败");
+ await loadAuthorizationView();
+}
+async function requestCloseAuthorization(){await requestAuthorization("CLOSE")}
+async function requestReopenAuthorization(){await requestAuthorization("REOPEN")}
+async function decideAuthorization(id,decision){
+ const approver=prompt("审批人：","")||"";
+ if(!approver)return;
+ const note=prompt("审批说明：","")||"";
+ const r=await fetch(`/api/tlc-monthly-close/authorizations/${id}/decision`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({decision,approver,note})});
+ const b=await r.json();if(!r.ok)throw new Error(b.detail||"审批失败");
+ await loadAuthorizationView();
+}
+async function executeAuthorization(id){
+ if(!closeOperator.value.trim()){alert("请输入操作人");return}
+ const note=prompt("执行说明：","")||"";
+ const r=await fetch(`/api/tlc-monthly-close/authorizations/${id}/execute`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({operator:closeOperator.value,note})});
+ const b=await r.json();if(!r.ok)throw new Error(b.detail||"执行失败");
+ await loadAuthorizationView();await loadControlView();
 }
 async function loadOverview(){
  const month=businessMonth.value;
