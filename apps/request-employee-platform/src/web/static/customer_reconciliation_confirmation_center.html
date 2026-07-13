@@ -1,0 +1,24 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>Customer Reconciliation Confirmation Center</title>
+<style>body{font-family:Arial;margin:20px;background:#f4f6f8}.card{background:white;padding:15px;margin:12px 0;border-radius:8px}input,button{padding:8px;margin:4px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:6px}</style></head>
+<body><h1>Customer Reconciliation Confirmation Center</h1>
+<div class="card"><input id="snapshotId" placeholder="Snapshot ID"><input id="confirmationId" placeholder="Confirmation ID"><input id="operator" placeholder="Operator">
+<button onclick="createConfirmation()">建立确认</button><button onclick="loadConfirmation()">读取</button>
+<a href="/customer-reconciliation-period-center">客户期间对账</a> |
+<a href="/sales-ledger-evidence-center">销售证据</a> |
+<a href="/bank-payment-evidence-center">银行证据</a></div>
+<div class="card"><input id="confirmedSales" placeholder="确认销售"><input id="confirmedPayment" placeholder="确认入金">
+<input id="correctionReason" placeholder="修正理由"><input id="note" placeholder="备注">
+<button onclick="updateStatus('CORRECTED')">修正</button><button onclick="updateStatus('CONFIRMED')">确认</button>
+<button onclick="updateStatus('REOPENED')">重开</button><button onclick="updateStatus('CANCELLED')">取消</button></div>
+<div class="card" id="summary"></div><div class="card"><h3>确认历史</h3><div id="history"></div></div>
+<div class="card"><h3>Audit Trail</h3><div id="auditRows"></div></div>
+<script>
+async function jf(u,o={}){let r=await fetch(u,o),b=await r.json();if(!r.ok)throw Error(b.detail||"error");return b}
+function render(x){confirmationId.value=x.id;confirmedSales.value=x.confirmed_sales_total;confirmedPayment.value=x.confirmed_payment_total;summary.innerHTML=`状态 <b>${x.status}</b> / 销售 ${x.confirmed_sales_total} / 入金 ${x.confirmed_payment_total} / 未付 ${x.confirmed_unpaid_amount}`}
+async function createConfirmation(){try{let r=await jf("/api/tlc-customer-reconciliation-confirmations",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({snapshot_id:snapshotId.value,operator:operator.value,note:note.value})});render(r.confirmation);loadHistory();loadAudit()}catch(e){alert(e.message)}}
+async function loadConfirmation(){try{render(await jf(`/api/tlc-customer-reconciliation-confirmations/${confirmationId.value}`));loadAudit()}catch(e){alert(e.message)}}
+async function updateStatus(status){try{render(await jf(`/api/tlc-customer-reconciliation-confirmations/${confirmationId.value}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({status,operator:operator.value,confirmed_sales_total:confirmedSales.value,confirmed_payment_total:confirmedPayment.value,correction_reason:correctionReason.value,note:note.value})}));loadHistory();loadAudit()}catch(e){alert(e.message)}}
+async function loadHistory(){let a=await jf("/api/tlc-customer-reconciliation-confirmations");history.innerHTML="<table><tr><th>客户</th><th>状态</th><th>销售</th><th>入金</th><th>未付</th></tr>"+a.map(x=>`<tr onclick="confirmationId.value='${x.id}';loadConfirmation()"><td>${x.customer_id}</td><td>${x.status}</td><td>${x.confirmed_sales_total}</td><td>${x.confirmed_payment_total}</td><td>${x.confirmed_unpaid_amount}</td></tr>`).join("")+"</table>"}
+async function loadAudit(){if(!confirmationId.value)return;let a=await jf(`/api/tlc-customer-reconciliation-confirmations/audit?confirmation_id=${confirmationId.value}`);auditRows.innerHTML="<table><tr><th>时间</th><th>事件</th><th>状态</th><th>操作者</th></tr>"+a.map(x=>`<tr><td>${x.event_at}</td><td>${x.event_type}</td><td>${x.old_status}→${x.new_status}</td><td>${x.actor}</td></tr>`).join("")+"</table>"}
+loadHistory();
+</script></body></html>
