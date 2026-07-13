@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sales Ledger Evidence Center</title>
+<style>
+body{font-family:Arial,"Microsoft YaHei",sans-serif;margin:0;background:#f4f6f8;color:#222}
+header{background:#203b55;color:#fff;padding:20px 26px}
+main{padding:18px}
+.card{background:#fff;border:1px solid #ddd;border-radius:9px;padding:15px;margin-bottom:14px}
+.formgrid{display:grid;grid-template-columns:repeat(4,minmax(180px,1fr));gap:10px}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px}
+input,button{padding:8px;border:1px solid #bbb;border-radius:4px}
+button{cursor:pointer}.primary{background:#203b55;color:#fff}
+.summary{display:grid;grid-template-columns:repeat(3,minmax(160px,1fr));gap:10px}
+.stat{background:#edf2f7;border-radius:7px;padding:13px;text-align:center}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{border:1px solid #ddd;padding:7px;text-align:left;vertical-align:top}
+th{background:#edf2f7}.small{font-size:12px;color:#666}
+a.button{display:inline-block;text-decoration:none;color:#222;border:1px solid #bbb;border-radius:4px;padding:8px;background:#fff}
+@media(max-width:900px){.formgrid{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<header>
+<h1>Sales Ledger Evidence Center</h1>
+<div>展开客户销售总额的来源明细，并与对账快照进行一致性核对</div>
+</header>
+<main>
+<section class="card">
+<div class="formgrid">
+<label>Customer ID<input id="customerId"></label>
+<label>Customer Name<input id="customerName"></label>
+<label>上次请求截止日<input id="previousCutoff" type="date"></label>
+<label>本次请求截止日<input id="currentCutoff" type="date"></label>
+<label>Snapshot ID<input id="snapshotId"></label>
+</div>
+<div style="margin-top:12px">
+<button class="primary" onclick="loadEvidence()">查询销售明细</button>
+<button onclick="loadSnapshotEvidence()">按 Snapshot 核对</button>
+<a class="button" href="/customer-reconciliation-period-center" target="_blank">客户期间对账</a>
+<a class="button" href="/business-operations-home" target="_blank">业务运营首页</a>
+</div>
+<div class="small" style="margin-top:8px">
+期间边界：(previous cutoff, current cutoff]。
+</div>
+</section>
+
+<section class="card">
+<div id="summary" class="summary"></div>
+<div id="consistency" style="margin-top:10px"></div>
+</section>
+
+<section class="card">
+<h3>销售来源明细</h3>
+<div id="rows"></div>
+</section>
+</main>
+<script>
+async function jsonFetch(url){
+ const r=await fetch(url);
+ let b;try{b=await r.json()}catch(e){b=await r.text()}
+ if(!r.ok)throw new Error(b.detail||String(b));
+ return b
+}
+function esc(v){
+ return String(v??"").replace(/[&<>"']/g,c=>(
+  {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]
+ ))
+}
+function renderEvidence(data){
+ summary.innerHTML=[
+  ["记录数",data.record_count],
+  ["销售总额",data.sales_total],
+  ["来源表",data.source_table||"未发现"],
+ ].map(v=>`<div class="stat"><b>${esc(v[1])}</b><br><span class="small">${esc(v[0])}</span></div>`).join("");
+ rows.innerHTML='<table><tr><th>日期</th><th>单据号</th><th>客户</th><th>说明</th><th>金额</th><th>状态</th><th>Batch</th></tr>'+
+  data.records.map(x=>`<tr><td>${esc(x.business_date)}</td><td>${esc(x.document_no||x.id)}</td><td>${esc(x.customer_id)}<br>${esc(x.customer_name)}</td><td>${esc(x.description)}</td><td>${esc(x.amount)}</td><td>${esc(x.status)}</td><td>${esc(x.batch_id)}</td></tr>`).join("")+
+  '</table>';
+}
+async function loadEvidence(){
+ if((!customerId.value.trim()&&!customerName.value.trim())||!previousCutoff.value||!currentCutoff.value){
+  alert("请输入客户和期间");return;
+ }
+ const q=new URLSearchParams({
+  customer_id:customerId.value,
+  customer_name:customerName.value,
+  previous_cutoff:previousCutoff.value,
+  current_cutoff:currentCutoff.value
+ });
+ try{
+  const data=await jsonFetch("/api/tlc-sales-ledger-evidence?"+q.toString());
+  consistency.textContent="";
+  renderEvidence(data);
+ }catch(e){alert(e.message)}
+}
+async function loadSnapshotEvidence(){
+ if(!snapshotId.value.trim()){alert("请输入 Snapshot ID");return}
+ try{
+  const data=await jsonFetch(`/api/tlc-sales-ledger-evidence/snapshot/${encodeURIComponent(snapshotId.value.trim())}`);
+  renderEvidence(data.evidence);
+  consistency.innerHTML=data.consistent
+   ?`<b style="color:#137333">一致：Snapshot ${esc(data.snapshot_sales_total)} = Evidence ${esc(data.evidence_sales_total)}</b>`
+   :`<b style="color:#b3261e">不一致：差额 ${esc(data.difference)}</b>`;
+ }catch(e){alert(e.message)}
+}
+const today=new Date();
+currentCutoff.value=today.toISOString().slice(0,10);
+previousCutoff.value=new Date(today.getFullYear(),today.getMonth()-1,today.getDate()).toISOString().slice(0,10);
+</script>
+</body>
+</html>

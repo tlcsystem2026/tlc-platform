@@ -111,3 +111,7 @@ from src.api.routes.tlc_customer_alias_matching import router as tlc_customer_al
 from src.api.routes.tlc_customer_alias_matching import page_router as tlc_customer_alias_matching_page_router
 app.include_router(tlc_customer_alias_matching_router)
 app.include_router(tlc_customer_alias_matching_page_router)
+from src.api.routes.tlc_sales_ledger_evidence import router as tlc_sales_ledger_evidence_router
+from src.api.routes.tlc_sales_ledger_evidence import page_router as tlc_sales_ledger_evidence_page_router
+app.include_router(tlc_sales_ledger_evidence_router)
+app.include_router(tlc_sales_ledger_evidence_page_router)
