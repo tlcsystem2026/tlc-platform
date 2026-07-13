@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Build035 Integrated Acceptance</title>
+<style>
+body{font-family:Arial,"Microsoft YaHei",sans-serif;margin:0;background:#f4f6f8;color:#222}
+header{background:#203b55;color:#fff;padding:20px 26px}
+main{padding:18px}
+.card{background:#fff;border:1px solid #ddd;border-radius:9px;padding:15px;margin-bottom:14px}
+.toolbar{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px}
+input,button{padding:8px;border:1px solid #bbb;border-radius:4px}
+button{cursor:pointer}.primary{background:#203b55;color:#fff}
+.summary{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:10px}
+.stat{background:#edf2f7;border-radius:7px;padding:13px;text-align:center}
+.pass{color:#137333;font-weight:bold}.fail{color:#b3261e;font-weight:bold}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{border:1px solid #ddd;padding:7px;text-align:left;vertical-align:top}
+th{background:#edf2f7}.small{font-size:12px;color:#666}
+a.button{display:inline-block;text-decoration:none;color:#222;border:1px solid #bbb;border-radius:4px;padding:8px;background:#fff}
+</style>
+</head>
+<body>
+<header>
+<h1>Build035 Integrated Acceptance</h1>
+<div>Build035 全业务链路综合验收与执行记录</div>
+</header>
+<main>
+<section class="card">
+<div class="toolbar">
+<label>业务年月
+<input id="businessMonth" type="month">
+</label>
+<label>操作人
+<input id="operator">
+</label>
+<button class="primary" onclick="loadAcceptance()">检查</button>
+<button onclick="recordRun()">记录本次验收</button>
+<button onclick="loadRuns()">刷新历史</button>
+<a class="button" href="/business-operations-home" target="_blank">业务首页</a>
+<a class="button" href="/guided-monthly-workflow" target="_blank">引导流程</a>
+<a class="button" href="/end-to-end-readiness" target="_blank">准备度检查</a>
+<a class="button" href="/business-test-replay" target="_blank">Reset / Replay</a>
+</div>
+</section>
+
+<section class="card">
+<div id="summary" class="summary"></div>
+<div id="overallStatus" style="margin-top:12px"></div>
+</section>
+
+<section class="card">
+<h3>验收领域</h3>
+<div id="areaRows"></div>
+</section>
+
+<section class="card">
+<h3>执行历史</h3>
+<div id="runRows"></div>
+</section>
+</main>
+<script>
+async function jsonFetch(url,options={}){
+ const r=await fetch(url,options);
+ let b;try{b=await r.json()}catch(e){b=await r.text()}
+ if(!r.ok)throw new Error(b.detail||String(b));
+ return b
+}
+function esc(v){
+ return String(v??"").replace(/[&<>"']/g,c=>(
+  {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]
+ ))
+}
+async function loadAcceptance(){
+ const month=businessMonth.value;
+ const query=month?`?business_month=${encodeURIComponent(month)}`:"";
+ try{
+  const data=await jsonFetch("/api/tlc-build035-acceptance"+query);
+  if(!businessMonth.value&&data.business_month)businessMonth.value=data.business_month;
+  summary.innerHTML=[
+   ["验收领域",data.area_count],
+   ["通过",data.passed_count],
+   ["未通过",data.failed_count],
+   ["准备度",data.readiness.readiness_percent+"%"],
+  ].map(x=>`<div class="stat"><b>${esc(x[1])}</b><br><span class="small">${esc(x[0])}</span></div>`).join("");
+  overallStatus.innerHTML=data.status==="PASS"
+   ?'<span class="pass">PASS：Build035 验收结构完整</span>'
+   :'<span class="fail">FAIL：仍有验收领域未通过</span>';
+  areaRows.innerHTML='<table><tr><th>领域</th><th>状态</th><th>说明</th><th>入口</th></tr>'+
+   data.areas.map(x=>`<tr><td>${esc(x.name)}<br><span class="small">${esc(x.code)}</span></td><td class="${x.passed?"pass":"fail"}">${esc(x.status)}</td><td>${esc(x.detail)}</td><td><a href="${x.path}" target="_blank">${esc(x.path)}</a></td></tr>`).join("")+
+   '</table>';
+ }catch(e){alert(e.message)}
+}
+async function recordRun(){
+ const month=businessMonth.value;
+ const user=operator.value.trim();
+ if(!month||!user){alert("请选择业务年月并输入操作人");return}
+ try{
+  await jsonFetch("/api/tlc-build035-acceptance/runs",{
+   method:"POST",headers:{"Content-Type":"application/json"},
+   body:JSON.stringify({business_month:month,operator:user})
+  });
+  await loadAcceptance();await loadRuns();
+ }catch(e){alert(e.message)}
+}
+async function loadRuns(){
+ const month=businessMonth.value;
+ const query=month?`?business_month=${encodeURIComponent(month)}`:"";
+ try{
+  const rows=await jsonFetch("/api/tlc-build035-acceptance/runs"+query);
+  runRows.innerHTML='<table><tr><th>时间</th><th>年月</th><th>状态</th><th>操作人</th><th>通过</th><th>未通过</th><th>准备度</th><th>说明</th></tr>'+
+   rows.map(x=>`<tr><td>${esc(x.executed_at)}</td><td>${esc(x.business_month)}</td><td>${esc(x.status)}</td><td>${esc(x.operator)}</td><td>${x.passed_count}</td><td>${x.failed_count}</td><td>${x.readiness_percent}%</td><td>${esc(x.summary)}</td></tr>`).join("")+
+   '</table>';
+ }catch(e){alert(e.message)}
+}
+const now=new Date();
+businessMonth.value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+loadAcceptance();loadRuns();
+</script>
+</body>
+</html>

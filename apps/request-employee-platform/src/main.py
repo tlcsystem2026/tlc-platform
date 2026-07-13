@@ -101,3 +101,5 @@ from src.api.routes.tlc_end_to_end_readiness import router as tlc_end_to_end_rea
 app.include_router(tlc_end_to_end_readiness_router)
 from src.api.routes.tlc_business_test_replay import router as tlc_business_test_replay_router
 app.include_router(tlc_business_test_replay_router)
+from src.api.routes.tlc_build035_acceptance import router as tlc_build035_acceptance_router
+app.include_router(tlc_build035_acceptance_router)
