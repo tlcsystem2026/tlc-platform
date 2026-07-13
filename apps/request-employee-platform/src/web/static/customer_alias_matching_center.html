@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Customer Alias Matching Center</title>
+<style>
+body{font-family:Arial,"Microsoft YaHei",sans-serif;margin:0;background:#f4f6f8;color:#222}
+header{background:#203b55;color:#fff;padding:20px 26px}
+main{padding:18px}.card{background:#fff;border:1px solid #ddd;border-radius:9px;padding:15px;margin-bottom:14px}
+.toolbar{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px}
+input,select,button{padding:8px;border:1px solid #bbb;border-radius:4px}
+button{cursor:pointer}.primary{background:#203b55;color:#fff}
+.summary{display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:10px}
+.stat{background:#edf2f7;border-radius:7px;padding:13px;text-align:center}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{border:1px solid #ddd;padding:7px;text-align:left;vertical-align:top}
+th{background:#edf2f7}.small{font-size:12px;color:#666}
+.match{color:#137333;font-weight:bold}.ambiguous{color:#9a6700;font-weight:bold}.unmatched{color:#b3261e;font-weight:bold}
+a.button{display:inline-block;text-decoration:none;color:#222;border:1px solid #bbb;border-radius:4px;padding:8px;background:#fff}
+</style>
+</head>
+<body>
+<header>
+<h1>Customer Alias Matching Center</h1>
+<div>基于客户正式名称、读音、略称和 Alias1～Alias5 自动识别客户</div>
+</header>
+<main>
+<section class="card">
+<div class="toolbar">
+<label>银行摘要 / 对方名称
+<input id="rawName" style="min-width:320px">
+</label>
+<label>操作人
+<input id="operator">
+</label>
+<button class="primary" onclick="runMatch()">执行匹配</button>
+<label>状态筛选
+<select id="statusFilter">
+<option value="">全部</option>
+<option value="MATCHED">MATCHED</option>
+<option value="AMBIGUOUS">AMBIGUOUS</option>
+<option value="UNMATCHED">UNMATCHED</option>
+</select>
+</label>
+<button onclick="loadHistory()">刷新历史</button>
+<a class="button" href="/customer-reconciliation-period-center" target="_blank">客户期间对账</a>
+<a class="button" href="/business-operations-home" target="_blank">业务运营首页</a>
+</div>
+</section>
+
+<section class="card">
+<div id="summary" class="summary"></div>
+<div id="resultDetail"></div>
+</section>
+
+<section class="card">
+<h3>匹配历史</h3>
+<div id="history"></div>
+</section>
+</main>
+<script>
+async function jsonFetch(url,options={}){
+ const r=await fetch(url,options);
+ let b;try{b=await r.json()}catch(e){b=await r.text()}
+ if(!r.ok)throw new Error(b.detail||String(b));
+ return b
+}
+function esc(v){
+ return String(v??"").replace(/[&<>"']/g,c=>(
+  {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]
+ ))
+}
+function renderResult(x){
+ summary.innerHTML=[
+  ["状态",x.match_status],
+  ["匹配等级",x.match_level||"-"],
+  ["客户",x.customer_id||"-"],
+  ["评分",x.match_score],
+ ].map(v=>`<div class="stat"><b>${esc(v[1])}</b><br><span class="small">${esc(v[0])}</span></div>`).join("");
+ resultDetail.innerHTML=`标准化：${esc(x.normalized_name)}<br>匹配字段：${esc(x.matched_field)} / ${esc(x.matched_value)}<br>候选数：${x.candidate_count}`;
+}
+async function runMatch(){
+ if(!rawName.value.trim()){alert("请输入摘要或对方名称");return}
+ try{
+  const result=await jsonFetch("/api/tlc-customer-alias-matching/match",{
+   method:"POST",headers:{"Content-Type":"application/json"},
+   body:JSON.stringify({
+    raw_name:rawName.value,
+    operator:operator.value,
+    save_result:true
+   })
+  });
+  renderResult(result);await loadHistory();
+ }catch(e){alert(e.message)}
+}
+async function manualOverride(id){
+ const customerId=prompt("指定 Customer ID：","");
+ if(!customerId)return;
+ const note=prompt("修正说明：","")||"";
+ try{
+  await jsonFetch(`/api/tlc-customer-alias-matching/${id}/override`,{
+   method:"PUT",headers:{"Content-Type":"application/json"},
+   body:JSON.stringify({customer_id:customerId,operator:operator.value,note})
+  });
+  await loadHistory();
+ }catch(e){alert(e.message)}
+}
+async function loadHistory(){
+ const status=statusFilter.value;
+ const query=status?`?status=${encodeURIComponent(status)}`:"";
+ try{
+  const rows=await jsonFetch("/api/tlc-customer-alias-matching"+query);
+  history.innerHTML='<table><tr><th>时间</th><th>原始名称</th><th>标准化</th><th>状态</th><th>客户</th><th>等级</th><th>字段</th><th>候选</th><th>操作</th></tr>'+
+   rows.map(x=>`<tr><td>${esc(x.created_at)}</td><td>${esc(x.raw_name)}</td><td>${esc(x.normalized_name)}</td><td class="${String(x.match_status).toLowerCase()}">${esc(x.match_status)}</td><td>${esc(x.customer_id)}<br>${esc(x.customer_name)}</td><td>${esc(x.match_level)}</td><td>${esc(x.matched_field)}<br>${esc(x.matched_value)}</td><td>${x.candidate_count}</td><td>${x.match_status!=="MATCHED"?`<button onclick="manualOverride('${x.id}')">人工指定</button>`:""}</td></tr>`).join("")+
+   '</table>';
+ }catch(e){alert(e.message)}
+}
+statusFilter.addEventListener("change",loadHistory);
+loadHistory();
+</script>
+</body>
+</html>

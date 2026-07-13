@@ -107,3 +107,7 @@ from src.api.routes.tlc_customer_reconciliation_snapshot import router as tlc_cu
 from src.api.routes.tlc_customer_reconciliation_snapshot import page_router as tlc_customer_reconciliation_snapshot_page_router
 app.include_router(tlc_customer_reconciliation_snapshot_router)
 app.include_router(tlc_customer_reconciliation_snapshot_page_router)
+from src.api.routes.tlc_customer_alias_matching import router as tlc_customer_alias_matching_router
+from src.api.routes.tlc_customer_alias_matching import page_router as tlc_customer_alias_matching_page_router
+app.include_router(tlc_customer_alias_matching_router)
+app.include_router(tlc_customer_alias_matching_page_router)
