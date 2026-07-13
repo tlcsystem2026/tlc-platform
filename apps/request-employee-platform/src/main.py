@@ -95,3 +95,5 @@ from src.api.routes.tlc_operational_exception_dashboard import router as tlc_ope
 app.include_router(tlc_operational_exception_dashboard_router)
 from src.api.routes.tlc_business_operations_home import router as tlc_business_operations_home_router
 app.include_router(tlc_business_operations_home_router)
+from src.api.routes.tlc_guided_monthly_workflow import router as tlc_guided_monthly_workflow_router
+app.include_router(tlc_guided_monthly_workflow_router)

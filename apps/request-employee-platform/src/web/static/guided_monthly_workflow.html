@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Guided Monthly Operation Workflow</title>
+<style>
+body{font-family:Arial,"Microsoft YaHei",sans-serif;margin:0;background:#f4f6f8;color:#222}
+header{background:#203b55;color:#fff;padding:20px 26px}
+main{padding:18px}.card{background:#fff;border:1px solid #ddd;border-radius:9px;padding:15px;margin-bottom:14px}
+.toolbar{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px}
+input,button{padding:8px;border:1px solid #bbb;border-radius:4px}
+button{cursor:pointer}.primary{background:#203b55;color:#fff}
+.progress{height:18px;background:#e4e9ee;border-radius:9px;overflow:hidden}
+.progress>div{height:100%;background:#466d91;width:0}
+.step{display:grid;grid-template-columns:48px 1fr 130px;gap:12px;align-items:center;border:1px solid #d7dee5;border-radius:8px;padding:12px;margin:9px 0}
+.step.done{background:#f1f8f3}.step.pending{background:#fff}.step.recommended{border:2px solid #466d91}
+.no{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#e7edf3;font-weight:bold}
+.done .no{background:#d8efdd}.status{font-weight:bold}.small{font-size:12px;color:#666}
+a.button{display:inline-block;text-decoration:none;color:#222;border:1px solid #bbb;border-radius:4px;padding:8px;text-align:center;background:#fff}
+</style>
+</head>
+<body>
+<header>
+<h1>Guided Monthly Operation Workflow</h1>
+<div>按顺序完成请求书、审核、销售台账、银行、客户对账与月结</div>
+</header>
+<main>
+<section class="card">
+<div class="toolbar">
+<label>业务年月
+<input id="businessMonth" type="month">
+</label>
+<button class="primary" onclick="loadWorkflow()">刷新进度</button>
+<a class="button" href="/business-operations-home" target="_blank">业务运营首页</a>
+<a class="button" href="/operational-exception-dashboard" target="_blank">异常看板</a>
+</div>
+</section>
+
+<section class="card">
+<div id="progressText"></div>
+<div class="progress"><div id="progressBar"></div></div>
+</section>
+
+<section class="card">
+<h3>月度业务步骤</h3>
+<div id="steps"></div>
+</section>
+
+<section class="card">
+<h3>当前提醒</h3>
+<div id="alerts"></div>
+</section>
+</main>
+<script>
+async function api(url){
+ const r=await fetch(url);
+ let b;try{b=await r.json()}catch(e){b=await r.text()}
+ if(!r.ok)throw new Error(b.detail||String(b));
+ return b
+}
+function esc(v){
+ return String(v??"").replace(/[&<>"']/g,c=>(
+  {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]
+ ))
+}
+async function loadWorkflow(){
+ const month=businessMonth.value;
+ const query=month?`?business_month=${encodeURIComponent(month)}`:"";
+ try{
+  const data=await api("/api/tlc-guided-monthly-workflow"+query);
+  if(!businessMonth.value&&data.business_month)businessMonth.value=data.business_month;
+  progressText.innerHTML=`完成 <b>${data.completed_step_count}/${data.total_step_count}</b>（${data.progress_percent}%）`;
+  progressBar.style.width=`${data.progress_percent}%`;
+  steps.innerHTML=data.steps.map(x=>`<div class="step ${x.status.toLowerCase()} ${x.recommended?"recommended":""}">
+   <div class="no">${x.order}</div>
+   <div><b>${esc(x.name)}</b>${x.recommended?' <span class="small">← 建议下一步</span>':''}<br><span class="small">${esc(x.description)}</span><br><span class="small">${esc(x.detail)}</span></div>
+   <div><div class="status">${esc(x.status)}</div><a class="button" href="${x.path}" target="_blank">打开处理画面</a></div>
+  </div>`).join("");
+  alerts.innerHTML=data.alerts.length
+   ?data.alerts.map(x=>`<div><b>${esc(x.severity)} / ${esc(x.code)}</b>：${esc(x.message)}</div>`).join("")
+   :'<span class="small">当前没有提醒</span>';
+ }catch(e){alert(e.message)}
+}
+const now=new Date();
+businessMonth.value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+loadWorkflow();
+</script>
+</body>
+</html>
