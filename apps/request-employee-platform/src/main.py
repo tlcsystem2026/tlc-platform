@@ -85,3 +85,5 @@ from src.api.routes.tlc_import_error_retry import router as tlc_import_error_ret
 app.include_router(tlc_import_error_retry_router)
 from src.api.routes.tlc_monthly_close_control import router as tlc_monthly_close_control_router
 app.include_router(tlc_monthly_close_control_router)
+from src.api.routes.tlc_monthly_close_checklist import router as tlc_monthly_close_checklist_router
+app.include_router(tlc_monthly_close_checklist_router)

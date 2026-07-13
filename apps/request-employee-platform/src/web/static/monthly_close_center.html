@@ -48,6 +48,19 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid 
 </section>
 
 <section class="card">
+<h3>月结检查清单与签核</h3>
+<div class="toolbar">
+<label>操作人<input id="closeOperator"></label>
+<button onclick="initializeChecklist()">初始化清单</button>
+<button onclick="approveClose()">批准月结</button>
+<button onclick="rejectClose()">驳回</button>
+<button onclick="reopenClose()">重新打开</button>
+</div>
+<div id="monthlyChecklist"></div>
+<div id="monthlySignoff" style="margin-top:10px"></div>
+</section>
+
+<section class="card">
 <h3>月结阻塞事项</h3>
 <div id="blockers"></div>
 </section>
@@ -64,6 +77,54 @@ function esc(v){
   {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]
  ))
 }
+async function loadControlView(){
+ const month=businessMonth.value;
+ if(!month)return;
+ const data=await api(`/api/tlc-monthly-close/${month}/control-view`);
+ const list=document.getElementById("monthlyChecklist");
+ const sign=document.getElementById("monthlySignoff");
+ if(!list)return;
+ list.innerHTML=data.checklist_initialized
+  ?'<table><tr><th>项目</th><th>状态</th><th>说明</th><th>操作</th></tr>'+
+   data.checklist.map(x=>`<tr><td>${esc(x.item_name)}</td><td>${esc(x.status)}</td><td>${esc(x.note)}</td><td><button onclick="setChecklistItem('${x.id}','DONE')">完成</button> <button onclick="setChecklistItem('${x.id}','WAIVED')">豁免</button> <button onclick="setChecklistItem('${x.id}','PENDING')">恢复</button></td></tr>`).join("")+
+   '</table>'
+  :'<span class="small">尚未初始化月结检查清单</span>';
+ sign.innerHTML=data.signoff
+  ?`Sign-off: <b>${esc(data.signoff.status)}</b> / ${esc(data.signoff.signed_by)} ${esc(data.signoff.signed_at)}`
+  :'<span class="small">尚未创建签核记录</span>';
+}
+async function initializeChecklist(){
+ if(!businessMonth.value||!closeOperator.value.trim()){alert("请选择月份并输入操作人");return}
+ const r=await fetch(`/api/tlc-monthly-close/${businessMonth.value}/checklist/initialize`,{
+  method:"POST",headers:{"Content-Type":"application/json"},
+  body:JSON.stringify({operator:closeOperator.value})
+ });
+ const b=await r.json();if(!r.ok)throw new Error(b.detail||"初始化失败");
+ await loadControlView();
+}
+async function setChecklistItem(id,status){
+ if(!closeOperator.value.trim()){alert("请输入操作人");return}
+ const note=prompt("说明：","")||"";
+ const r=await fetch(`/api/tlc-monthly-close/checklist/items/${id}`,{
+  method:"PUT",headers:{"Content-Type":"application/json"},
+  body:JSON.stringify({status,operator:closeOperator.value,note})
+ });
+ const b=await r.json();if(!r.ok)throw new Error(b.detail||"更新失败");
+ await loadControlView();
+}
+async function updateSignoff(status){
+ if(!closeOperator.value.trim()){alert("请输入操作人");return}
+ const note=prompt("签核说明：","")||"";
+ const r=await fetch(`/api/tlc-monthly-close/${businessMonth.value}/signoff`,{
+  method:"PUT",headers:{"Content-Type":"application/json"},
+  body:JSON.stringify({status,operator:closeOperator.value,note})
+ });
+ const b=await r.json();if(!r.ok)throw new Error(b.detail||"签核失败");
+ await loadControlView();
+}
+async function approveClose(){await updateSignoff("APPROVED")}
+async function rejectClose(){await updateSignoff("REJECTED")}
+async function reopenClose(){await updateSignoff("REOPENED")}
 async function loadOverview(){
  const month=businessMonth.value;
  if(!month){alert("请选择业务年月");return}
