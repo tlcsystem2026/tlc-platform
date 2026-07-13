@@ -61,6 +61,17 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid 
 </section>
 
 <section class="card">
+<h3>跨月结转控制</h3>
+<div class="toolbar">
+<label>目标年月<input id="targetMonth" type="month"></label>
+<button onclick="autoGenerateCarryForward()">从阻塞事项生成结转</button>
+<button onclick="createManualCarryForward()">手工新增结转</button>
+</div>
+<div id="carryForwardSummary" class="small"></div>
+<div id="carryForwardRows"></div>
+</section>
+
+<section class="card">
 <h3>月结阻塞事项</h3>
 <div id="blockers"></div>
 </section>
@@ -125,6 +136,36 @@ async function updateSignoff(status){
 async function approveClose(){await updateSignoff("APPROVED")}
 async function rejectClose(){await updateSignoff("REJECTED")}
 async function reopenClose(){await updateSignoff("REOPENED")}
+async function loadCarryForwardView(){
+ const month=businessMonth.value;if(!month)return;
+ const data=await api(`/api/tlc-monthly-close/carry-forwards/control-view/${month}`);
+ const summary=document.getElementById("carryForwardSummary");
+ const rows=document.getElementById("carryForwardRows");if(!summary)return;
+ summary.textContent=`Incoming Open=${data.incoming_open_count}, Outgoing Open=${data.outgoing_open_count}`;
+ const all=[...data.incoming.map(x=>({...x,direction:"IN"})),...data.outgoing.map(x=>({...x,direction:"OUT"}))];
+ rows.innerHTML='<table><tr><th>方向</th><th>来源月</th><th>目标月</th><th>分类</th><th>标题</th><th>金额</th><th>状态</th><th>操作</th></tr>'+
+ all.map(x=>`<tr><td>${x.direction}</td><td>${esc(x.source_month)}</td><td>${esc(x.target_month)}</td><td>${esc(x.category)}</td><td>${esc(x.title)}</td><td>${esc(x.amount)} ${esc(x.currency)}</td><td>${esc(x.status)}</td><td><button onclick="updateCarryForward('${x.id}','CONFIRMED')">确认</button> <button onclick="updateCarryForward('${x.id}','RESOLVED')">解决</button> <button onclick="updateCarryForward('${x.id}','CANCELLED')">取消</button></td></tr>`).join("")+'</table>';
+}
+async function autoGenerateCarryForward(){
+ if(!businessMonth.value||!targetMonth.value||!closeOperator.value.trim()){alert("请选择来源月、目标月并输入操作人");return}
+ const r=await fetch("/api/tlc-monthly-close/carry-forwards/auto-generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({source_month:businessMonth.value,target_month:targetMonth.value,operator:closeOperator.value})});
+ const b=await r.json();if(!r.ok)throw new Error(b.detail||"生成失败");
+ alert(`新增 ${b.created_count}，已存在 ${b.existing_count}`);await loadCarryForwardView();
+}
+async function createManualCarryForward(){
+ if(!businessMonth.value||!targetMonth.value||!closeOperator.value.trim()){alert("请选择来源月、目标月并输入操作人");return}
+ const title=prompt("结转事项标题：","");if(!title)return;
+ const category=prompt("分类：","MANUAL")||"MANUAL";const amount=prompt("金额：","0")||"0";
+ const currency=prompt("币种：","JPY")||"JPY";const reason=prompt("原因：","")||"";
+ const r=await fetch("/api/tlc-monthly-close/carry-forwards",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({source_month:businessMonth.value,target_month:targetMonth.value,category,title,amount,currency,reason,created_by:closeOperator.value,reference_id:`manual:${Date.now()}`})});
+ const b=await r.json();if(!r.ok)throw new Error(b.detail||"创建失败");await loadCarryForwardView();
+}
+async function updateCarryForward(id,status){
+ if(!closeOperator.value.trim()){alert("请输入操作人");return}
+ const note=prompt("处理说明：","")||"";
+ const r=await fetch(`/api/tlc-monthly-close/carry-forwards/${id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({status,operator:closeOperator.value,resolution_note:note})});
+ const b=await r.json();if(!r.ok)throw new Error(b.detail||"更新失败");await loadCarryForwardView();
+}
 async function loadOverview(){
  const month=businessMonth.value;
  if(!month){alert("请选择业务年月");return}
