@@ -115,3 +115,7 @@ from src.api.routes.tlc_sales_ledger_evidence import router as tlc_sales_ledger_
 from src.api.routes.tlc_sales_ledger_evidence import page_router as tlc_sales_ledger_evidence_page_router
 app.include_router(tlc_sales_ledger_evidence_router)
 app.include_router(tlc_sales_ledger_evidence_page_router)
+from src.api.routes.tlc_bank_payment_evidence import router as tlc_bank_payment_evidence_router
+from src.api.routes.tlc_bank_payment_evidence import page_router as tlc_bank_payment_evidence_page_router
+app.include_router(tlc_bank_payment_evidence_router)
+app.include_router(tlc_bank_payment_evidence_page_router)
