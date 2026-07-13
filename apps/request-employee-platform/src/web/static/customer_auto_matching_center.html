@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Customer Auto Matching Center</title>
+<style>
+body{font-family:Arial,"Microsoft YaHei",sans-serif;margin:0;background:#f4f6f8;color:#222}
+header{background:#203b55;color:#fff;padding:20px 26px}
+main{padding:18px}
+.card{background:#fff;border:1px solid #ddd;border-radius:9px;padding:15px;margin-bottom:14px}
+.toolbar{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px}
+input,select,button{padding:8px;border:1px solid #bbb;border-radius:4px}
+button{cursor:pointer}.primary{background:#203b55;color:#fff}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{border:1px solid #ddd;padding:7px;text-align:left;vertical-align:top}
+th{background:#edf2f7}.small{font-size:12px;color:#666}
+a.button{display:inline-block;text-decoration:none;color:#222;border:1px solid #bbb;border-radius:4px;padding:8px;background:#fff}
+</style>
+</head>
+<body>
+<header>
+<h1>Customer Auto Matching Center</h1>
+<div>按客户与金额自动建立销售记录和银行入金记录的一对一核销候选</div>
+</header>
+<main>
+<section class="card">
+<div class="toolbar">
+<label>Reconciliation ID<input id="reconciliationId" style="min-width:300px"></label>
+<label>操作人<input id="operator"></label>
+<button class="primary" onclick="generateMatches()">自动生成匹配</button>
+<label>状态<select id="statusFilter"><option value="">全部</option><option>PROPOSED</option><option>MATCHED</option><option>REJECTED</option><option>CANCELLED</option></select></label>
+<button onclick="loadMatches()">刷新</button>
+<a class="button" href="/customer-reconciliation-confirmation-center" target="_blank">正式客户对账</a>
+<a class="button" href="/sales-ledger-evidence-center" target="_blank">销售明细</a>
+<a class="button" href="/bank-payment-evidence-center" target="_blank">入金明细</a>
+</div>
+</section>
+<section class="card"><h3>自动匹配候选</h3><div id="matchRows"></div></section>
+<section class="card"><h3>Audit Trail</h3><div id="auditRows"></div></section>
+</main>
+<script>
+async function jf(url,o={}){const r=await fetch(url,o);let b;try{b=await r.json()}catch(e){b=await r.text()}if(!r.ok)throw new Error(b.detail||String(b));return b}
+function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+async function generateMatches(){if(!reconciliationId.value.trim()||!operator.value.trim()){alert("请输入 Reconciliation ID 和操作人");return}try{const r=await jf("/api/tlc-customer-auto-matching/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({reconciliation_id:reconciliationId.value,operator:operator.value})});alert(`新增 ${r.created_count}，已存在 ${r.existing_count}`);await loadMatches()}catch(e){alert(e.message)}}
+async function setStatus(id,status){if(!operator.value.trim()){alert("请输入操作人");return}const note=prompt("说明：","")||"";try{await jf(`/api/tlc-customer-auto-matching/${id}/status`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({status,operator:operator.value,note})});await loadMatches()}catch(e){alert(e.message)}}
+async function loadAudit(id){try{const rows=await jf(`/api/tlc-customer-auto-matching/${id}/audit`);auditRows.innerHTML='<table><tr><th>时间</th><th>事件</th><th>操作者</th><th>状态</th><th>说明</th></tr>'+rows.map(x=>`<tr><td>${esc(x.event_at)}</td><td>${esc(x.event_type)}</td><td>${esc(x.actor)}</td><td>${esc(x.old_status)} → ${esc(x.new_status)}</td><td>${esc(x.message)}</td></tr>`).join("")+'</table>'}catch(e){alert(e.message)}}
+async function loadMatches(){const q=new URLSearchParams();if(reconciliationId.value.trim())q.set("reconciliation_id",reconciliationId.value.trim());if(statusFilter.value)q.set("status",statusFilter.value);try{const rows=await jf("/api/tlc-customer-auto-matching?"+q.toString());matchRows.innerHTML='<table><tr><th>客户</th><th>销售</th><th>入金</th><th>差额</th><th>规则</th><th>状态</th><th>操作</th></tr>'+rows.map(x=>`<tr><td>${esc(x.customer_id)}<br>${esc(x.customer_name)}</td><td>${esc(x.sales_date)}<br>${esc(x.sales_document_no)}<br>${esc(x.sales_amount)}</td><td>${esc(x.payment_date)}<br>${esc(x.payment_reference_no)}<br>${esc(x.payment_amount)}</td><td>${esc(x.difference_amount)}</td><td>${esc(x.match_rule)} / ${esc(x.match_score)}</td><td>${esc(x.status)}</td><td><button onclick="loadAudit('${x.id}')">审计</button> ${x.status==="PROPOSED"?`<button onclick="setStatus('${x.id}','MATCHED')">确认核销</button><button onclick="setStatus('${x.id}','REJECTED')">驳回</button>`:""} ${x.status==="MATCHED"?`<button onclick="setStatus('${x.id}','CANCELLED')">取消核销</button>`:""}</td></tr>`).join("")+'</table>'}catch(e){alert(e.message)}}
+statusFilter.addEventListener("change",loadMatches);loadMatches();
+</script>
+</body>
+</html>
