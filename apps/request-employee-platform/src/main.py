@@ -103,3 +103,7 @@ from src.api.routes.tlc_business_test_replay import router as tlc_business_test_
 app.include_router(tlc_business_test_replay_router)
 from src.api.routes.tlc_build035_acceptance import router as tlc_build035_acceptance_router
 app.include_router(tlc_build035_acceptance_router)
+from src.api.routes.tlc_customer_reconciliation_snapshot import router as tlc_customer_reconciliation_snapshot_router
+from src.api.routes.tlc_customer_reconciliation_snapshot import page_router as tlc_customer_reconciliation_snapshot_page_router
+app.include_router(tlc_customer_reconciliation_snapshot_router)
+app.include_router(tlc_customer_reconciliation_snapshot_page_router)

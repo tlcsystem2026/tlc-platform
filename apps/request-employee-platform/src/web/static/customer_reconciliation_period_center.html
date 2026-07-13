@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Customer Reconciliation Period Center</title>
+<style>
+body{font-family:Arial,"Microsoft YaHei",sans-serif;margin:0;background:#f4f6f8;color:#222}
+header{background:#203b55;color:#fff;padding:20px 26px}
+main{padding:18px}
+.card{background:#fff;border:1px solid #ddd;border-radius:9px;padding:15px;margin-bottom:14px}
+.formgrid{display:grid;grid-template-columns:repeat(4,minmax(180px,1fr));gap:10px}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px}
+input,button{padding:8px;border:1px solid #bbb;border-radius:4px}
+button{cursor:pointer}.primary{background:#203b55;color:#fff}
+.summary{display:grid;grid-template-columns:repeat(3,minmax(160px,1fr));gap:10px}
+.stat{background:#edf2f7;border-radius:7px;padding:13px;text-align:center}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{border:1px solid #ddd;padding:7px;text-align:left}
+th{background:#edf2f7}.small{font-size:12px;color:#666}
+a.button{display:inline-block;text-decoration:none;color:#222;border:1px solid #bbb;border-radius:4px;padding:8px;background:#fff}
+@media(max-width:900px){.formgrid{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<header>
+<h1>Customer Reconciliation Period Center</h1>
+<div>按指定客户及两个独立期间计算销售、入金与未付金额</div>
+</header>
+<main>
+<section class="card">
+<div class="formgrid">
+<label>Customer ID<input id="customerId"></label>
+<label>Customer Name<input id="customerName"></label>
+<label>上次请求截止日<input id="previousRequestCutoff" type="date"></label>
+<label>本次请求截止日<input id="currentRequestCutoff" type="date"></label>
+<label>上次银行入金截止日<input id="previousBankCutoff" type="date"></label>
+<label>本次银行入金截止日<input id="currentBankCutoff" type="date"></label>
+<label>操作人<input id="createdBy"></label>
+</div>
+<div style="margin-top:12px">
+<button class="primary" onclick="calculate()">计算并保存快照</button>
+<button onclick="loadHistory()">刷新历史</button>
+<a class="button" href="/customer-reconciliation-workbench" target="_blank">客户对账工作台</a>
+<a class="button" href="/business-operations-home" target="_blank">业务运营首页</a>
+</div>
+<div class="small" style="margin-top:8px">
+计算边界：上次截止日不包含，本次截止日包含，即 (previous, current]。
+</div>
+</section>
+
+<section class="card">
+<div id="summary" class="summary"></div>
+</section>
+
+<section class="card">
+<h3>历史快照</h3>
+<div id="history"></div>
+</section>
+</main>
+<script>
+async function jsonFetch(url,options={}){
+ const r=await fetch(url,options);
+ let b;try{b=await r.json()}catch(e){b=await r.text()}
+ if(!r.ok)throw new Error(b.detail||String(b));
+ return b
+}
+function esc(v){
+ return String(v??"").replace(/[&<>"']/g,c=>(
+  {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]
+ ))
+}
+function showSummary(x){
+ summary.innerHTML=[
+  ["销售总额",x.sales_total],
+  ["入金总额",x.payment_total],
+  ["未付金额",x.unpaid_amount],
+ ].map(v=>`<div class="stat"><b>${esc(v[1])}</b><br><span class="small">${esc(v[0])}</span></div>`).join("");
+}
+async function calculate(){
+ if((!customerId.value.trim()&&!customerName.value.trim())||!createdBy.value.trim()){
+  alert("请输入客户信息和操作人");return;
+ }
+ try{
+  const result=await jsonFetch("/api/tlc-customer-reconciliation-snapshots/calculate",{
+   method:"POST",headers:{"Content-Type":"application/json"},
+   body:JSON.stringify({
+    customer_id:customerId.value,
+    customer_name:customerName.value,
+    previous_request_cutoff:previousRequestCutoff.value,
+    current_request_cutoff:currentRequestCutoff.value,
+    previous_bank_cutoff:previousBankCutoff.value,
+    current_bank_cutoff:currentBankCutoff.value,
+    created_by:createdBy.value
+   })
+  });
+  showSummary(result);await loadHistory();
+ }catch(e){alert(e.message)}
+}
+async function loadHistory(){
+ const query=customerId.value.trim()?`?customer_id=${encodeURIComponent(customerId.value.trim())}`:"";
+ try{
+  const rows=await jsonFetch("/api/tlc-customer-reconciliation-snapshots"+query);
+  history.innerHTML='<table><tr><th>时间</th><th>客户</th><th>请求期间</th><th>银行期间</th><th>销售</th><th>入金</th><th>未付</th><th>来源</th></tr>'+
+   rows.map(x=>`<tr><td>${esc(x.created_at)}</td><td>${esc(x.customer_id)}<br>${esc(x.customer_name)}</td><td>${esc(x.previous_request_cutoff)} → ${esc(x.current_request_cutoff)}</td><td>${esc(x.previous_bank_cutoff)} → ${esc(x.current_bank_cutoff)}</td><td>${esc(x.sales_total)}</td><td>${esc(x.payment_total)}</td><td>${esc(x.unpaid_amount)}</td><td>${esc(x.sales_source||"未发现")} / ${esc(x.payment_source||"未发现")}</td></tr>`).join("")+
+   '</table>';
+ }catch(e){alert(e.message)}
+}
+const today=new Date();
+const current=today.toISOString().slice(0,10);
+const previous=new Date(today.getFullYear(),today.getMonth()-1,today.getDate()).toISOString().slice(0,10);
+currentRequestCutoff.value=current;
+currentBankCutoff.value=current;
+previousRequestCutoff.value=previous;
+previousBankCutoff.value=previous;
+loadHistory();
+</script>
+</body>
+</html>
