@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>End-to-End Readiness Verification</title>
+<style>
+body{font-family:Arial,"Microsoft YaHei",sans-serif;margin:0;background:#f4f6f8;color:#222}
+header{background:#203b55;color:#fff;padding:20px 26px}
+main{padding:18px}
+.card{background:#fff;border:1px solid #ddd;border-radius:9px;padding:15px;margin-bottom:14px}
+.toolbar{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px}
+input,button{padding:8px;border:1px solid #bbb;border-radius:4px}
+button{cursor:pointer}.primary{background:#203b55;color:#fff}
+.summary{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:10px}
+.stat{background:#edf2f7;border-radius:7px;padding:13px;text-align:center}
+.ready{color:#137333;font-weight:bold}.notready{color:#b3261e;font-weight:bold}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{border:1px solid #ddd;padding:7px;text-align:left;vertical-align:top}
+th{background:#edf2f7}.pass{color:#137333;font-weight:bold}.fail{color:#b3261e;font-weight:bold}
+.small{font-size:12px;color:#666}
+a.button{display:inline-block;text-decoration:none;color:#222;border:1px solid #bbb;border-radius:4px;padding:8px;background:#fff}
+</style>
+</head>
+<body>
+<header>
+<h1>End-to-End Readiness Verification</h1>
+<div>整体确认本月业务是否已经具备正式验收与月结条件</div>
+</header>
+<main>
+<section class="card">
+<div class="toolbar">
+<label>业务年月
+<input id="businessMonth" type="month">
+</label>
+<button class="primary" onclick="loadReadiness()">执行整体检查</button>
+<a class="button" href="/guided-monthly-workflow" target="_blank">引导流程</a>
+<a class="button" href="/business-operations-home" target="_blank">业务运营首页</a>
+<a class="button" href="/operational-exception-dashboard" target="_blank">异常看板</a>
+<a class="button" href="/monthly-close-center" target="_blank">月结中心</a>
+</div>
+</section>
+
+<section class="card">
+<div id="summary" class="summary"></div>
+<div id="overallStatus" style="margin-top:12px"></div>
+</section>
+
+<section class="card">
+<h3>检查项目</h3>
+<div id="checkRows"></div>
+</section>
+
+<section class="card">
+<h3>未通过项目</h3>
+<div id="failedRows"></div>
+</section>
+</main>
+<script>
+async function api(url){
+ const r=await fetch(url);
+ let b;try{b=await r.json()}catch(e){b=await r.text()}
+ if(!r.ok)throw new Error(b.detail||String(b));
+ return b
+}
+function esc(v){
+ return String(v??"").replace(/[&<>"']/g,c=>(
+  {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]
+ ))
+}
+async function loadReadiness(){
+ const month=businessMonth.value;
+ const query=month?`?business_month=${encodeURIComponent(month)}`:"";
+ try{
+  const data=await api("/api/tlc-end-to-end-readiness"+query);
+  if(!businessMonth.value&&data.business_month)businessMonth.value=data.business_month;
+  summary.innerHTML=[
+   ["检查项目",data.check_count],
+   ["通过",data.passed_count],
+   ["未通过",data.failed_count],
+   ["完成度",data.readiness_percent+"%"],
+  ].map(x=>`<div class="stat"><b>${esc(x[1])}</b><br><span class="small">${esc(x[0])}</span></div>`).join("");
+  overallStatus.innerHTML=data.ready
+   ?'<span class="ready">READY：本月已通过端到端准备度检查</span>'
+   :'<span class="notready">NOT READY：仍有项目需要处理</span>';
+  checkRows.innerHTML='<table><tr><th>检查代码</th><th>项目</th><th>状态</th><th>说明</th></tr>'+
+   data.checks.map(x=>`<tr><td>${esc(x.code)}</td><td>${esc(x.name)}</td><td class="${x.passed?"pass":"fail"}">${esc(x.status)}</td><td>${esc(x.detail)}</td></tr>`).join("")+
+   '</table>';
+  failedRows.innerHTML=data.failed_checks.length
+   ?data.failed_checks.map(x=>`<div class="card"><b>${esc(x.name)}</b><br><span class="small">${esc(x.detail)}</span></div>`).join("")
+   :'<span class="ready">没有未通过项目</span>';
+ }catch(e){alert(e.message)}
+}
+const now=new Date();
+businessMonth.value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+loadReadiness();
+</script>
+</body>
+</html>
