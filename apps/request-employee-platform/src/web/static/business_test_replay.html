@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Business Test Data Reset & Replay</title>
+<style>
+body{font-family:Arial,"Microsoft YaHei",sans-serif;margin:0;background:#f4f6f8;color:#222}
+header{background:#203b55;color:#fff;padding:20px 26px}
+main{padding:18px}
+.card{background:#fff;border:1px solid #ddd;border-radius:9px;padding:15px;margin-bottom:14px}
+.toolbar{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px}
+input,select,button{padding:8px;border:1px solid #bbb;border-radius:4px}
+button{cursor:pointer}.primary{background:#203b55;color:#fff}.danger{background:#b3261e;color:#fff}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{border:1px solid #ddd;padding:7px;text-align:left}
+th{background:#edf2f7}.small{font-size:12px;color:#666}
+.warning{border-left:5px solid #b3261e;padding:10px;background:#fff7f7}
+a.button{display:inline-block;text-decoration:none;color:#222;border:1px solid #bbb;border-radius:4px;padding:8px;background:#fff}
+</style>
+</head>
+<body>
+<header>
+<h1>Business Test Data Reset & Replay</h1>
+<div>按业务年月清理测试数据，并重新建立标准业务回放场景</div>
+</header>
+<main>
+<section class="card warning">
+<b>注意：</b>Reset 会删除指定业务年月关联的 Batch、Import、月结、结转及授权测试数据。必须输入精确确认文字。
+</section>
+
+<section class="card">
+<div class="toolbar">
+<label>业务年月
+<input id="businessMonth" type="month">
+</label>
+<label>操作人
+<input id="operator">
+</label>
+<label>Replay Scenario
+<select id="scenarioName">
+<option value="STANDARD">STANDARD</option>
+<option value="IMPORT_ONLY">IMPORT_ONLY</option>
+<option value="MONTH_CLOSE">MONTH_CLOSE</option>
+</select>
+</label>
+<button class="danger" onclick="resetMonth()">Reset Month</button>
+<button class="primary" onclick="replayMonth()">Create Replay Scenario</button>
+<button onclick="loadRuns()">刷新历史</button>
+<a class="button" href="/guided-monthly-workflow" target="_blank">引导流程</a>
+<a class="button" href="/end-to-end-readiness" target="_blank">准备度检查</a>
+</div>
+</section>
+
+<section class="card">
+<h3>执行历史</h3>
+<div id="runRows"></div>
+</section>
+</main>
+<script>
+async function jsonFetch(url,options={}){
+ const r=await fetch(url,options);
+ let b;try{b=await r.json()}catch(e){b=await r.text()}
+ if(!r.ok)throw new Error(b.detail||String(b));
+ return b
+}
+async function resetMonth(){
+ const month=businessMonth.value;
+ const user=operator.value.trim();
+ if(!month||!user){alert("请选择业务年月并输入操作人");return}
+ const expected=`RESET ${month}`;
+ const confirmation=prompt(`请输入精确确认文字：${expected}`,"");
+ if(confirmation!==expected){alert("确认文字不一致，已取消");return}
+ try{
+  const result=await jsonFetch("/api/tlc-business-test/reset",{
+   method:"POST",headers:{"Content-Type":"application/json"},
+   body:JSON.stringify({business_month:month,operator:user,confirmation})
+  });
+  alert(`Reset 完成，删除 ${result.deleted_count} 条记录`);
+  await loadRuns();
+ }catch(e){alert(e.message)}
+}
+async function replayMonth(){
+ const month=businessMonth.value;
+ const user=operator.value.trim();
+ if(!month||!user){alert("请选择业务年月并输入操作人");return}
+ try{
+  const result=await jsonFetch("/api/tlc-business-test/replay",{
+   method:"POST",headers:{"Content-Type":"application/json"},
+   body:JSON.stringify({
+    business_month:month,
+    operator:user,
+    scenario_name:scenarioName.value
+   })
+  });
+  alert(`Replay 创建完成：${result.batch_no}`);
+  await loadRuns();
+ }catch(e){alert(e.message)}
+}
+async function loadRuns(){
+ const month=businessMonth.value;
+ const query=month?`?business_month=${encodeURIComponent(month)}`:"";
+ try{
+  const rows=await jsonFetch("/api/tlc-business-test/runs"+query);
+  runRows.innerHTML='<table><tr><th>时间</th><th>年月</th><th>动作</th><th>状态</th><th>操作人</th><th>删除</th><th>创建</th><th>说明</th></tr>'+
+  rows.map(x=>`<tr><td>${x.completed_at}</td><td>${x.business_month}</td><td>${x.action}</td><td>${x.status}</td><td>${x.operator}</td><td>${x.deleted_count}</td><td>${x.created_count}</td><td>${x.message}</td></tr>`).join("")+
+  '</table>';
+ }catch(e){alert(e.message)}
+}
+const now=new Date();
+businessMonth.value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+loadRuns();
+</script>
+</body>
+</html>
