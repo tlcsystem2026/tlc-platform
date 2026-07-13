@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Business Operations Home</title>
+<style>
+body{font-family:Arial,"Microsoft YaHei",sans-serif;margin:0;background:#f4f6f8;color:#222}
+header{background:#203b55;color:#fff;padding:20px 26px}
+main{padding:18px}
+.card{background:#fff;border:1px solid #ddd;border-radius:9px;padding:15px;margin-bottom:14px}
+.toolbar{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px}
+input,button{padding:8px;border:1px solid #bbb;border-radius:4px}
+button{cursor:pointer}.primary{background:#203b55;color:#fff}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:10px}
+.stat{background:#edf2f7;border-radius:7px;padding:13px;text-align:center}
+.navgrid{display:grid;grid-template-columns:repeat(3,minmax(200px,1fr));gap:10px}
+.navcard{border:1px solid #ccd7e2;border-radius:7px;padding:14px;cursor:pointer;background:#f9fbfd;text-decoration:none;color:inherit;display:block}
+.navcard:hover{background:#eef5fb}
+.alert{border-left:5px solid #888;padding:10px 12px;margin:8px 0;background:#fafafa}
+.high{border-left-color:#b3261e}.medium{border-left-color:#9a6700}.low{border-left-color:#52718c}
+.small{font-size:12px;color:#666}
+@media(max-width:900px){.stats,.navgrid{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<header>
+<h1>Business Operations Home</h1>
+<div>请求书、导入、审核、销售台账、银行、对账与月结的统一业务入口</div>
+</header>
+<main>
+<section class="card">
+<div class="toolbar">
+<label>业务年月
+<input id="businessMonth" type="month">
+</label>
+<button class="primary" onclick="loadHome()">刷新业务状态</button>
+</div>
+</section>
+
+<section class="card">
+<div id="stats" class="stats"></div>
+<div id="signoffStatus" style="margin-top:10px"></div>
+</section>
+
+<section class="card">
+<h3>需要处理</h3>
+<div id="alerts"></div>
+</section>
+
+<section class="card">
+<h3>业务入口</h3>
+<div id="navigation" class="navgrid">
+<a class="navcard" href="/batch-center" target="_blank"><b>Batch Center</b><br><span class="small">/batch-center</span></a>
+<a class="navcard" href="/import-center" target="_blank"><b>Import Center</b><br><span class="small">/import-center</span></a>
+<a class="navcard" href="/monthly-close-center" target="_blank"><b>Monthly Close Center</b><br><span class="small">/monthly-close-center</span></a>
+<a class="navcard" href="/operational-exception-dashboard" target="_blank"><b>Operational Exception Dashboard</b><br><span class="small">/operational-exception-dashboard</span></a>
+<a class="navcard" href="/customer-reconciliation-workbench" target="_blank"><b>Customer Reconciliation Workbench</b><br><span class="small">/customer-reconciliation-workbench</span></a>
+</div>
+</section>
+</main>
+<script>
+async function api(url){
+ const r=await fetch(url);
+ let b;try{b=await r.json()}catch(e){b=await r.text()}
+ if(!r.ok)throw new Error(b.detail||String(b));
+ return b
+}
+function esc(v){
+ return String(v??"").replace(/[&<>"']/g,c=>(
+  {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]
+ ))
+}
+async function loadHome(){
+ const month=businessMonth.value;
+ const query=month?`?business_month=${encodeURIComponent(month)}`:"";
+ try{
+  const data=await api("/api/tlc-business-operations-home"+query);
+  if(!businessMonth.value&&data.business_month)businessMonth.value=data.business_month;
+  stats.innerHTML=[
+   ["Batch",data.batch_count],
+   ["已完成 Batch",data.finished_batch_count],
+   ["Import Jobs",data.import_job_count],
+   ["待处理提醒",data.alert_count],
+  ].map(x=>`<div class="stat"><b>${esc(x[1])}</b><br><span class="small">${esc(x[0])}</span></div>`).join("");
+  signoffStatus.innerHTML=`月结签核状态：<b>${esc(data.monthly_close_signoff_status||"未初始化")}</b>`;
+  alerts.innerHTML=data.alerts.length
+   ?data.alerts.map(x=>`<div class="alert ${x.severity.toLowerCase()}" onclick="window.open('${x.target}','_blank')"><b>${esc(x.severity)} / ${esc(x.code)}</b><br>${esc(x.message)}</div>`).join("")
+   :'<span class="small">当前没有需要处理的事项</span>';
+  navigation.innerHTML=data.navigation.map(x=>`<div class="navcard" onclick="window.open('${x.path}','_blank')"><b>${esc(x.name)}</b><br><span class="small">${esc(x.path)}</span></div>`).join("");
+ }catch(e){alert(e.message)}
+}
+const now=new Date();
+businessMonth.value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+loadHome();
+</script>
+</body>
+</html>
