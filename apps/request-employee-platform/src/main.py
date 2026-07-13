@@ -91,3 +91,5 @@ from src.api.routes.tlc_cross_month_carry_forward import router as tlc_cross_mon
 app.include_router(tlc_cross_month_carry_forward_router)
 from src.api.routes.tlc_monthly_close_authorization import router as tlc_monthly_close_authorization_router
 app.include_router(tlc_monthly_close_authorization_router)
+from src.api.routes.tlc_operational_exception_dashboard import router as tlc_operational_exception_dashboard_router
+app.include_router(tlc_operational_exception_dashboard_router)

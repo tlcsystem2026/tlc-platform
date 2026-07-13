@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Operational Exception Dashboard</title>
+<style>
+body{font-family:Arial,"Microsoft YaHei",sans-serif;margin:0;background:#f4f6f8;color:#222}
+header{background:#213f5b;color:#fff;padding:18px 24px}
+main{padding:18px}
+.card{background:#fff;border:1px solid #ddd;border-radius:8px;padding:14px;margin-bottom:14px}
+.toolbar{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px}
+input,select,button{padding:8px;border:1px solid #bbb;border-radius:4px}
+button{cursor:pointer}.primary{background:#213f5b;color:#fff}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:10px}
+.stat{background:#edf2f6;border-radius:6px;padding:12px;text-align:center}
+.high{color:#b3261e;font-weight:bold}.medium{color:#9a6700;font-weight:bold}.low{color:#446;font-weight:bold}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{border:1px solid #ddd;padding:7px;text-align:left;vertical-align:top}
+th{background:#edf2f6}.small{font-size:12px;color:#666}
+@media(max-width:900px){.stats{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<header>
+<h1>Operational Exception Dashboard</h1>
+<div>集中查看导入、比较、月结、结转与授权中的未处理异常</div>
+</header>
+<main>
+<section class="card">
+<div class="toolbar">
+<label>业务年月
+<input id="businessMonth" type="month">
+</label>
+<label>严重度
+<select id="severityFilter">
+<option value="">全部</option>
+<option value="HIGH">HIGH</option>
+<option value="MEDIUM">MEDIUM</option>
+<option value="LOW">LOW</option>
+</select>
+</label>
+<label>分类
+<select id="categoryFilter"><option value="">全部</option></select>
+</label>
+<button class="primary" onclick="loadDashboard()">刷新</button>
+<button onclick="window.open('/monthly-close-center','_blank')">打开月结中心</button>
+<button onclick="window.open('/import-center','_blank')">打开导入中心</button>
+<button onclick="window.open('/batch-center','_blank')">打开 Batch Center</button>
+</div>
+</section>
+
+<section class="card">
+<div id="stats" class="stats"></div>
+</section>
+
+<section class="card">
+<h3>异常明细</h3>
+<div id="exceptionRows"></div>
+</section>
+</main>
+<script>
+let dashboardData={exceptions:[]};
+async function api(url){
+ const r=await fetch(url);
+ let b;try{b=await r.json()}catch(e){b=await r.text()}
+ if(!r.ok)throw new Error(b.detail||String(b));
+ return b
+}
+function esc(v){
+ return String(v??"").replace(/[&<>"']/g,c=>(
+  {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]
+ ))
+}
+function renderRows(){
+ const severity=severityFilter.value;
+ const category=categoryFilter.value;
+ const rows=dashboardData.exceptions.filter(x=>
+  (!severity||x.severity===severity)&&(!category||x.category===category)
+ );
+ exceptionRows.innerHTML='<table><tr><th>严重度</th><th>年月</th><th>Batch</th><th>分类</th><th>状态</th><th>标题</th><th>说明</th><th>发生时间</th></tr>'+
+ rows.map(x=>`<tr>
+  <td class="${String(x.severity).toLowerCase()}">${esc(x.severity)}</td>
+  <td>${esc(x.business_month)}</td>
+  <td>${esc(x.batch_no||x.batch_title||x.batch_id)}</td>
+  <td>${esc(x.category)}<br><span class="small">${esc(x.subcategory)}</span></td>
+  <td>${esc(x.status)}</td>
+  <td>${esc(x.title)}</td>
+  <td>${esc(x.detail)}</td>
+  <td>${esc(x.occurred_at)}</td>
+ </tr>`).join("")+'</table>';
+}
+async function loadDashboard(){
+ const month=businessMonth.value;
+ const query=month?`?business_month=${encodeURIComponent(month)}`:"";
+ try{
+  dashboardData=await api("/api/tlc-operational-exceptions"+query);
+  stats.innerHTML=[
+   ["异常总数",dashboardData.exception_count],
+   ["HIGH",dashboardData.high_count],
+   ["MEDIUM",dashboardData.medium_count],
+   ["LOW",dashboardData.low_count],
+  ].map(x=>`<div class="stat"><b>${esc(x[1])}</b><br><span class="small">${esc(x[0])}</span></div>`).join("");
+  const current=categoryFilter.value;
+  categoryFilter.innerHTML='<option value="">全部</option>'+
+   Object.keys(dashboardData.by_category).sort().map(x=>`<option>${esc(x)}</option>`).join("");
+  if([...categoryFilter.options].some(x=>x.value===current))categoryFilter.value=current;
+  renderRows();
+ }catch(e){alert(e.message)}
+}
+severityFilter.addEventListener("change",renderRows);
+categoryFilter.addEventListener("change",renderRows);
+const now=new Date();
+businessMonth.value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+loadDashboard();
+</script>
+</body>
+</html>
