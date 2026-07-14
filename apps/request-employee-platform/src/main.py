@@ -135,3 +135,7 @@ from src.api.routes.tlc_customer_recommended_matching import router as tlc_custo
 from src.api.routes.tlc_customer_recommended_matching import page_router as tlc_customer_recommended_matching_page_router
 app.include_router(tlc_customer_recommended_matching_router)
 app.include_router(tlc_customer_recommended_matching_page_router)
+from src.api.routes.request_folder_settings import router as request_folder_settings_router
+from src.api.routes.request_folder_settings import page_router as request_folder_settings_page_router
+app.include_router(request_folder_settings_router)
+app.include_router(request_folder_settings_page_router)
