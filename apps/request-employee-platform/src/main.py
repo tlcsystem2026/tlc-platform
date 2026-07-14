@@ -141,3 +141,7 @@ app.include_router(request_folder_settings_router)
 app.include_router(request_folder_settings_page_router)
 from src.api.routes.bank_folder_settings import router as bank_folder_settings_router
 app.include_router(bank_folder_settings_router)
+from src.api.routes.request_batch_compare_import import router as request_batch_compare_import_router
+from src.api.routes.request_batch_compare_import import page_router as request_batch_compare_import_page_router
+app.include_router(request_batch_compare_import_router)
+app.include_router(request_batch_compare_import_page_router)
