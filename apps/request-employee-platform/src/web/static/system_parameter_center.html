@@ -5,7 +5,28 @@
 <div class="grid"><label>请求书根目录</label><input id="root"><label>Incoming 子目录</label><input id="incoming"><label>Processing 子目录</label><input id="processing"><label>Completed 子目录</label><input id="completed"><label>Error 子目录</label><input id="error"><label>Archive 子目录</label><input id="archive"><label>年月目录格式</label><input id="monthFormat" readonly></div>
 <div class="toolbar"><button class="primary" onclick="saveSettings()">保存</button><button onclick="checkSettings()">路径核查</button></div><div id="message" class="note"></div></section>
 <section class="card"><h2>路径核查结果</h2><div id="checks" class="note">尚未执行路径核查。</div></section>
-<section class="card"><h2>业务年月目录</h2><div id="months" class="note">尚未执行路径核查。</div></section></main>
+<section class="card"><h2>业务年月目录</h2><div id="months" class="note">尚未执行路径核查。</div></section>
+<section class="card" id="bankFolderSettingsSection">
+<h2>银行流水目录设置</h2>
+<p class="note">银行流水按银行＋口座 Code 管理，不按年月分目录。页面不提供创建目录按钮；系统在保存参数或实际使用某个口座时按需创建目录。</p>
+<div class="grid">
+<label for="bankRoot">银行流水根目录</label><input id="bankRoot">
+<label for="bankIncoming">Incoming 子目录</label><input id="bankIncoming">
+<label for="bankProcessing">Processing 子目录</label><input id="bankProcessing">
+<label for="bankCompleted">Completed 子目录</label><input id="bankCompleted">
+<label for="bankError">Error 子目录</label><input id="bankError">
+<label for="bankArchive">Archive 子目录</label><input id="bankArchive">
+</div>
+<div class="toolbar">
+<button class="primary" onclick="saveBankSettings()">保存</button>
+<button onclick="checkBankSettings()">路径核查</button>
+</div>
+<div id="bankMessage" class="note"></div>
+</section>
+<section class="card"><h2>银行流水路径核查结果</h2><div id="bankChecks" class="note">尚未执行路径核查。</div></section>
+<section class="card"><h2>银行＋口座目录</h2><div id="bankAccounts" class="note">尚未执行路径核查。</div></section>
+
+</main>
 <script>
 const api='/api/tlc-system-parameters/request-folders';
 async function jf(url,o={}){const r=await fetch(url,o);let b;try{b=await r.json()}catch(e){b=await r.text()}if(!r.ok)throw new Error(b.detail||String(b));return b}
@@ -15,4 +36,44 @@ async function loadSettings(){try{const s=await jf(api);root.value=s.request_roo
 async function saveSettings(){try{await jf(api,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(values())});message.innerHTML='<span class="ok">保存成功。标准目录已按需自动创建。</span>';await checkSettings()}catch(e){message.innerHTML='<span class="bad">'+esc(e.message)+'</span>'}}
 async function checkSettings(){try{const r=await jf(api+'/check');checks.innerHTML='<table><tr><th>目录</th><th>路径</th><th>存在</th><th>可读</th><th>可写</th></tr>'+r.checks.map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(x.path)}</td><td class="${x.exists?'ok':'bad'}">${x.exists?'是':'否'}</td><td class="${x.readable?'ok':'bad'}">${x.readable?'是':'否'}</td><td class="${x.writable?'ok':'bad'}">${x.writable?'是':'否'}</td></tr>`).join('')+'</table>';const v=r.valid_month_folders.length?r.valid_month_folders.join(', '):'无';const i=r.invalid_month_folders.length?r.invalid_month_folders.join(', '):'无';months.innerHTML=`<p>合法 YYYYMM 目录：<b>${esc(v)}</b></p><p>非法目录（仅提示，不修改）：<b class="${r.invalid_month_folders.length?'bad':''}">${esc(i)}</b></p>`}catch(e){checks.innerHTML='<span class="bad">'+esc(e.message)+'</span>'}}
 loadSettings();
+
+const bankApi="/api/tlc-system-parameters/bank-folders";
+function bankValues(){return{
+ bank_root_path:bankRoot.value.trim(),
+ bank_incoming_dir:bankIncoming.value.trim(),
+ bank_processing_dir:bankProcessing.value.trim(),
+ bank_completed_dir:bankCompleted.value.trim(),
+ bank_error_dir:bankError.value.trim(),
+ bank_archive_dir:bankArchive.value.trim()
+}}
+async function loadBankSettings(){
+ try{
+  const s=await jf(bankApi);
+  bankRoot.value=s.bank_root_path;
+  bankIncoming.value=s.bank_incoming_dir;
+  bankProcessing.value=s.bank_processing_dir;
+  bankCompleted.value=s.bank_completed_dir;
+  bankError.value=s.bank_error_dir;
+  bankArchive.value=s.bank_archive_dir;
+ }catch(e){bankMessage.innerHTML='<span class="bad">'+esc(e.message)+'</span>'}
+}
+async function saveBankSettings(){
+ try{
+  await jf(bankApi,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(bankValues())});
+  bankMessage.innerHTML='<span class="ok">保存成功。标准目录已按需自动创建。</span>';
+  await checkBankSettings();
+ }catch(e){bankMessage.innerHTML='<span class="bad">'+esc(e.message)+'</span>'}
+}
+async function checkBankSettings(){
+ try{
+  const result=await jf(bankApi+"/check");
+  bankChecks.innerHTML='<table><tr><th>目录</th><th>路径</th><th>存在</th><th>可读</th><th>可写</th></tr>'+
+  result.checks.map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(x.path)}</td><td class="${x.exists?'ok':'bad'}">${x.exists?'是':'否'}</td><td class="${x.readable?'ok':'bad'}">${x.readable?'是':'否'}</td><td class="${x.writable?'ok':'bad'}">${x.writable?'是':'否'}</td></tr>`).join("")+'</table>';
+  const valid=result.bank_account_codes.length?result.bank_account_codes.join(", "):"无";
+  const invalid=result.invalid_bank_account_folders.length?result.invalid_bank_account_folders.join(", "):"无";
+  bankAccounts.innerHTML=`<p>合法银行＋口座 Code：<b>${esc(valid)}</b></p><p>非法目录（仅提示，不修改）：<b class="${result.invalid_bank_account_folders.length?'bad':''}">${esc(invalid)}</b></p>`;
+ }catch(e){bankChecks.innerHTML='<span class="bad">'+esc(e.message)+'</span>'}
+}
+loadBankSettings();
+
 </script></body></html>

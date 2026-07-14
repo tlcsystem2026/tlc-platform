@@ -139,3 +139,5 @@ from src.api.routes.request_folder_settings import router as request_folder_sett
 from src.api.routes.request_folder_settings import page_router as request_folder_settings_page_router
 app.include_router(request_folder_settings_router)
 app.include_router(request_folder_settings_page_router)
+from src.api.routes.bank_folder_settings import router as bank_folder_settings_router
+app.include_router(bank_folder_settings_router)
