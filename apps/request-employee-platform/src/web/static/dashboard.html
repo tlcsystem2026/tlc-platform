@@ -69,5 +69,191 @@ async function checkRuntime(){const r=await fetch('/api/system/runtime');const j
 async function checkDb(){const r=await fetch('/api/db/status');show('opsOutput',await r.json())}
 async function loadOps(){const r=await fetch('/api/ops/next-actions');show('opsOutput',await r.json())}
 loadDashboard().catch(e=>document.body.innerHTML='<pre>'+e+'</pre>')
+
+
+/* TLC_REQUEST_REVIEW_DASHBOARD_PATCH_V3 */
+/* href="/request-review-center" */
+
+(function () {
+  function findTextNode(root, target) {
+    const walker = document.createTreeWalker(
+      root,
+      NodeFilter.SHOW_TEXT,
+      {
+        acceptNode(node) {
+          return (node.nodeValue || "").includes(target)
+            ? NodeFilter.FILTER_ACCEPT
+            : NodeFilter.FILTER_SKIP;
+        }
+      }
+    );
+    return walker.nextNode();
+  }
+
+  function findTodoContainer() {
+    const headingNode = findTextNode(document.body, "今日业务TODO");
+    if (!headingNode) return null;
+
+    let element = headingNode.parentElement;
+
+    while (element && element !== document.body) {
+      const value = element.textContent || "";
+
+      if (value.includes("今日业务TODO") && value.length < 1500) {
+        return element;
+      }
+
+      element = element.parentElement;
+    }
+
+    return headingNode.parentElement;
+  }
+
+  function ensureReviewEntry() {
+    let link = document.querySelector(
+      'a[href="/request-review-center"]'
+    );
+
+    if (link) return link;
+
+    const labelNode = findTextNode(
+      document.body,
+      "待核对请求书"
+    );
+
+    if (labelNode) {
+      const original = labelNode.nodeValue || "";
+      const label = "待核对请求书";
+      const position = original.indexOf(label);
+
+      const before = document.createTextNode(
+        original.slice(0, position)
+      );
+
+      const after = document.createTextNode(
+        original.slice(position + label.length)
+      );
+
+      link = document.createElement("a");
+      link.href = "/request-review-center";
+      link.textContent = label;
+      link.style.color = "inherit";
+      link.style.textDecoration = "none";
+      link.style.fontStyle = "normal";
+
+      const parent = labelNode.parentNode;
+
+      parent.insertBefore(before, labelNode);
+      parent.insertBefore(link, labelNode);
+      parent.insertBefore(after, labelNode);
+      parent.removeChild(labelNode);
+
+      return link;
+    }
+
+    const container = findTodoContainer();
+
+    if (!container) return null;
+
+    const row = document.createElement("div");
+    row.style.marginTop = "8px";
+    row.style.fontStyle = "normal";
+
+    link = document.createElement("a");
+    link.href = "/request-review-center";
+    link.textContent = "待核对请求书";
+    link.style.color = "inherit";
+    link.style.textDecoration = "none";
+    link.style.fontStyle = "normal";
+
+    const count = document.createElement("span");
+    count.id = "requestWaitReviewCount";
+    count.textContent = "0";
+    count.style.marginLeft = "8px";
+
+    row.appendChild(link);
+    row.appendChild(count);
+    container.appendChild(row);
+
+    return link;
+  }
+
+  async function refreshReviewCount() {
+    const link = ensureReviewEntry();
+
+    if (!link) return;
+
+    let target = document.getElementById(
+      "requestWaitReviewCount"
+    );
+
+    if (!target) {
+      const parent = link.parentElement;
+
+      const candidates = parent
+        ? Array.from(
+            parent.querySelectorAll(
+              "span,strong,b,em"
+            )
+          )
+        : [];
+
+      target = candidates.find(
+        element =>
+          /^\s*\d+\s*$/.test(
+            element.textContent || ""
+          )
+      );
+
+      if (!target) {
+        target = document.createElement("span");
+        target.style.marginLeft = "8px";
+        link.insertAdjacentElement(
+          "afterend",
+          target
+        );
+      }
+
+      target.id = "requestWaitReviewCount";
+    }
+
+    try {
+      const response = await fetch(
+        "/api/tlc-request-reviews/wait-count"
+      );
+
+      if (!response.ok) return;
+
+      const body = await response.json();
+      target.textContent = body.count;
+    } catch (error) {
+      // Dashboard remains available if count loading fails.
+    }
+  }
+
+  function startReviewEntry() {
+    refreshReviewCount();
+
+    setTimeout(
+      refreshReviewCount,
+      300
+    );
+
+    setTimeout(
+      refreshReviewCount,
+      1000
+    );
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener(
+      "DOMContentLoaded",
+      startReviewEntry
+    );
+  } else {
+    startReviewEntry();
+  }
+})();
+
 </script>
 </body></html>

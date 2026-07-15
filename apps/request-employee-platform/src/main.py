@@ -145,3 +145,7 @@ from src.api.routes.request_batch_compare_import import router as request_batch_
 from src.api.routes.request_batch_compare_import import page_router as request_batch_compare_import_page_router
 app.include_router(request_batch_compare_import_router)
 app.include_router(request_batch_compare_import_page_router)
+from src.api.routes.request_review import router as request_review_router
+from src.api.routes.request_review import page_router as request_review_page_router
+app.include_router(request_review_router)
+app.include_router(request_review_page_router)
