@@ -256,4 +256,182 @@ loadDashboard().catch(e=>document.body.innerHTML='<pre>'+e+'</pre>')
 })();
 
 </script>
+
+<script>
+/* TLC_REQUEST_REVIEW_WORK_QUEUE_S04R1 */
+(function(){
+  const LABEL = "待核对请求书";
+  const TARGET = "/request-review-center";
+
+  function findTextNode(root, text) {
+    const walker = document.createTreeWalker(
+      root,
+      NodeFilter.SHOW_TEXT,
+      {
+        acceptNode(node) {
+          return (node.nodeValue || "").includes(text)
+            ? NodeFilter.FILTER_ACCEPT
+            : NodeFilter.FILTER_SKIP;
+        }
+      }
+    );
+    return walker.nextNode();
+  }
+
+  function findRow(node) {
+    let element = node && node.parentElement;
+    while (element && element !== document.body) {
+      const text = (element.textContent || "").trim();
+      const rect = element.getBoundingClientRect();
+      if (text.includes(LABEL) && text.length < 120 && rect.width > 150) {
+        return element;
+      }
+      element = element.parentElement;
+    }
+    return node ? node.parentElement : null;
+  }
+
+  function locateRow() {
+    const existing = document.querySelector(
+      '[data-tlc-request-review-work-queue="1"]'
+    );
+    if (existing) return existing;
+    const node = findTextNode(document.body, LABEL);
+    return node ? findRow(node) : null;
+  }
+
+  function ensureCountElement(row) {
+    let target = row.querySelector(
+      '[data-tlc-request-review-count="1"]'
+    );
+    if (target) return target;
+
+    const candidates = Array.from(
+      row.querySelectorAll("span,strong,b,em,div")
+    ).filter(element => element !== row);
+
+    target = candidates.find(element =>
+      /^\s*\d+\s*$/.test(element.textContent || "")
+    );
+
+    if (!target) {
+      target = document.createElement("span");
+      target.style.marginLeft = "auto";
+      target.textContent = "0";
+      row.appendChild(target);
+    }
+
+    target.dataset.tlcRequestReviewCount = "1";
+    return target;
+  }
+
+  function activateRow() {
+    const row = locateRow();
+    if (!row) return false;
+
+    row.dataset.tlcRequestReviewWorkQueue = "1";
+    row.setAttribute("role", "link");
+    row.setAttribute("tabindex", "0");
+    row.title = "打开请求书 Review";
+    row.style.cursor = "pointer";
+    row.style.fontStyle = "normal";
+
+    if (!row.dataset.tlcReviewBound) {
+      row.addEventListener("click", function(event) {
+        const selection = window.getSelection
+          ? String(window.getSelection())
+          : "";
+        if (selection) return;
+        const interactive = event.target.closest(
+          "a,button,input,select,textarea"
+        );
+        if (interactive) {
+          const anchor = event.target.closest("a");
+          if (anchor && anchor.getAttribute("href") === TARGET) return;
+        }
+        window.location.href = TARGET;
+      });
+
+      row.addEventListener("keydown", function(event) {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          window.location.href = TARGET;
+        }
+      });
+
+      row.dataset.tlcReviewBound = "1";
+    }
+
+    if (!row.querySelector('a[href="' + TARGET + '"]')) {
+      const node = findTextNode(row, LABEL);
+      if (node) {
+        const text = node.nodeValue || "";
+        const index = text.indexOf(LABEL);
+        const before = document.createTextNode(text.slice(0, index));
+        const after = document.createTextNode(
+          text.slice(index + LABEL.length)
+        );
+        const link = document.createElement("a");
+        link.href = TARGET;
+        link.textContent = LABEL;
+        link.style.color = "inherit";
+        link.style.textDecoration = "none";
+        link.style.fontStyle = "normal";
+
+        const parent = node.parentNode;
+        parent.insertBefore(before, node);
+        parent.insertBefore(link, node);
+        parent.insertBefore(after, node);
+        parent.removeChild(node);
+      }
+    }
+
+    ensureCountElement(row);
+    return true;
+  }
+
+  async function refreshCount() {
+    if (!activateRow()) return;
+    const row = locateRow();
+    if (!row) return;
+    const target = ensureCountElement(row);
+
+    try {
+      const response = await fetch(
+        "/api/tlc-request-reviews/wait-count",
+        {cache: "no-store"}
+      );
+      if (!response.ok) return;
+      const body = await response.json();
+      target.textContent = String(body.count ?? 0);
+    } catch (error) {
+      // Keep Dashboard available if count loading fails.
+    }
+  }
+
+  function start() {
+    refreshCount();
+
+    const observer = new MutationObserver(function() {
+      if (activateRow()) refreshCount();
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+
+    setTimeout(refreshCount, 300);
+    setTimeout(refreshCount, 1000);
+    setTimeout(refreshCount, 2500);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", start);
+  } else {
+    start();
+  }
+})();
+</script>
+
 </body></html>

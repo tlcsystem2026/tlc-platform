@@ -68,7 +68,9 @@ def test_force_review_requires_comment_and_updates_count():
     assert client.get('/api/tlc-request-reviews/wait-count').json()['count'] == 0
 
 def test_dashboard_entry():
-    response = client.get('/dashboard')
+    response = client.get("/dashboard")
     assert response.status_code == 200
-    assert 'href="/request-review-center"' in response.text
-    assert '/api/tlc-request-reviews/wait-count' in response.text
+    assert "TLC_REQUEST_REVIEW_WORK_QUEUE_S04R1" in response.text
+    assert "/request-review-center" in response.text
+    assert "/api/tlc-request-reviews/wait-count" in response.text
+    assert "MutationObserver" in response.text
