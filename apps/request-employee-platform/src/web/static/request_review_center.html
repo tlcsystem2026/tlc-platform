@@ -1,24 +1,141 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>请求书 Review</title>
-<style>body{font-family:Arial,"Microsoft YaHei";margin:0;background:#f4f6f8;color:#222}header{background:#203b55;color:#fff;padding:18px 24px}main{padding:16px}.card{background:#fff;border:1px solid #ddd;border-radius:8px;padding:14px;margin-bottom:12px}.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:end}label{display:flex;flex-direction:column;font-size:12px;gap:4px}input,select,button,textarea{padding:8px;border:1px solid #bbb;border-radius:4px}button{cursor:pointer}.primary{background:#203b55;color:#fff}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #ddd;padding:7px;text-align:left;vertical-align:top}th{background:#edf2f7}.raw{background:#eee}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.mono{white-space:pre-wrap;font-family:Consolas,monospace;max-height:260px;overflow:auto}.small{font-size:12px;color:#555}</style></head>
-<body><header><h1>请求书 Review</h1><div>原始数据只读；系统结果独立核查</div></header><main>
-<section class="card"><div class="toolbar">
-<label>业务年月<input id="month" placeholder="YYYYMM"></label>
-<label>Review 状态<select id="status"><option>WAIT_REVIEW</option><option value="">全部</option><option>REVIEWED_OK</option><option>SOURCE_CORRECTION_REQUIRED</option><option>ON_HOLD</option></select></label>
-<label>Compare<select id="compare"><option value="">全部</option><option>MATCHED</option><option>EXCEPTION</option><option>ERROR</option></select></label>
-<label>客户匹配<select id="customerStatus"><option value="">全部</option><option>MATCHED</option><option>UNMATCHED</option></select></label>
-<label>关键词<input id="keyword"></label><button class="primary" onclick="loadRows()">查询</button>
-</div></section>
-<section class="card"><div id="rows"></div></section>
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>请求书批量核对与 Review</title>
+<style>
+body{font-family:Arial,"Microsoft YaHei";margin:0;background:#f4f6f8;color:#222}
+header{background:#203b55;color:#fff;padding:18px 24px}
+main{padding:16px;max-width:1500px;margin:auto}
+.card{background:#fff;border:1px solid #ddd;border-radius:8px;padding:14px;margin-bottom:12px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
+label{display:flex;flex-direction:column;font-size:12px;gap:4px}
+input,select,button,textarea{padding:8px;border:1px solid #bbb;border-radius:4px}
+button{cursor:pointer}.primary{background:#203b55;color:#fff}.run{background:#2563eb;color:#fff}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{border:1px solid #ddd;padding:7px;text-align:left;vertical-align:top}
+th{background:#edf2f7}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.mono{white-space:pre-wrap;font-family:Consolas,monospace;max-height:260px;overflow:auto}
+.small{font-size:12px;color:#555}.status{padding:4px 9px;border-radius:999px;background:#eef2f7}
+.summary{display:grid;grid-template-columns:repeat(5,minmax(100px,1fr));gap:8px;margin-top:10px}
+.metric{padding:10px;border:1px solid #ddd;border-radius:6px;background:#f8fafc}
+.metric b{display:block;font-size:20px}.sep{border:0;border-top:2px solid #cbd5e1;margin:22px 0}
+@media(max-width:900px){.grid{grid-template-columns:1fr}.summary{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<header>
+<h1>请求书批量核对、初步导入与 Review</h1>
+<div>上部执行 Batch；下部处理 WAIT_REVIEW。</div>
+</header>
+<main>
+<!-- BUILD037_S05_UNIFIED_BATCH_REVIEW -->
+<section class="card">
+<h2>1. 请求书批量核对与初步导入 <span id="batchStatus" class="status">未执行</span></h2>
+<div class="toolbar">
+<label>业务年月（YYYYMM）<input id="batchMonth"></label>
+<label>操作人<input id="batchOperator"></label>
+<button class="run" id="runBtn" onclick="runBatch()">执行 Batch</button>
+<button onclick="loadBatch()">刷新 Batch</button>
+<button onclick="syncMonth()">同步到 Review</button>
+</div>
+<div id="batchMsg" class="small" style="margin-top:10px">请输入业务年月和操作人。</div>
+<div id="batchSummary" class="summary"></div>
+</section>
+
+<section class="card">
+<h3>Batch Review Queue 预览</h3>
+<div id="batchQueue">暂无数据。</div>
+</section>
+
+<hr class="sep">
+
+<section class="card">
+<h2>2. 请求书 Review <span id="reviewCount" class="status">0件</span></h2>
+<div class="toolbar">
+<label>业务年月<input id="reviewMonth"></label>
+<label>Review 状态<select id="reviewStatus"><option>WAIT_REVIEW</option><option value="">全部</option><option>REVIEWED_OK</option><option>SOURCE_CORRECTION_REQUIRED</option><option>ON_HOLD</option></select></label>
+<label>Compare<select id="reviewCompare"><option value="">全部</option><option>MATCHED</option><option>EXCEPTION</option><option>ERROR</option></select></label>
+<label>客户匹配<select id="reviewCustomer"><option value="">全部</option><option>MATCHED</option><option>UNMATCHED</option></select></label>
+<label>关键词<input id="reviewKeyword"></label>
+<button class="primary" onclick="loadReviews()">查询</button>
+</div>
+</section>
+
+<section class="card"><div id="reviewRows"></div></section>
+
 <section class="grid">
-<div class="card raw"><h3>原始数据（只读）</h3><div id="raw">请选择一条记录。</div></div>
+<div class="card" style="background:#eee"><h3>原始数据（只读）</h3><div id="raw">请选择一条记录。</div></div>
 <div class="card"><h3>系统数据与 Review</h3><div id="system">请选择一条记录。</div></div>
-</section></main>
+</section>
+</main>
+
 <script>
-const api="/api/tlc-request-reviews";let selected=null;
+const batchApi="/api/tlc-request-batch-compare-import";
+const reviewApi="/api/tlc-request-reviews";
+let selected=null;
+const $=id=>document.getElementById(id);
+const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 async function jf(u,o={}){const r=await fetch(u,o);let b;try{b=await r.json()}catch(e){b=await r.text()}if(!r.ok)throw new Error(b.detail||String(b));return b}
-function e(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-async function loadRows(){const q=new URLSearchParams({business_month:month.value.trim(),review_status:status.value,compare_status:compare.value,customer_match_status:customerStatus.value,keyword:keyword.value.trim()});const data=await jf(api+"?"+q);rows.innerHTML='<table><tr><th>年月</th><th>PDF / Excel</th><th>原始客户</th><th>系统客户</th><th>Compare</th><th>异常</th><th>Review</th></tr>'+data.map(x=>`<tr onclick="show('${x.id}')" style="cursor:pointer"><td>${e(x.business_month)}</td><td>${e(x.pdf_file_name)}<br>${e(x.excel_file_name)}</td><td>${e(x.raw_customer_name)}</td><td>${e(x.system_customer_code)}<br>${e(x.system_customer_name)}</td><td>${e(x.compare_status)}</td><td>${e(x.exception_codes)}</td><td>${e(x.review_status)}</td></tr>`).join("")+'</table>'}
-async function show(id){selected=await jf(api+"/"+id);raw.innerHTML=`<p><b>PDF：</b>${e(selected.pdf_file_name)}<br><span class="small">${e(selected.final_pdf_path)}</span></p><p><b>Excel：</b>${e(selected.excel_file_name)}<br><span class="small">${e(selected.final_excel_path)}</span></p><p><b>PDF Hash：</b>${e(selected.pdf_sha256)}</p><p><b>Excel Hash：</b>${e(selected.excel_sha256)}</p><p><b>原始客户名称：</b>${e(selected.raw_customer_name)}</p><p><b>PDF 提取文本：</b></p><div class="mono">${e(selected.pdf_raw_text)}</div><p><b>Excel 原始数据：</b></p><div class="mono">${e(selected.excel_raw_json)}</div>`;system.innerHTML=`<p><b>系统客户：</b>${e(selected.system_customer_code)} / ${e(selected.system_customer_name)}</p><p><b>客户匹配：</b>${e(selected.customer_match_status)}</p><p><b>Compare：</b>${e(selected.compare_status)}</p><p><b>PDF 合计：</b>${e(selected.pdf_total_amount)}　<b>Excel 合计：</b>${e(selected.excel_total_amount)}</p><p><b>异常代码：</b>${e(selected.exception_codes)}</p><div class="mono">${e(selected.exception_details)}</div><hr><label>操作人<input id="operator"></label><label>意见<textarea id="comment" rows="3"></textarea></label><p><button onclick="decide('REVIEWED_OK',false)">核对通过</button> <button onclick="decide('REVIEWED_OK',true)">强制通过</button> <button onclick="decide('SOURCE_CORRECTION_REQUIRED',false)">需要修正原始文件</button> <button onclick="decide('ON_HOLD',false)">暂缓处理</button></p><p><button onclick="window.open('/tlc-customer-master','_blank')">打开客户维护</button> <button disabled title="客户维护页面确认后接入">重新匹配客户</button></p>`}
-async function decide(s,f){if(!selected)return;try{await jf(api+"/"+selected.id,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({review_status:s,operator:operator.value,comment:comment.value,forced:f})});await loadRows();raw.innerHTML="处理完成。";system.innerHTML="处理完成。";selected=null}catch(err){alert(err.message)}}
-loadRows();
-</script></body></html>
+function monthOk(v){return /^\d{6}$/.test(v)}
+function syncMonth(){$("reviewMonth").value=$("batchMonth").value.trim();loadReviews()}
+function batchMetrics(b={}){$("batchSummary").innerHTML=[
+["文件",b.total_file_count||0],["配对",b.pair_count||0],["待Review",b.review_count||0],
+["异常",b.exception_count||0],["错误",b.error_count||0]
+].map(x=>`<div class="metric">${x[0]}<b>${esc(x[1])}</b></div>`).join("")}
+async function runBatch(){
+ const m=$("batchMonth").value.trim(),op=$("batchOperator").value.trim();
+ if(!monthOk(m)){alert("请输入6位业务年月");return}
+ if(!op){alert("请输入操作人");return}
+ $("runBtn").disabled=true;$("batchStatus").textContent="执行中";
+ try{
+  await jf(batchApi+"/run",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({business_month:m,operator:op})});
+  $("reviewMonth").value=m;await loadBatch();await loadReviews()
+ }catch(e){$("batchStatus").textContent="失败";$("batchMsg").textContent=e.message;alert(e.message)}
+ finally{$("runBtn").disabled=false}
+}
+async function loadBatch(){
+ const m=$("batchMonth").value.trim();
+ if(!monthOk(m)){batchMetrics();return}
+ try{
+  const b=await jf(batchApi+"/latest?business_month="+encodeURIComponent(m));
+  $("batchStatus").textContent=b.status||"无记录";
+  $("batchMsg").innerHTML=`异常文件：${esc(b.exception_report_path||"无")}<br>${esc(b.message||"")}`;
+  batchMetrics(b||{});
+  const rows=await jf(batchApi+"/review-queue?business_month="+encodeURIComponent(m));
+  $("batchQueue").innerHTML=rows.length?`<table><tr><th>Pair Key</th><th>核对</th><th>原始客户</th><th>系统客户</th><th>异常</th></tr>${rows.map(x=>`<tr><td>${esc(x.pair_key)}</td><td>${esc(x.compare_status)}</td><td>${esc(x.raw_customer_name)}</td><td>${esc(x.system_customer_code)} ${esc(x.system_customer_name)}</td><td>${esc(x.exception_codes)}</td></tr>`).join("")}</table>`:"当前月份无数据。";
+ }catch(e){$("batchMsg").textContent="读取失败："+e.message}
+}
+async function loadReviews(){
+ const q=new URLSearchParams({
+  business_month:$("reviewMonth").value.trim(),
+  review_status:$("reviewStatus").value,
+  compare_status:$("reviewCompare").value,
+  customer_match_status:$("reviewCustomer").value,
+  keyword:$("reviewKeyword").value.trim()
+ });
+ try{
+  const data=await jf(reviewApi+"?"+q);$("reviewCount").textContent=data.length+"件";
+  $("reviewRows").innerHTML=data.length?`<table><tr><th>年月</th><th>PDF / Excel</th><th>原始客户</th><th>系统客户</th><th>Compare</th><th>异常</th><th>Review</th></tr>${data.map(x=>`<tr onclick="showReview('${esc(x.id)}')" style="cursor:pointer"><td>${esc(x.business_month)}</td><td>${esc(x.pdf_file_name)}<br>${esc(x.excel_file_name)}</td><td>${esc(x.raw_customer_name)}</td><td>${esc(x.system_customer_code)}<br>${esc(x.system_customer_name)}</td><td>${esc(x.compare_status)}</td><td>${esc(x.exception_codes)}</td><td>${esc(x.review_status)}</td></tr>`).join("")}</table>`:"当前条件没有 Review 数据。";
+ }catch(e){$("reviewRows").textContent="读取 Review 失败："+e.message}
+}
+async function showReview(id){
+ selected=await jf(reviewApi+"/"+id);
+ $("raw").innerHTML=`<p><b>PDF：</b>${esc(selected.pdf_file_name)}<br><span class="small">${esc(selected.final_pdf_path)}</span></p><p><b>Excel：</b>${esc(selected.excel_file_name)}<br><span class="small">${esc(selected.final_excel_path)}</span></p><p><b>PDF Hash：</b>${esc(selected.pdf_sha256)}</p><p><b>Excel Hash：</b>${esc(selected.excel_sha256)}</p><p><b>原始客户：</b>${esc(selected.raw_customer_name)}</p><p><b>PDF 文本：</b></p><div class="mono">${esc(selected.pdf_raw_text)}</div><p><b>Excel 原始数据：</b></p><div class="mono">${esc(selected.excel_raw_json)}</div>`;
+ $("system").innerHTML=`<p><b>系统客户：</b>${esc(selected.system_customer_code)} / ${esc(selected.system_customer_name)}</p><p><b>客户匹配：</b>${esc(selected.customer_match_status)}</p><p><b>Compare：</b>${esc(selected.compare_status)}</p><p><b>PDF 合计：</b>${esc(selected.pdf_total_amount)}　<b>Excel 合计：</b>${esc(selected.excel_total_amount)}</p><p><b>异常：</b>${esc(selected.exception_codes)}</p><div class="mono">${esc(selected.exception_details)}</div><hr><label>操作人<input id="operator"></label><label>意见<textarea id="comment" rows="3"></textarea></label><p><button onclick="decide('REVIEWED_OK',false)">核对通过</button> <button onclick="decide('REVIEWED_OK',true)">强制通过</button> <button onclick="decide('SOURCE_CORRECTION_REQUIRED',false)">需要修正原始文件</button> <button onclick="decide('ON_HOLD',false)">暂缓处理</button></p><button onclick="window.open('/tlc-customer-master','_blank')">打开客户维护</button>`;
+}
+async function decide(s,f){
+ if(!selected)return;
+ try{
+  await jf(reviewApi+"/"+selected.id,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({review_status:s,operator:$("operator").value,comment:$("comment").value,forced:f})});
+  await loadReviews();await loadBatch();$("raw").textContent="处理完成。";$("system").textContent="处理完成。";selected=null
+ }catch(e){alert(e.message)}
+}
+(function init(){
+ const d=new Date(),m=String(d.getFullYear())+String(d.getMonth()+1).padStart(2,"0");
+ $("batchMonth").value=m;$("reviewMonth").value=m;batchMetrics();loadBatch();loadReviews()
+})();
+</script>
+</body>
+</html>
