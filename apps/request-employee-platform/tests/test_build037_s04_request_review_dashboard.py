@@ -68,9 +68,20 @@ def test_force_review_requires_comment_and_updates_count():
     assert client.get('/api/tlc-request-reviews/wait-count').json()['count'] == 0
 
 def test_dashboard_entry():
-    response = client.get("/dashboard")
-    assert response.status_code == 200
-    assert "TLC_REQUEST_REVIEW_WORK_QUEUE_S04R1" in response.text
-    assert "/request-review-center" in response.text
-    assert "/api/tlc-request-reviews/wait-count" in response.text
-    assert "MutationObserver" in response.text
+    page = client.get("/dashboard")
+    assert page.status_code == 200
+
+    summary = client.get("/api/dashboard/summary")
+    assert summary.status_code == 200, summary.text
+    body = summary.json()
+    request_todos = [
+        item
+        for item in body["todos"]
+        if item["title"] == "待核对请求书"
+    ]
+    assert len(request_todos) == 1
+    request_todo = request_todos[0]
+    assert request_todo["href"] == "/request-review-center"
+    assert isinstance(request_todo["count"], int)
+    assert "TLC_REQUEST_REVIEW_WORK_QUEUE_S04R1" not in page.text
+    assert "TLC_REQUEST_REVIEW_DASHBOARD_PATCH_V3" not in page.text

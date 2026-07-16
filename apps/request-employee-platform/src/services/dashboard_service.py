@@ -15,6 +15,35 @@ class DashboardService:
         except Exception:
             return 0
 
+    def _request_wait_review_count(self):
+        try:
+            from sqlalchemy import text
+            from src.db.session import SessionLocal
+
+            db = SessionLocal()
+            try:
+                table_exists = db.execute(
+                    text(
+                        "SELECT name FROM sqlite_master "
+                        "WHERE type='table' "
+                        "AND name='tlc_request_review_queue'"
+                    )
+                ).first()
+                if not table_exists:
+                    return 0
+                row = db.execute(
+                    text(
+                        "SELECT COUNT(*) AS count "
+                        "FROM tlc_request_review_queue "
+                        "WHERE review_status = 'WAIT_REVIEW'"
+                    )
+                ).first()
+                return int(row._mapping["count"]) if row else 0
+            finally:
+                db.close()
+        except Exception:
+            return 0
+
     def _sales_total(self):
         try:
             from src.db.session import SessionLocal
@@ -31,12 +60,13 @@ class DashboardService:
     def summary(self):
         s = get_settings()
         review_count = self._open_review_count()
+        request_wait_review_count = self._request_wait_review_count()
         sales_count, sales_amount = self._sales_total()
         return DashboardSummary(
             date=date.today().isoformat(),
             environment=s.env,
             todos=[
-                TodoItem(title="待核对请求书", count=12, priority="normal", href="/docs#/request-compare"),
+                TodoItem(title="待核对请求书", count=request_wait_review_count, priority="high" if request_wait_review_count else "normal", href="/request-review-center"),
                 TodoItem(title="核对异常待处理", count=review_count, priority="high" if review_count else "normal", href="/review"),
                 TodoItem(title="待进入销售数据", count=3, priority="high", href="/sales"),
                 TodoItem(title="待领导审批", count=0, priority="normal", href="/review"),
