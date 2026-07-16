@@ -63,4 +63,183 @@ pre{white-space:pre-wrap;background:#101828;color:#d1fadf;padding:14px;border-ra
 <div class="desc" id="footer" style="margin-top:20px"></div></main>
 
 
+
+<script>
+/* TLC_DASHBOARD_API_RENDERER_BUILD037_S04R4 */
+(function () {
+  "use strict";
+
+  const byId = id => document.getElementById(id);
+
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function safeHref(value) {
+    const href = String(value ?? "");
+    return href.startsWith("/") ? href : "#";
+  }
+
+  function renderMetric(item) {
+    return `
+      <a class="card metric" href="${safeHref(item.href)}">
+        <div class="desc">${escapeHtml(item.title)}</div>
+        <div>
+          <span class="value">${escapeHtml(item.value)}</span>
+          <span class="unit"> ${escapeHtml(item.unit || "")}</span>
+        </div>
+        <div style="color:#059669;font-size:13px">
+          ${escapeHtml(item.trend || " ")}
+        </div>
+      </a>
+    `;
+  }
+
+  function renderTodo(item) {
+    const priority = ["normal", "high", "critical"].includes(item.priority)
+      ? item.priority
+      : "normal";
+
+    return `
+      <a class="todo" href="${safeHref(item.href)}">
+        <span>${escapeHtml(item.title)}</span>
+        <span class="badge ${priority}">
+          ${escapeHtml(item.count)}件
+        </span>
+      </a>
+    `;
+  }
+
+  function renderNavigator(item) {
+    return `
+      <a class="navitem" href="${safeHref(item.href)}">
+        <span class="cat">${escapeHtml(item.category)}</span>
+        <h3 style="margin:0 0 8px">${escapeHtml(item.title)}</h3>
+        <div class="desc">${escapeHtml(item.description)}</div>
+      </a>
+    `;
+  }
+
+  async function fetchJson(url, options) {
+    const response = await fetch(url, options);
+    if (!response.ok) {
+      throw new Error(`${url} returned HTTP ${response.status}`);
+    }
+    return await response.json();
+  }
+
+  async function loadDashboard() {
+    const data = await fetchJson("/api/dashboard/summary");
+
+    const kpis = byId("kpis");
+    const todos = byId("todos");
+    const alerts = byId("alerts");
+    const navigator = byId("navigator");
+    const footer = byId("footer");
+
+    if (!kpis || !todos || !alerts || !navigator || !footer) {
+      throw new Error("Dashboard render container is missing.");
+    }
+
+    kpis.innerHTML = (data.performance || []).map(renderMetric).join("");
+
+    // Zero-count entries must remain visible.
+    todos.innerHTML = (data.todos || []).map(renderTodo).join("");
+
+    alerts.innerHTML = (data.alerts || []).map(renderTodo).join("");
+
+    navigator.innerHTML = (data.navigator || []).map(renderNavigator).join("");
+
+    footer.textContent =
+      `Environment: ${data.environment || ""} | ` +
+      `Date: ${data.date || ""} | Build037 S04R4`;
+  }
+
+  async function deployPackage() {
+    const packageName = byId("packageName");
+    const deployButton = byId("deployBtn");
+    const runTests = byId("runTests");
+    const startApi = byId("startApi");
+
+    if (!packageName || !deployButton) return;
+
+    const name = packageName.value.trim();
+    if (!/^[A-Za-z0-9_.-]+\.zip$/.test(name)) {
+      alert("请输入有效的 ZIP 文件名。");
+      return;
+    }
+
+    deployButton.disabled = true;
+
+    try {
+      const result = await fetchJson("/api/deploy/local", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          package_name: name,
+          run_tests: Boolean(runTests && runTests.checked),
+          start_api: Boolean(startApi && startApi.checked)
+        })
+      });
+
+      const output = byId("deployOutput");
+      if (output) {
+        output.style.display = "block";
+        output.textContent = JSON.stringify(result, null, 2);
+      }
+    } catch (error) {
+      const output = byId("deployOutput");
+      if (output) {
+        output.style.display = "block";
+        output.textContent = String(error);
+      }
+    } finally {
+      deployButton.disabled = false;
+    }
+  }
+
+  async function showOps(url) {
+    const output = byId("opsOutput");
+    if (!output) return;
+
+    output.style.display = "block";
+
+    try {
+      const result = await fetchJson(url);
+      output.textContent = JSON.stringify(result, null, 2);
+    } catch (error) {
+      output.textContent = String(error);
+    }
+  }
+
+  window.deployPackage = deployPackage;
+  window.checkRuntime = () => showOps("/api/system/runtime");
+  window.checkDb = () => showOps("/api/db/status");
+  window.loadOps = () => showOps("/api/ops/next-actions");
+
+  function start() {
+    loadDashboard().catch(error => {
+      console.error("Dashboard load failed:", error);
+      const todos = byId("todos");
+      if (todos) {
+        todos.innerHTML =
+          `<div class="desc">Dashboard 数据加载失败：` +
+          `${escapeHtml(error.message || error)}</div>`;
+      }
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", start, {once: true});
+  } else {
+    start();
+  }
+})();
+</script>
+
 </body></html>
