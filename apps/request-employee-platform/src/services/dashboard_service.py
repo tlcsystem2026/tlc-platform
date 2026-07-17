@@ -88,6 +88,7 @@ class DashboardService:
                 NavigatorEntry(title="请求书处理", description="PDF/Excel配对、解析、核对、差异处理", href="/docs#/request-compare", category="业务"),
                 NavigatorEntry(title="请求书审核台", description="查看PDF/Excel核对异常并进行处理", href="/review", category="业务"),
                 NavigatorEntry(title="客户跟踪与分析", description="客户维护、CSV导入导出、别名设置", href="/tlc-customer-master", category="业务"),
+                NavigatorEntry(title="银行维护与流水格式", description="银行、银行账户／口座、流水 Adapter 与文件编码关联", href="/tlc-bank-account-master", category="业务"),
                 NavigatorEntry(title="销售数据一览", description="一致请求书登记销售，查询与统计", href="/sales", category="业务"),
                 NavigatorEntry(title="应收管理", description="到期、逾期、部分到账、催办", href="/dashboard#ar", category="财务"),
                 NavigatorEntry(title="银行到账核对", description="流水导入、候选匹配、人工确认", href="/dashboard#bank", category="财务"),
