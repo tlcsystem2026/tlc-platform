@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import io
 import re
 import unicodedata
 from datetime import datetime, timezone
@@ -13,6 +15,21 @@ from src.services.tlc_code_master_service import ensure_tlc_code_tables
 
 
 TABLE_NAME = "tlc_customer_master"
+EXPORT_FIELDS = [
+    "customer_id",
+    "formal_name",
+    "hiragana_name",
+    "katakana_name",
+    "short_name",
+    "alias_1",
+    "alias_2",
+    "alias_3",
+    "alias_4",
+    "alias_5",
+    "status_code",
+    "active",
+    "note",
+]
 
 
 def normalize_customer_name(value: str) -> str:
@@ -117,13 +134,20 @@ def list_customers(
     return [_row(row) for row in rows]
 
 
-def get_customer(db: Session, record_id: str) -> dict[str, Any] | None:
-    ensure_customer_master_table(db)
+def _get_customer_no_ensure(
+    db: Session,
+    record_id: str,
+) -> dict[str, Any] | None:
     row = db.execute(
         text(f"SELECT * FROM {TABLE_NAME} WHERE id=:id"),
         {"id": record_id},
     ).first()
     return _row(row) if row else None
+
+
+def get_customer(db: Session, record_id: str) -> dict[str, Any] | None:
+    ensure_customer_master_table(db)
+    return _get_customer_no_ensure(db, record_id)
 
 
 def _candidate_names(payload: dict[str, Any]) -> list[str]:
@@ -153,9 +177,15 @@ def _check_name_conflicts(db: Session, payload: dict[str, Any], record_id: str =
             )
 
 
-def save_customer(db: Session, payload: dict[str, Any]) -> dict[str, Any]:
-    ensure_customer_master_table(db)
+def _active_value(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value if value is not None else "1").strip().lower() not in {
+        "0", "false", "no", "n", "inactive", "停用",
+    }
 
+
+def _save_customer(db: Session, payload: dict[str, Any], *, commit: bool) -> dict[str, Any]:
     customer_id = str(payload.get("customer_id", "") or "").strip()
     formal_name = str(payload.get("formal_name", "") or "").strip()
     if not customer_id:
@@ -190,7 +220,7 @@ def save_customer(db: Session, payload: dict[str, Any]) -> dict[str, Any]:
         "alias_5": str(payload.get("alias_5", "") or "").strip(),
         "normalized_formal_name": normalize_customer_name(formal_name),
         "status_code": status_code,
-        "active": 1 if payload.get("active", True) else 0,
+        "active": 1 if _active_value(payload.get("active", True)) else 0,
         "note": str(payload.get("note", "") or ""),
         "updated_at": now,
     }
@@ -227,5 +257,75 @@ def save_customer(db: Session, payload: dict[str, Any]) -> dict[str, Any]:
             )
         """), params)
 
-    db.commit()
-    return get_customer(db, record_id)
+    if commit:
+        db.commit()
+    return _get_customer_no_ensure(db, record_id)
+
+
+def save_customer(db: Session, payload: dict[str, Any]) -> dict[str, Any]:
+    ensure_customer_master_table(db)
+    return _save_customer(db, payload, commit=True)
+
+
+def import_customer_rows(db: Session, rows: list[dict[str, Any]]) -> dict[str, Any]:
+    ensure_customer_master_table(db)
+    if not rows:
+        raise ValueError("import rows are empty")
+    if len(rows) > 5000:
+        raise ValueError("maximum import size is 5000 rows")
+
+    created = 0
+    updated = 0
+    try:
+        for index, raw in enumerate(rows, start=2):
+            if not isinstance(raw, dict):
+                raise ValueError(f"CSV row {index}: invalid row")
+            payload = {field: raw.get(field, "") for field in EXPORT_FIELDS}
+            customer_id = str(payload.get("customer_id", "") or "").strip()
+            if not customer_id:
+                raise ValueError(f"CSV row {index}: customer_id is required")
+
+            existing = db.execute(
+                text(f"SELECT id FROM {TABLE_NAME} WHERE customer_id=:customer_id"),
+                {"customer_id": customer_id},
+            ).first()
+            if existing:
+                payload["id"] = existing._mapping["id"]
+                updated += 1
+            else:
+                created += 1
+            _save_customer(db, payload, commit=False)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+    return {
+        "imported": created + updated,
+        "created": created,
+        "updated": updated,
+    }
+
+
+def export_customers_csv(
+    db: Session,
+    *,
+    query: str = "",
+    status_code: str = "",
+    include_inactive: bool = True,
+) -> bytes:
+    rows = list_customers(
+        db,
+        query=query,
+        status_code=status_code,
+        include_inactive=include_inactive,
+        limit=1000,
+    )
+    output = io.StringIO(newline="")
+    writer = csv.DictWriter(output, fieldnames=EXPORT_FIELDS, extrasaction="ignore")
+    writer.writeheader()
+    for row in rows:
+        item = {field: row.get(field, "") for field in EXPORT_FIELDS}
+        item["active"] = "1" if row.get("active") else "0"
+        writer.writerow(item)
+    return ("\ufeff" + output.getvalue()).encode("utf-8")

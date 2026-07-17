@@ -1,12 +1,14 @@
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from sqlalchemy.orm import Session
 
 from src.db.session import get_db
 from src.services.tlc_customer_master_service import (
+    export_customers_csv,
     get_customer,
+    import_customer_rows,
     list_customers,
     save_customer,
 )
@@ -30,6 +32,39 @@ def list_records(
         include_inactive=include_inactive,
         limit=limit,
     )
+
+
+@router.get("/api/tlc-customers/export.csv")
+def export_records(
+    query: str = "",
+    status_code: str = "",
+    include_inactive: bool = True,
+    db: Session = Depends(get_db),
+):
+    content = export_customers_csv(
+        db,
+        query=query,
+        status_code=status_code,
+        include_inactive=include_inactive,
+    )
+    return Response(
+        content=content,
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": 'attachment; filename="tlc_customer_master.csv"',
+        },
+    )
+
+
+@router.post("/api/tlc-customers/import")
+def import_records(payload: dict, db: Session = Depends(get_db)):
+    rows = payload.get("rows", [])
+    if not isinstance(rows, list):
+        raise HTTPException(status_code=400, detail="rows must be a list")
+    try:
+        return import_customer_rows(db, rows)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/api/tlc-customers/{record_id}")
