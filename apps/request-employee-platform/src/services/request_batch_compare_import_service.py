@@ -116,11 +116,69 @@ def _amounts(value: str) -> list[Decimal]:
     return result
 
 
+def _amount_string(value: Decimal) -> str:
+    return str(value.quantize(Decimal("0.01"))).rstrip("0").rstrip(".")
+
+
 def _likely_total(value: str) -> str:
     values = _amounts(value)
     if not values:
         return ""
-    return str(max(values).quantize(Decimal("0.01"))).rstrip("0").rstrip(".")
+    return _amount_string(max(values))
+
+
+def _label_key(value: object) -> str:
+    return re.sub(r"[\\s　・･,，。．.\-_/\\()（）「」『』①②＋+]", "", str(value or "").lower())
+
+
+def _pdf_labeled_total(value: str) -> str:
+    text_value = str(value or "")
+    labels = (
+        r"ご\s*請\s*求\s*額",
+        r"合\s*計\s*請\s*求\s*額",
+        r"請\s*求\s*金\s*額",
+    )
+    candidates: list[Decimal] = []
+    for label in labels:
+        for matched in re.finditer(
+            rf"{label}[^0-9¥￥\\]{{0,80}}(?:¥|￥|\\)?\s*([0-9]{{1,3}}(?:,[0-9]{{3}})+|[0-9]+)(?:\.\d{{1,2}})?",
+            text_value,
+            flags=re.IGNORECASE,
+        ):
+            try:
+                candidates.append(Decimal(matched.group(1).replace(",", "")))
+            except InvalidOperation:
+                pass
+    if candidates:
+        return _amount_string(candidates[-1])
+    return _likely_total(text_value)
+
+
+def _excel_labeled_total(data: dict) -> str:
+    labels = ("ご請求額", "合計請求額", "請求金額")
+    candidates: list[Decimal] = []
+    for sheet in data.get("sheets", []):
+        for row in sheet.get("rows", []):
+            for index, cell in enumerate(row):
+                key = _label_key(cell)
+                if not any(_label_key(label) in key for label in labels):
+                    continue
+                for value in row[index + 1 :]:
+                    if value in (None, ""):
+                        continue
+                    if isinstance(value, (int, float, Decimal)):
+                        try:
+                            candidates.append(Decimal(str(value)))
+                            break
+                        except InvalidOperation:
+                            continue
+                    amounts = _amounts(str(value))
+                    if amounts:
+                        candidates.append(amounts[-1])
+                        break
+    if candidates:
+        return _amount_string(candidates[-1])
+    return _likely_total(_flatten_excel(data))
 
 
 def _likely_customer(data: dict) -> str:
@@ -196,6 +254,8 @@ def run_request_batch(db: Session, *, business_month: str, operator: str) -> dic
     completed, error = Path(dirs["completed"]), Path(dirs["error"])
     files = sorted(p for p in incoming.iterdir() if p.is_file() and p.suffix.lower() in (PDF_EXTENSIONS | EXCEL_EXTENSIONS))
     batch_id = uuid4().hex
+    run_date = datetime.now().strftime("%Y%m%d")
+    error_run_dir = error / run_date / batch_id
     db.execute(text(f"INSERT INTO {BATCH_TABLE}(id,business_month,status,operator,source_directory,total_file_count,started_at) VALUES(:id,:month,'PROCESSING',:operator,:source,:count,:started_at)"), {"id": batch_id, "month": month, "operator": operator, "source": str(incoming), "count": len(files), "started_at": _now()})
     db.commit()
     groups = {}
@@ -221,7 +281,7 @@ def run_request_batch(db: Session, *, business_month: str, operator: str) -> dic
                 if excel_path: excel_data = _extract_excel(excel_path)
                 if pdf_path and excel_path:
                     excel_text = _flatten_excel(excel_data)
-                    pdf_total, excel_total = _likely_total(pdf_text), _likely_total(excel_text)
+                    pdf_total, excel_total = _pdf_labeled_total(pdf_text), _excel_labeled_total(excel_data)
                     raw_customer = _likely_customer(excel_data)
                     if not pdf_text: codes.append("PDF_TEXT_EMPTY"); details.append("PDF text could not be extracted")
                     if not excel_text: codes.append("EXCEL_DATA_EMPTY"); details.append("Excel contains no readable data")
@@ -233,7 +293,7 @@ def run_request_batch(db: Session, *, business_month: str, operator: str) -> dic
             except Exception as exc:
                 fatal = True; compare_status = "ERROR"; codes.append("PROCESSING_ERROR"); details.append(str(exc)); error_count += 1
             customer_code, customer_name, customer_status = _match_customer(db, raw_customer)
-            destination = error if fatal else completed
+            destination = completed if compare_status == "MATCHED" else error_run_dir
             final_pdf = _move(pdf_path, destination / pdf_path.name) if pdf_path and pdf_path.exists() else None
             final_excel = _move(excel_path, destination / excel_path.name) if excel_path and excel_path.exists() else None
             item_id, created_at = uuid4().hex, _now()
@@ -244,12 +304,12 @@ def run_request_batch(db: Session, *, business_month: str, operator: str) -> dic
                 exception_rows.append({"batch_id": batch_id, "business_month": month, "pair_key": pair_key, "pdf_file_name": pdf_path.name if pdf_path else "", "excel_file_name": excel_path.name if excel_path else "", "compare_status": compare_status, "exception_codes": ",".join(codes), "exception_details": " | ".join(details), "raw_customer_name": raw_customer, "system_customer_code": customer_code, "system_customer_name": customer_name})
     report_path = ""
     if exception_rows:
-        report = error / f"request_exceptions_{month}_{batch_id[:8]}.csv"
+        report = error_run_dir / f"request_exceptions_{month}_{batch_id[:8]}.csv"
         with report.open("w", encoding="utf-8-sig", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=list(exception_rows[0]))
             writer.writeheader(); writer.writerows(exception_rows)
         report_path = str(report)
     message = f"files={len(files)}, pairs={pair_count}, review={review_count}, exceptions={len(exception_rows)}, errors={error_count}"
-    db.execute(text(f"UPDATE {BATCH_TABLE} SET status=:status,pair_count=:pairs,review_count=:reviews,exception_count=:exceptions,error_count=:errors,exception_report_path=:report,completed_at=:completed_at,message=:message WHERE id=:id"), {"status": "COMPLETED_WITH_ERRORS" if error_count else "COMPLETED", "pairs": pair_count, "reviews": review_count, "exceptions": len(exception_rows), "errors": error_count, "report": report_path, "completed_at": _now(), "message": message, "id": batch_id})
+    db.execute(text(f"UPDATE {BATCH_TABLE} SET status=:status,pair_count=:pairs,review_count=:reviews,exception_count=:exceptions,error_count=:errors,exception_report_path=:report,completed_at=:completed_at,message=:message WHERE id=:id"), {"status": "COMPLETED_WITH_ERRORS" if exception_rows else "COMPLETED", "pairs": pair_count, "reviews": review_count, "exceptions": len(exception_rows), "errors": error_count, "report": report_path, "completed_at": _now(), "message": message, "id": batch_id})
     db.commit()
     return latest_batch(db, month)
