@@ -135,6 +135,8 @@ def _pdf_labeled_total(value: str) -> str:
     text_value = str(value or "")
     labels = (
         r"ご\s*請\s*求\s*額",
+        r"御\s*請\s*求\s*金\s*額",
+        r"御\s*請\s*求\s*額",
         r"合\s*計\s*請\s*求\s*額",
         r"請\s*求\s*金\s*額",
     )
