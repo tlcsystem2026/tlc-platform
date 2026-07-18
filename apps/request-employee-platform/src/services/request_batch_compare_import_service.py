@@ -5,6 +5,7 @@ import hashlib
 import json
 import re
 import shutil
+import unicodedata
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -132,7 +133,7 @@ def _label_key(value: object) -> str:
 
 
 def _pdf_labeled_total(value: str) -> str:
-    text_value = str(value or "")
+    text_value = unicodedata.normalize("NFKC", str(value or ""))
     labels = (
         r"ご\s*請\s*求\s*額",
         r"御\s*請\s*求\s*金\s*額",
@@ -141,16 +142,37 @@ def _pdf_labeled_total(value: str) -> str:
         r"請\s*求\s*金\s*額",
     )
     candidates: list[Decimal] = []
+    amount_pattern = r"([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)(?:\.\d{1,2})?"
+
     for label in labels:
-        for matched in re.finditer(
-            rf"{label}[^0-9¥￥\\]{{0,80}}(?:¥|￥|\\)?\s*([0-9]{{1,3}}(?:,[0-9]{{3}})+|[0-9]+)(?:\.\d{{1,2}})?",
-            text_value,
-            flags=re.IGNORECASE,
-        ):
-            try:
-                candidates.append(Decimal(matched.group(1).replace(",", "")))
-            except InvalidOperation:
-                pass
+        for label_match in re.finditer(label, text_value, flags=re.IGNORECASE):
+            suffix = text_value[label_match.end() : label_match.end() + 120]
+
+            currency_match = re.search(
+                rf"(?:¥|￥|\\)\s*{amount_pattern}",
+                suffix,
+            )
+            if currency_match:
+                try:
+                    candidates.append(
+                        Decimal(currency_match.group(1).replace(",", ""))
+                    )
+                    continue
+                except InvalidOperation:
+                    pass
+
+            comma_match = re.search(
+                rf"(?<![0-9]){amount_pattern}(?![0-9])",
+                suffix,
+            )
+            if comma_match:
+                try:
+                    candidates.append(
+                        Decimal(comma_match.group(1).replace(",", ""))
+                    )
+                except InvalidOperation:
+                    pass
+
     if candidates:
         return _amount_string(candidates[-1])
     return _likely_total(text_value)
