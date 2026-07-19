@@ -9,6 +9,7 @@ from src.services.tlc_customer_master_service import (
     export_customers_csv,
     get_customer,
     import_customer_rows,
+    import_todokedl_csv_base64,
     list_customers,
     save_customer,
 )
@@ -63,6 +64,14 @@ def import_records(payload: dict, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="rows must be a list")
     try:
         return import_customer_rows(db, rows)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/api/tlc-customers/import-todokedl")
+def import_todokedl(payload: dict, db: Session = Depends(get_db)):
+    try:
+        return import_todokedl_csv_base64(db, str(payload.get("content_base64", "") or ""))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

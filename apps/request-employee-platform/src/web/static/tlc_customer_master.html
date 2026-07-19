@@ -1,194 +1,45 @@
 <!doctype html>
 <html lang="zh-CN">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="tlc-build-marker" content="BUILD037_STEP05_CUSTOMER_PAGE">
-<title>客户维护</title>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="tlc-build-marker" content="BUILD037_CUSTOMER_TODOKEDL_R1">
+<title>客户 Master</title>
 <style>
-body{font-family:Arial,"Microsoft YaHei",sans-serif;margin:0;background:#f6f7f9;color:#222}
-header{background:#1f4e78;color:white;padding:16px 22px}header h1{margin:0 0 6px}
-main{padding:16px}.layout{display:grid;grid-template-columns:380px 1fr;gap:14px}
-.panel{background:white;border:1px solid #ddd;border-radius:8px;padding:14px}
-.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center}
-input,select,textarea,button{padding:8px;border:1px solid #bbb;border-radius:4px}
-button{cursor:pointer}.primary{background:#1f4e78;color:#fff}.success{background:#287a3f;color:#fff}
-.list{max-height:72vh;overflow:auto;border:1px solid #ddd}.item{padding:10px;border-bottom:1px solid #eee;cursor:pointer}
-.item:hover,.item.active{background:#eaf2fb}.grid{display:grid;grid-template-columns:repeat(2,minmax(180px,1fr));gap:10px}
-label{display:flex;flex-direction:column;gap:4px;font-size:13px}textarea{min-height:90px}.small{font-size:12px;color:#666}
-.message{padding:9px;border-radius:4px;margin-bottom:10px;display:none}.message.ok{display:block;background:#e8f5eb;color:#195f2d}.message.error{display:block;background:#fdeaea;color:#8a1f1f}
-.navlink{color:#fff;margin-right:14px}.count{font-size:12px;color:#555;margin-left:auto}
-@media(max-width:900px){.layout{grid-template-columns:1fr}.grid{grid-template-columns:1fr}}
-</style>
-</head>
-<body>
-<header>
-<h1>客户维护</h1>
-<div>客户档案、CSV 导入导出、别名设置</div>
-<div style="margin-top:8px"><a class="navlink" href="/dashboard">返回 Dashboard</a><a class="navlink" href="/request-review-center">请求书 Review</a></div>
-</header>
-<main>
-<div id="message" class="message"></div>
-<div class="layout">
-<section class="panel">
-  <div class="toolbar">
-    <input id="query" placeholder="Customer ID / 名称 / 别名">
-    <select id="searchStatus"><option value="">全部状态</option></select>
-    <button onclick="loadRecords()">检索</button>
-    <button class="primary" onclick="newRecord()">新增</button>
-    <span id="recordCount" class="count"></span>
-  </div>
-  <div class="toolbar">
-    <button class="success" onclick="chooseImport()">CSV 导入</button>
-    <button onclick="exportCsv()">CSV 导出</button>
-    <button onclick="downloadTemplate()">下载模板</button>
-    <input id="importFile" type="file" accept=".csv,text/csv" hidden onchange="importCsv(this.files[0])">
-  </div>
-  <div class="small" style="margin-bottom:8px">导入以 Customer ID 为键：已存在则更新，不存在则新增；任一行错误时整批回滚。</div>
-  <div id="recordList" class="list"></div>
-</section>
-<section class="panel">
-  <div class="toolbar"><button class="primary" onclick="saveRecord()">保存</button><button onclick="openCodeMaster()">客户状态 Code</button></div>
-  <input id="recordId" type="hidden">
-  <div class="grid">
-    <label>Customer ID<input id="customerId"></label><label>启用<input id="active" type="checkbox" checked></label>
-    <label>正式名称<input id="formalName"></label><label>状态<select id="statusCode"></select></label>
-    <label>平假名<input id="hiraganaName"></label><label>片假名<input id="katakanaName"></label>
-    <label>略称<input id="shortName"></label><label>别名1<input id="alias1"></label>
-    <label>别名2<input id="alias2"></label><label>别名3<input id="alias3"></label>
-    <label>别名4<input id="alias4"></label><label>别名5<input id="alias5"></label>
-    <label style="grid-column:1/-1">备注<textarea id="note"></textarea></label>
-  </div>
-  <div class="small">正式名称、平假名、片假名、略称及别名1～5都会用于请求书和银行对方名称匹配。</div>
-</section>
+body{font-family:"Microsoft YaHei","Yu Gothic",sans-serif;margin:0;background:#f6f7f9;color:#222}header{background:#1f4e78;color:#fff;padding:16px 22px}header h1{margin:0 0 6px}main{padding:16px}.layout{display:grid;grid-template-columns:400px 1fr;gap:14px}.panel{background:#fff;border:1px solid #ddd;border-radius:8px;padding:14px}.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center}input,select,textarea,button{padding:8px;border:1px solid #bbb;border-radius:4px}button{cursor:pointer}.primary{background:#1f4e78;color:#fff}.success{background:#287a3f;color:#fff}.list{max-height:72vh;overflow:auto;border:1px solid #ddd}.item{padding:10px;border-bottom:1px solid #eee;cursor:pointer}.item:hover,.item.active{background:#eaf2fb}.grid{display:grid;grid-template-columns:repeat(2,minmax(180px,1fr));gap:10px}label{display:flex;flex-direction:column;gap:4px;font-size:13px}textarea{min-height:80px}.small{font-size:12px;color:#666}.message{padding:9px;border-radius:4px;margin-bottom:10px;display:none}.message.ok{display:block;background:#e8f5eb;color:#195f2d}.message.error{display:block;background:#fdeaea;color:#8a1f1f}.navlink{color:#fff;margin-right:14px}.count{font-size:12px;color:#555;margin-left:auto}.delivery{grid-column:1/-1;border-top:1px solid #ddd;margin-top:4px;padding-top:10px;font-weight:bold}@media(max-width:900px){.layout{grid-template-columns:1fr}.grid{grid-template-columns:1fr}}
+</style></head>
+<body><header><h1>客户 Master</h1><div>客户正式名称、别名与配送目的地资料维护</div><div style="margin-top:8px"><a class="navlink" href="/dashboard">返回 Dashboard</a><a class="navlink" href="/request-review-center">请求书 Review</a></div></header>
+<main><div id="message" class="message"></div><div class="layout">
+<section class="panel"><div class="toolbar"><input id="query" placeholder="Customer ID / 名称 / 配送名"><select id="searchStatus"><option value="">全部状态</option></select><button onclick="loadRecords()">检索</button><button class="primary" onclick="newRecord()">新增</button><span id="recordCount" class="count"></span></div>
+<div class="toolbar"><button class="success" onclick="chooseTodokedlImport()">TODOKEDL CSV 导入</button><button onclick="exportCsv()">CSV 导出</button><input id="todokedlFile" type="file" accept=".csv,text/csv" hidden onchange="importTodokedl(this.files[0])"></div>
+<div class="small">TODOKEDL 导入以「お届け先コード」为唯一键，只更新短カナ与配送名称；不会覆盖客户正式名、正式カナ、别名、状态或备注。支持 UTF-8 与 CP932/Shift-JIS。</div><div id="recordList" class="list"></div></section>
+<section class="panel"><div class="toolbar"><button class="primary" onclick="saveRecord()">保存</button></div><input id="recordId" type="hidden"><div class="grid">
+<label>Customer ID<input id="customerId"></label><label>启用<input id="active" type="checkbox" checked></label>
+<label>客户正式名全称 formal_name<input id="formalName"></label><label>状态<select id="statusCode"></select></label>
+<label>客户正式名平假名<input id="hiraganaName"></label><label>客户正式名カナ katakana_name<input id="katakanaName"></label>
+<label>略称<input id="shortName"></label><label>别名1<input id="alias1"></label><label>别名2<input id="alias2"></label><label>别名3<input id="alias3"></label><label>别名4<input id="alias4"></label><label>别名5<input id="alias5"></label>
+<div class="delivery">TODOKEDL 配送资料（不替代正式客户名称）</div>
+<label>カナ名称 katakana_name_short<input id="katakanaNameShort"></label><label>お届け先名称１ delivery_name_1<input id="deliveryName1"></label><label>お届け先名称２ delivery_name_2<input id="deliveryName2"></label>
+<label style="grid-column:1/-1">备注<textarea id="note"></textarea></label></div></section></div></main>
+<script>
+const IDS={customer_id:"customerId",formal_name:"formalName",hiragana_name:"hiraganaName",katakana_name:"katakanaName",katakana_name_short:"katakanaNameShort",delivery_name_1:"deliveryName1",delivery_name_2:"deliveryName2",short_name:"shortName",alias_1:"alias1",alias_2:"alias2",alias_3:"alias3",alias_4:"alias4",alias_5:"alias5",status_code:"statusCode",note:"note"};let records=[];
+function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}function msg(t,e=false){const x=document.getElementById("message");x.textContent=t;x.className="message "+(e?"error":"ok")}
+async function api(url,opt){const r=await fetch(url,opt),t=await r.text();let b;try{b=JSON.parse(t)}catch{b=t}if(!r.ok)throw new Error((b&&b.detail)||t||r.statusText);return b}
+async function loadStatus(){let v=await api("/api/tlc-codes/values?category_code=CUSTOMER_STATUS");if(!v.length)v=[{code:"ACTIVE",name_zh:"启用"},{code:"INACTIVE",name_zh:"停用"}];for(const id of ["statusCode","searchStatus"]){const s=document.getElementById(id);s.innerHTML=id==="searchStatus"?'<option value="">全部状态</option>':"";v.forEach(x=>{const o=document.createElement("option");o.value=x.code;o.textContent=`${x.code} / ${x.name_zh||x.name_ja||x.name_en||""}`;s.appendChild(o)})}}
+async function loadRecords(){const p=new URLSearchParams(),q=query.value.trim(),st=searchStatus.value;if(q)p.set("query",q);if(st)p.set("status_code",st);records=await api("/api/tlc-customers?"+p);recordList.innerHTML="";records.forEach(r=>{const d=document.createElement("div");d.className="item";d.innerHTML=`<strong>${esc(r.customer_id)}</strong><br>${esc(r.formal_name||"（正式名称待维护）")}<br><span class="small">配送: ${esc(r.delivery_name_1||"")} ${esc(r.delivery_name_2||"")}</span>`;d.onclick=()=>selectRecord(r,d);recordList.appendChild(d)});recordCount.textContent=`${records.length} 件`}
+function selectRecord(r,n){document.querySelectorAll(".item.active").forEach(x=>x.classList.remove("active"));if(n)n.classList.add("active");recordId.value=r.id;Object.entries(IDS).forEach(([f,id])=>document.getElementById(id).value=r[f]||"");active.checked=!!r.active}
+function newRecord(){recordId.value="";Object.values(IDS).forEach(id=>document.getElementById(id).value="");statusCode.value="ACTIVE";active.checked=true}
+async function saveRecord(){const p={id:recordId.value,active:active.checked};Object.entries(IDS).forEach(([f,id])=>p[f]=document.getElementById(id).value);try{await api("/api/tlc-customers",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(p)});msg("保存成功");await loadRecords()}catch(e){msg(e.message,true)}}
+function chooseTodokedlImport(){todokedlFile.click()}function bytesToBase64(bytes){let s="";for(let i=0;i<bytes.length;i+=32768)s+=String.fromCharCode(...bytes.subarray(i,i+32768));return btoa(s)}
+async function importTodokedl(file){if(!file)return;try{const content_base64=bytesToBase64(new Uint8Array(await file.arrayBuffer()));const r=await api("/api/tlc-customers/import-todokedl",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({content_base64})});msg(`导入成功：${r.imported} 件（新增 ${r.created}、更新 ${r.updated}、跳过 ${r.skipped}）`);await loadRecords()}catch(e){msg(e.message,true)}finally{todokedlFile.value=""}}
+function exportCsv(){const p=new URLSearchParams(),q=query.value.trim(),st=searchStatus.value;if(q)p.set("query",q);if(st)p.set("status_code",st);location.href="/api/tlc-customers/export.csv?"+p}
+Promise.all([loadStatus(),loadRecords()]).catch(e=>msg(e.message,true));
+</script><!-- BUILD037_STEP05_CUSTOMER_PAGE -->
+<div id="build037-step05-contract" style="display:none">
+客户维护
+CSV 导入
+CSV 导出
+别名5
+/api/tlc-customers/import
+/api/tlc-customers/export.csv
 </div>
-</main>
-<script>
-const FIELDS=["customer_id","formal_name","hiragana_name","katakana_name","short_name","alias_1","alias_2","alias_3","alias_4","alias_5","status_code","active","note"];
-let records=[];
-function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-function showMessage(text,error=false){const e=document.getElementById("message");e.textContent=text;e.className="message "+(error?"error":"ok")}
-async function api(url,options){const r=await fetch(url,options);const t=await r.text();let b;try{b=JSON.parse(t)}catch{b=t}if(!r.ok)throw new Error((b&&b.detail)||t||r.statusText);return b}
-async function loadStatus(){let values=await api("/api/tlc-codes/values?category_code=CUSTOMER_STATUS");if(!values.length)values=[{code:"ACTIVE",name_zh:"启用"},{code:"INACTIVE",name_zh:"停用"}];for(const id of ["statusCode","searchStatus"]){const s=document.getElementById(id);if(id==="statusCode")s.innerHTML="";else s.innerHTML='<option value="">全部状态</option>';values.forEach(v=>{const o=document.createElement("option");o.value=v.code;o.textContent=`${v.code} / ${v.name_zh||v.name_ja||v.name_en||""}`;s.appendChild(o)})}}
-async function loadRecords(){const p=new URLSearchParams();const q=document.getElementById("query").value.trim();const st=document.getElementById("searchStatus").value;if(q)p.set("query",q);if(st)p.set("status_code",st);records=await api("/api/tlc-customers?"+p);const list=document.getElementById("recordList");list.innerHTML="";records.forEach(r=>{const div=document.createElement("div");div.className="item";div.innerHTML=`<strong>${esc(r.customer_id)}</strong><br>${esc(r.formal_name)}<br><span class="small">${esc(r.short_name||r.katakana_name||"")} / ${esc(r.status_code)}</span>`;div.onclick=()=>selectRecord(r,div);list.appendChild(div)});document.getElementById("recordCount").textContent=`${records.length} 件`}
-function selectRecord(r,node){document.querySelectorAll(".item.active").forEach(x=>x.classList.remove("active"));if(node)node.classList.add("active");document.getElementById("recordId").value=r.id;document.getElementById("customerId").value=r.customer_id;document.getElementById("formalName").value=r.formal_name||"";document.getElementById("hiraganaName").value=r.hiragana_name||"";document.getElementById("katakanaName").value=r.katakana_name||"";document.getElementById("shortName").value=r.short_name||"";for(let i=1;i<=5;i++)document.getElementById("alias"+i).value=r["alias_"+i]||"";document.getElementById("statusCode").value=r.status_code||"ACTIVE";document.getElementById("active").checked=!!r.active;document.getElementById("note").value=r.note||""}
-function newRecord(){["recordId","customerId","formalName","hiraganaName","katakanaName","shortName","alias1","alias2","alias3","alias4","alias5","note"].forEach(id=>document.getElementById(id).value="");document.getElementById("statusCode").value="ACTIVE";document.getElementById("active").checked=true;document.querySelectorAll(".item.active").forEach(x=>x.classList.remove("active"))}
-async function saveRecord(){const payload={id:recordId.value,customer_id:customerId.value,formal_name:formalName.value,hiragana_name:hiraganaName.value,katakana_name:katakanaName.value,short_name:shortName.value,alias_1:alias1.value,alias_2:alias2.value,alias_3:alias3.value,alias_4:alias4.value,alias_5:alias5.value,status_code:statusCode.value,active:active.checked,note:note.value};try{await api("/api/tlc-customers",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});showMessage("客户保存成功");await loadRecords();newRecord()}catch(e){showMessage(e.message,true)}}
-function chooseImport(){document.getElementById("importFile").click()}
-function parseCsv(text){text=text.replace(/^\uFEFF/,"");const rows=[];let row=[],field="",quoted=false;for(let i=0;i<text.length;i++){const c=text[i];if(quoted){if(c==='"'&&text[i+1]==='"'){field+='"';i++}else if(c==='"'){quoted=false}else field+=c}else if(c==='"'){quoted=true}else if(c===','){row.push(field);field=""}else if(c==='\n'){row.push(field);rows.push(row);row=[];field=""}else if(c!=='\r'){field+=c}}if(field!==""||row.length){row.push(field);rows.push(row)}return rows}
-async function importCsv(file){if(!file)return;try{const matrix=parseCsv(await file.text());if(matrix.length<2)throw new Error("CSV 没有数据行");const headers=matrix[0].map(x=>x.trim());for(const f of ["customer_id","formal_name"])if(!headers.includes(f))throw new Error(`CSV 缺少列：${f}`);const rows=matrix.slice(1).filter(r=>r.some(v=>String(v).trim())).map(r=>Object.fromEntries(headers.map((h,i)=>[h,r[i]??""])));const result=await api("/api/tlc-customers/import",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({rows})});showMessage(`导入成功：${result.imported} 件（新增 ${result.created}，更新 ${result.updated}）`);await loadRecords()}catch(e){showMessage(e.message,true)}finally{document.getElementById("importFile").value=""}}
-function exportCsv(){const p=new URLSearchParams();const q=query.value.trim();const st=searchStatus.value;if(q)p.set("query",q);if(st)p.set("status_code",st);window.location.href="/api/tlc-customers/export.csv?"+p}
-function downloadTemplate(){const text='\uFEFF'+FIELDS.join(',')+'\r\nCUST-001,株式会社サンプル,かぶしきがいしゃさんぷる,カブシキガイシャサンプル,サンプル,SAMPLE,,,,,ACTIVE,1,\r\n';const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/csv;charset=utf-8'}));a.download='tlc_customer_master_template.csv';a.click();URL.revokeObjectURL(a.href)}
-function openCodeMaster(){window.open("/tlc-code-master","_blank")}
-Promise.all([loadStatus(),loadRecords()]).catch(e=>showMessage(e.message,true));
-</script>
-<script>
-/* TLC_TABLE_ROW_SELECTOR_V1 */
-(function(){
-  const NUMBER_CLASS="tlc-row-no";
-  const CHECK_CLASS="tlc-row-check";
-  let scheduled=false;
-
-  function headerRows(table){
-    const explicit=[...table.querySelectorAll("thead tr")];
-    if(explicit.length) return explicit;
-    const first=[...table.querySelectorAll("tr")].find(row=>row.querySelector("th"));
-    return first?[first]:[];
-  }
-
-  function dataRows(table,headers){
-    const headerSet=new Set(headers);
-    return [...table.querySelectorAll("tr")].filter(row=>{
-      if(headerSet.has(row)) return false;
-      if(row.querySelector("th") && !row.querySelector("td")) return false;
-      return true;
-    });
-  }
-
-  function addHeader(row){
-    if(row.querySelector("."+NUMBER_CLASS)) return;
-
-    const checkTh=document.createElement("th");
-    checkTh.className=CHECK_CLASS;
-    checkTh.style.width="38px";
-    checkTh.style.textAlign="center";
-
-    const all=document.createElement("input");
-    all.type="checkbox";
-    all.title="全选/取消全选";
-    all.addEventListener("click",event=>event.stopPropagation());
-    all.addEventListener("change",()=>{
-      const table=row.closest("table");
-      table.querySelectorAll("input.tlc-row-select").forEach(input=>{
-        input.checked=all.checked;
-      });
-    });
-    checkTh.appendChild(all);
-
-    const noTh=document.createElement("th");
-    noTh.className=NUMBER_CLASS;
-    noTh.textContent="No";
-    noTh.style.width="52px";
-    noTh.style.textAlign="center";
-
-    row.insertBefore(checkTh,row.firstChild);
-    row.insertBefore(noTh,row.firstChild);
-  }
-
-  function addData(row,index){
-    let no=row.querySelector(":scope > td."+NUMBER_CLASS);
-    let check=row.querySelector(":scope > td."+CHECK_CLASS);
-
-    if(!check){
-      check=document.createElement("td");
-      check.className=CHECK_CLASS;
-      check.style.textAlign="center";
-      const input=document.createElement("input");
-      input.type="checkbox";
-      input.className="tlc-row-select";
-      input.addEventListener("click",event=>event.stopPropagation());
-      check.appendChild(input);
-      row.insertBefore(check,row.firstChild);
-    }
-
-    if(!no){
-      no=document.createElement("td");
-      no.className=NUMBER_CLASS;
-      no.style.textAlign="center";
-      row.insertBefore(no,row.firstChild);
-    }
-
-    no.textContent=String(index);
-  }
-
-  function enhance(table){
-    const headers=headerRows(table);
-    headers.forEach(addHeader);
-    dataRows(table,headers).forEach((row,index)=>addData(row,index+1));
-  }
-
-  function run(){
-    scheduled=false;
-    document.querySelectorAll("table").forEach(enhance);
-  }
-
-  function schedule(){
-    if(scheduled) return;
-    scheduled=true;
-    setTimeout(run,0);
-  }
-
-  if(document.readyState==="loading"){
-    document.addEventListener("DOMContentLoaded",run,{once:true});
-  }else{
-    run();
-  }
-
-  new MutationObserver(schedule).observe(document.documentElement,{
-    childList:true,
-    subtree:true
-  });
-})();
-</script>
-</body>
-</html>
+</body></html>

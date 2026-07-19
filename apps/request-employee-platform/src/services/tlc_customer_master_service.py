@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import base64
 import io
 import re
 import unicodedata
@@ -20,6 +21,9 @@ EXPORT_FIELDS = [
     "formal_name",
     "hiragana_name",
     "katakana_name",
+    "katakana_name_short",
+    "delivery_name_1",
+    "delivery_name_2",
     "short_name",
     "alias_1",
     "alias_2",
@@ -30,6 +34,13 @@ EXPORT_FIELDS = [
     "active",
     "note",
 ]
+
+TODOKEDL_FIELDS = {
+    "お届け先コード": "customer_id",
+    "カナ名称": "katakana_name_short",
+    "お届け先名称１": "delivery_name_1",
+    "お届け先名称２": "delivery_name_2",
+}
 
 
 def normalize_customer_name(value: str) -> str:
@@ -50,6 +61,9 @@ def ensure_customer_master_table(db: Session) -> None:
             formal_name VARCHAR(500) NOT NULL,
             hiragana_name VARCHAR(500) NOT NULL DEFAULT '',
             katakana_name VARCHAR(500) NOT NULL DEFAULT '',
+            katakana_name_short VARCHAR(500) NOT NULL DEFAULT '',
+            delivery_name_1 VARCHAR(500) NOT NULL DEFAULT '',
+            delivery_name_2 VARCHAR(500) NOT NULL DEFAULT '',
             short_name VARCHAR(500) NOT NULL DEFAULT '',
             alias_1 VARCHAR(500) NOT NULL DEFAULT '',
             alias_2 VARCHAR(500) NOT NULL DEFAULT '',
@@ -64,6 +78,16 @@ def ensure_customer_master_table(db: Session) -> None:
             updated_at VARCHAR(64) NOT NULL
         )
     """))
+    existing = {
+        row._mapping["name"]
+        for row in db.execute(text(f"PRAGMA table_info({TABLE_NAME})")).all()
+    }
+    for column in ("katakana_name_short", "delivery_name_1", "delivery_name_2"):
+        if column not in existing:
+            db.execute(text(
+                f"ALTER TABLE {TABLE_NAME} ADD COLUMN {column} "
+                "VARCHAR(500) NOT NULL DEFAULT ''"
+            ))
     db.commit()
 
 
@@ -107,6 +131,9 @@ def list_customers(
                 OR formal_name LIKE :query_like
                 OR hiragana_name LIKE :query_like
                 OR katakana_name LIKE :query_like
+                OR katakana_name_short LIKE :query_like
+                OR delivery_name_1 LIKE :query_like
+                OR delivery_name_2 LIKE :query_like
                 OR short_name LIKE :query_like
                 OR alias_1 LIKE :query_like OR alias_2 LIKE :query_like
                 OR alias_3 LIKE :query_like OR alias_4 LIKE :query_like
@@ -212,6 +239,9 @@ def _save_customer(db: Session, payload: dict[str, Any], *, commit: bool) -> dic
         "formal_name": formal_name,
         "hiragana_name": str(payload.get("hiragana_name", "") or "").strip(),
         "katakana_name": str(payload.get("katakana_name", "") or "").strip(),
+        "katakana_name_short": str(payload.get("katakana_name_short", "") or "").strip(),
+        "delivery_name_1": str(payload.get("delivery_name_1", "") or "").strip(),
+        "delivery_name_2": str(payload.get("delivery_name_2", "") or "").strip(),
         "short_name": str(payload.get("short_name", "") or "").strip(),
         "alias_1": str(payload.get("alias_1", "") or "").strip(),
         "alias_2": str(payload.get("alias_2", "") or "").strip(),
@@ -231,6 +261,8 @@ def _save_customer(db: Session, payload: dict[str, Any], *, commit: bool) -> dic
             UPDATE {TABLE_NAME}
             SET customer_id=:customer_id, formal_name=:formal_name,
                 hiragana_name=:hiragana_name, katakana_name=:katakana_name,
+                katakana_name_short=:katakana_name_short,
+                delivery_name_1=:delivery_name_1, delivery_name_2=:delivery_name_2,
                 short_name=:short_name, alias_1=:alias_1, alias_2=:alias_2,
                 alias_3=:alias_3, alias_4=:alias_4, alias_5=:alias_5,
                 normalized_formal_name=:normalized_formal_name,
@@ -246,11 +278,13 @@ def _save_customer(db: Session, payload: dict[str, Any], *, commit: bool) -> dic
         db.execute(text(f"""
             INSERT INTO {TABLE_NAME} (
                 id, customer_id, formal_name, hiragana_name, katakana_name,
+                katakana_name_short, delivery_name_1, delivery_name_2,
                 short_name, alias_1, alias_2, alias_3, alias_4, alias_5,
                 normalized_formal_name, status_code, active, note,
                 created_at, updated_at
             ) VALUES (
                 :id, :customer_id, :formal_name, :hiragana_name, :katakana_name,
+                :katakana_name_short, :delivery_name_1, :delivery_name_2,
                 :short_name, :alias_1, :alias_2, :alias_3, :alias_4, :alias_5,
                 :normalized_formal_name, :status_code, :active, :note,
                 :created_at, :updated_at
@@ -305,6 +339,97 @@ def import_customer_rows(db: Session, rows: list[dict[str, Any]]) -> dict[str, A
         "created": created,
         "updated": updated,
     }
+
+
+def _decode_todokedl_csv(content: bytes) -> str:
+    for encoding in ("utf-8-sig", "cp932"):
+        try:
+            return content.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    raise ValueError("CSV encoding must be UTF-8 or CP932/Shift-JIS")
+
+
+def import_todokedl_csv_base64(db: Session, content_base64: str) -> dict[str, Any]:
+    """Import delivery master fields without overwriting formal customer names."""
+    ensure_customer_master_table(db)
+    try:
+        content = base64.b64decode(content_base64, validate=True)
+    except Exception as exc:
+        raise ValueError("invalid CSV content") from exc
+    if len(content) > 10 * 1024 * 1024:
+        raise ValueError("CSV file exceeds 10 MB")
+
+    reader = csv.DictReader(io.StringIO(_decode_todokedl_csv(content)))
+    headers = set(reader.fieldnames or [])
+    missing = [name for name in TODOKEDL_FIELDS if name not in headers]
+    if missing:
+        raise ValueError("missing TODOKEDL columns: " + ", ".join(missing))
+
+    created = updated = skipped = 0
+    try:
+        for index, raw in enumerate(reader, start=2):
+            customer_id = str(raw.get("お届け先コード", "") or "").strip()
+            if not customer_id:
+                if not any(str(value or "").strip() for value in raw.values()):
+                    skipped += 1
+                    continue
+                raise ValueError(f"CSV row {index}: お届け先コード is required")
+
+            delivery = {
+                internal: str(raw.get(source, "") or "").strip()
+                for source, internal in TODOKEDL_FIELDS.items()
+                if internal != "customer_id"
+            }
+            existing = db.execute(
+                text(f"SELECT id FROM {TABLE_NAME} WHERE customer_id=:customer_id"),
+                {"customer_id": customer_id},
+            ).first()
+            now = datetime.now(timezone.utc).isoformat()
+            if existing:
+                # Empty CSV cells do not erase existing delivery data.
+                assignments = []
+                params: dict[str, Any] = {"id": existing._mapping["id"], "updated_at": now}
+                for field, value in delivery.items():
+                    if value:
+                        assignments.append(f"{field}=:{field}")
+                        params[field] = value
+                if assignments:
+                    assignments.append("updated_at=:updated_at")
+                    db.execute(text(
+                        f"UPDATE {TABLE_NAME} SET {', '.join(assignments)} WHERE id=:id"
+                    ), params)
+                updated += 1
+            else:
+                record_id = uuid4().hex
+                db.execute(text(f"""
+                    INSERT INTO {TABLE_NAME} (
+                        id, customer_id, formal_name, hiragana_name, katakana_name,
+                        katakana_name_short, delivery_name_1, delivery_name_2,
+                        short_name, alias_1, alias_2, alias_3, alias_4, alias_5,
+                        normalized_formal_name, status_code, active, note,
+                        created_at, updated_at
+                    ) VALUES (
+                        :id, :customer_id, '', '', '',
+                        :katakana_name_short, :delivery_name_1, :delivery_name_2,
+                        '', '', '', '', '', '', '', 'ACTIVE', 1,
+                        'TODOKEDL import: formal customer name pending maintenance',
+                        :created_at, :updated_at
+                    )
+                """), {
+                    "id": record_id,
+                    "customer_id": customer_id,
+                    **delivery,
+                    "created_at": now,
+                    "updated_at": now,
+                })
+                created += 1
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+    return {"imported": created + updated, "created": created, "updated": updated, "skipped": skipped}
 
 
 def export_customers_csv(
