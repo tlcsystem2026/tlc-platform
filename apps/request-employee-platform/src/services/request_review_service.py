@@ -86,9 +86,6 @@ def update_review(db:Session, review_id:str, new_status:str, operator:str, comme
     if new_status in {"SOURCE_CORRECTION_REQUIRED","ON_HOLD"} and not comment:
         raise ValueError("comment is required")
     if new_status=="REVIEWED_OK":
-        clean=current["compare_status"]=="MATCHED" and current["customer_match_status"]=="MATCHED"
-        if not clean and not forced:
-            raise ValueError("Unresolved exception requires forced=true and a comment")
         if forced and not comment:
             raise ValueError("Forced review requires a comment")
     now=datetime.now(timezone.utc).isoformat()
@@ -165,3 +162,18 @@ def cleanup_obvious_test_reviews(db:Session)->dict[str,int]:
         "item_deleted":len(item_ids),
         "empty_batch_deleted":deleted_batches,
     }
+
+
+def update_reviews_batch(db:Session, review_ids:list[str], new_status:str, operator:str, comment:str="", forced:bool=False):
+    ids=[]
+    for value in review_ids or []:
+        clean=str(value or "").strip()
+        if clean and clean not in ids:
+            ids.append(clean)
+    if not ids:
+        raise ValueError("review_ids is required")
+    results=[]
+    for review_id in ids:
+        results.append(update_review(db,review_id,new_status,operator,comment,forced))
+    return {"count":len(results),"items":results}
+

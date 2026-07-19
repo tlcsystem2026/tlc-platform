@@ -4,7 +4,7 @@ from fastapi import APIRouter,Depends,HTTPException,Query
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 from src.db.session import get_db
-from src.services.request_review_service import list_reviews,get_review,update_review,wait_review_count
+from src.services.request_review_service import list_reviews,get_review,update_review,update_reviews_batch,wait_review_count
 
 router=APIRouter(prefix="/api/tlc-request-reviews",tags=["tlc-request-reviews"])
 
@@ -20,6 +20,13 @@ def count(db:Session=Depends(get_db)):
 def detail(review_id:str,db:Session=Depends(get_db)):
     try:return get_review(db,review_id)
     except LookupError as exc:raise HTTPException(404,str(exc)) from exc
+
+@router.put("/batch")
+def decide_batch(payload:dict,db:Session=Depends(get_db)):
+    try:
+        return update_reviews_batch(db,payload.get("review_ids",[]),payload.get("review_status",""),payload.get("operator",""),payload.get("comment",""),bool(payload.get("forced",False)))
+    except LookupError as exc:raise HTTPException(404,str(exc)) from exc
+    except ValueError as exc:raise HTTPException(400,str(exc)) from exc
 
 @router.put("/{review_id}")
 def decide(review_id:str,payload:dict,db:Session=Depends(get_db)):
