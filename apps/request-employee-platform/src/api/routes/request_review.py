@@ -9,8 +9,8 @@ from src.services.request_review_service import list_reviews,get_review,update_r
 router=APIRouter(prefix="/api/tlc-request-reviews",tags=["tlc-request-reviews"])
 
 @router.get("")
-def items(business_month:str="",review_status:str="WAIT_REVIEW",compare_status:str="",customer_match_status:str="",keyword:str="",limit:int=Query(500,ge=1,le=2000),db:Session=Depends(get_db)):
-    return list_reviews(db,business_month,review_status,compare_status,customer_match_status,keyword,limit)
+def items(business_month:str="",batch_id:str="",review_status:str="WAIT_REVIEW",compare_status:str="",customer_match_status:str="",keyword:str="",limit:int=Query(500,ge=1,le=2000),db:Session=Depends(get_db)):
+    return list_reviews(db,business_month,batch_id,review_status,compare_status,customer_match_status,keyword,limit)
 
 @router.get("/wait-count")
 def count(db:Session=Depends(get_db)):

@@ -49,5 +49,113 @@ async function loadAudit(id){try{const rows=await jf(`/api/tlc-customer-auto-mat
 async function loadMatches(){const q=new URLSearchParams();if(reconciliationId.value.trim())q.set("reconciliation_id",reconciliationId.value.trim());if(statusFilter.value)q.set("status",statusFilter.value);try{const rows=await jf("/api/tlc-customer-auto-matching?"+q.toString());matchRows.innerHTML='<table><tr><th>客户</th><th>销售</th><th>入金</th><th>差额</th><th>规则</th><th>状态</th><th>操作</th></tr>'+rows.map(x=>`<tr><td>${esc(x.customer_id)}<br>${esc(x.customer_name)}</td><td>${esc(x.sales_date)}<br>${esc(x.sales_document_no)}<br>${esc(x.sales_amount)}</td><td>${esc(x.payment_date)}<br>${esc(x.payment_reference_no)}<br>${esc(x.payment_amount)}</td><td>${esc(x.difference_amount)}</td><td>${esc(x.match_rule)} / ${esc(x.match_score)}</td><td>${esc(x.status)}</td><td><button onclick="loadAudit('${x.id}')">审计</button> ${x.status==="PROPOSED"?`<button onclick="setStatus('${x.id}','MATCHED')">确认核销</button><button onclick="setStatus('${x.id}','REJECTED')">驳回</button>`:""} ${x.status==="MATCHED"?`<button onclick="setStatus('${x.id}','CANCELLED')">取消核销</button>`:""}</td></tr>`).join("")+'</table>'}catch(e){alert(e.message)}}
 statusFilter.addEventListener("change",loadMatches);loadMatches();
 </script>
+<script>
+/* TLC_TABLE_ROW_SELECTOR_V1 */
+(function(){
+  const NUMBER_CLASS="tlc-row-no";
+  const CHECK_CLASS="tlc-row-check";
+  let scheduled=false;
+
+  function headerRows(table){
+    const explicit=[...table.querySelectorAll("thead tr")];
+    if(explicit.length) return explicit;
+    const first=[...table.querySelectorAll("tr")].find(row=>row.querySelector("th"));
+    return first?[first]:[];
+  }
+
+  function dataRows(table,headers){
+    const headerSet=new Set(headers);
+    return [...table.querySelectorAll("tr")].filter(row=>{
+      if(headerSet.has(row)) return false;
+      if(row.querySelector("th") && !row.querySelector("td")) return false;
+      return true;
+    });
+  }
+
+  function addHeader(row){
+    if(row.querySelector("."+NUMBER_CLASS)) return;
+
+    const checkTh=document.createElement("th");
+    checkTh.className=CHECK_CLASS;
+    checkTh.style.width="38px";
+    checkTh.style.textAlign="center";
+
+    const all=document.createElement("input");
+    all.type="checkbox";
+    all.title="全选/取消全选";
+    all.addEventListener("click",event=>event.stopPropagation());
+    all.addEventListener("change",()=>{
+      const table=row.closest("table");
+      table.querySelectorAll("input.tlc-row-select").forEach(input=>{
+        input.checked=all.checked;
+      });
+    });
+    checkTh.appendChild(all);
+
+    const noTh=document.createElement("th");
+    noTh.className=NUMBER_CLASS;
+    noTh.textContent="No";
+    noTh.style.width="52px";
+    noTh.style.textAlign="center";
+
+    row.insertBefore(checkTh,row.firstChild);
+    row.insertBefore(noTh,row.firstChild);
+  }
+
+  function addData(row,index){
+    let no=row.querySelector(":scope > td."+NUMBER_CLASS);
+    let check=row.querySelector(":scope > td."+CHECK_CLASS);
+
+    if(!check){
+      check=document.createElement("td");
+      check.className=CHECK_CLASS;
+      check.style.textAlign="center";
+      const input=document.createElement("input");
+      input.type="checkbox";
+      input.className="tlc-row-select";
+      input.addEventListener("click",event=>event.stopPropagation());
+      check.appendChild(input);
+      row.insertBefore(check,row.firstChild);
+    }
+
+    if(!no){
+      no=document.createElement("td");
+      no.className=NUMBER_CLASS;
+      no.style.textAlign="center";
+      row.insertBefore(no,row.firstChild);
+    }
+
+    no.textContent=String(index);
+  }
+
+  function enhance(table){
+    const headers=headerRows(table);
+    headers.forEach(addHeader);
+    dataRows(table,headers).forEach((row,index)=>addData(row,index+1));
+  }
+
+  function run(){
+    scheduled=false;
+    document.querySelectorAll("table").forEach(enhance);
+  }
+
+  function schedule(){
+    if(scheduled) return;
+    scheduled=true;
+    setTimeout(run,0);
+  }
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",run,{once:true});
+  }else{
+    run();
+  }
+
+  new MutationObserver(schedule).observe(document.documentElement,{
+    childList:true,
+    subtree:true
+  });
+})();
+</script>
 </body>
 </html>

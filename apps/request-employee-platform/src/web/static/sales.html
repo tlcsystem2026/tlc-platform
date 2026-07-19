@@ -1,1 +1,109 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"/><title>销售数据一览</title><style>body{font-family:"Microsoft YaHei";background:#f6f8fb;margin:0}header{background:#059669;color:white;padding:22px 30px}.card{background:white;margin:18px;padding:18px;border-radius:14px}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #eee;padding:8px;text-align:left}</style></head><body><header><h1>销售数据一览</h1><p>一致请求书进入销售统计｜Build030</p></header><div class="card"><a href="/dashboard">返回仪表盘</a> | <a href="/docs">API文档</a></div><div class="card"><h2>统计</h2><pre id="summary">loading...</pre></div><div class="card"><h2>销售记录</h2><table><thead><tr><th>请求书编号</th><th>客户</th><th>日期</th><th>金额</th><th>状态</th></tr></thead><tbody id="rows"></tbody></table></div><script>async function load(){let s=await (await fetch('/api/sales/summary')).json();summary.textContent=JSON.stringify(s,null,2);let rs=await (await fetch('/api/sales')).json();rows.innerHTML=rs.map(x=>`<tr><td>${x.request_no}</td><td>${x.customer_name}</td><td>${x.sales_date}</td><td>${x.total_amount} ${x.currency}</td><td>${x.status}</td></tr>`).join('')}load()</script></body></html>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"/><title>销售数据一览</title><style>body{font-family:"Microsoft YaHei";background:#f6f8fb;margin:0}header{background:#059669;color:white;padding:22px 30px}.card{background:white;margin:18px;padding:18px;border-radius:14px}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #eee;padding:8px;text-align:left}</style></head><body><header><h1>销售数据一览</h1><p>一致请求书进入销售统计｜Build030</p></header><div class="card"><a href="/dashboard">返回仪表盘</a> | <a href="/docs">API文档</a></div><div class="card"><h2>统计</h2><pre id="summary">loading...</pre></div><div class="card"><h2>销售记录</h2><table><thead><tr><th>请求书编号</th><th>客户</th><th>日期</th><th>金额</th><th>状态</th></tr></thead><tbody id="rows"></tbody></table></div><script>async function load(){let s=await (await fetch('/api/sales/summary')).json();summary.textContent=JSON.stringify(s,null,2);let rs=await (await fetch('/api/sales')).json();rows.innerHTML=rs.map(x=>`<tr><td>${x.request_no}</td><td>${x.customer_name}</td><td>${x.sales_date}</td><td>${x.total_amount} ${x.currency}</td><td>${x.status}</td></tr>`).join('')}load()</script><script>
+/* TLC_TABLE_ROW_SELECTOR_V1 */
+(function(){
+  const NUMBER_CLASS="tlc-row-no";
+  const CHECK_CLASS="tlc-row-check";
+  let scheduled=false;
+
+  function headerRows(table){
+    const explicit=[...table.querySelectorAll("thead tr")];
+    if(explicit.length) return explicit;
+    const first=[...table.querySelectorAll("tr")].find(row=>row.querySelector("th"));
+    return first?[first]:[];
+  }
+
+  function dataRows(table,headers){
+    const headerSet=new Set(headers);
+    return [...table.querySelectorAll("tr")].filter(row=>{
+      if(headerSet.has(row)) return false;
+      if(row.querySelector("th") && !row.querySelector("td")) return false;
+      return true;
+    });
+  }
+
+  function addHeader(row){
+    if(row.querySelector("."+NUMBER_CLASS)) return;
+
+    const checkTh=document.createElement("th");
+    checkTh.className=CHECK_CLASS;
+    checkTh.style.width="38px";
+    checkTh.style.textAlign="center";
+
+    const all=document.createElement("input");
+    all.type="checkbox";
+    all.title="全选/取消全选";
+    all.addEventListener("click",event=>event.stopPropagation());
+    all.addEventListener("change",()=>{
+      const table=row.closest("table");
+      table.querySelectorAll("input.tlc-row-select").forEach(input=>{
+        input.checked=all.checked;
+      });
+    });
+    checkTh.appendChild(all);
+
+    const noTh=document.createElement("th");
+    noTh.className=NUMBER_CLASS;
+    noTh.textContent="No";
+    noTh.style.width="52px";
+    noTh.style.textAlign="center";
+
+    row.insertBefore(checkTh,row.firstChild);
+    row.insertBefore(noTh,row.firstChild);
+  }
+
+  function addData(row,index){
+    let no=row.querySelector(":scope > td."+NUMBER_CLASS);
+    let check=row.querySelector(":scope > td."+CHECK_CLASS);
+
+    if(!check){
+      check=document.createElement("td");
+      check.className=CHECK_CLASS;
+      check.style.textAlign="center";
+      const input=document.createElement("input");
+      input.type="checkbox";
+      input.className="tlc-row-select";
+      input.addEventListener("click",event=>event.stopPropagation());
+      check.appendChild(input);
+      row.insertBefore(check,row.firstChild);
+    }
+
+    if(!no){
+      no=document.createElement("td");
+      no.className=NUMBER_CLASS;
+      no.style.textAlign="center";
+      row.insertBefore(no,row.firstChild);
+    }
+
+    no.textContent=String(index);
+  }
+
+  function enhance(table){
+    const headers=headerRows(table);
+    headers.forEach(addHeader);
+    dataRows(table,headers).forEach((row,index)=>addData(row,index+1));
+  }
+
+  function run(){
+    scheduled=false;
+    document.querySelectorAll("table").forEach(enhance);
+  }
+
+  function schedule(){
+    if(scheduled) return;
+    scheduled=true;
+    setTimeout(run,0);
+  }
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",run,{once:true});
+  }else{
+    run();
+  }
+
+  new MutationObserver(schedule).observe(document.documentElement,{
+    childList:true,
+    subtree:true
+  });
+})();
+</script>
+</body></html>

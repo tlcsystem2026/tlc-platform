@@ -59,6 +59,7 @@ th{background:#edf2f7}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 <label>Compare<select id="reviewCompare"><option value="">全部</option><option>MATCHED</option><option>EXCEPTION</option><option>ERROR</option></select></label>
 <label>客户匹配<select id="reviewCustomer"><option value="">全部</option><option>MATCHED</option><option>UNMATCHED</option></select></label>
 <label>关键词<input id="reviewKeyword"></label>
+<label style="flex-direction:row;align-items:center;gap:6px"><input id="latestBatchOnly" type="checkbox" checked onchange="loadReviews()">仅本次 Batch</label>
 <button class="primary" onclick="loadReviews()">查询</button>
 </div>
 </section>
@@ -74,7 +75,7 @@ th{background:#edf2f7}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 <script>
 const batchApi="/api/tlc-request-batch-compare-import";
 const reviewApi="/api/tlc-request-reviews";
-let selected=null;
+let selected=null;let activeBatchId="";let batchRunning=false;
 const $=id=>document.getElementById(id);
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 async function jf(u,o={}){const r=await fetch(u,o);let b;try{b=await r.json()}catch(e){b=await r.text()}if(!r.ok)throw new Error(b.detail||String(b));return b}
@@ -85,21 +86,35 @@ function batchMetrics(b={}){$("batchSummary").innerHTML=[
 ["异常",b.exception_count||0],["错误",b.error_count||0]
 ].map(x=>`<div class="metric">${x[0]}<b>${esc(x[1])}</b></div>`).join("")}
 async function runBatch(){
+ if(batchRunning)return;
  const m=$("batchMonth").value.trim(),op=$("batchOperator").value.trim();
  if(!monthOk(m)){alert("请输入6位业务年月");return}
  if(!op){alert("请输入操作人");return}
- $("runBtn").disabled=true;$("batchStatus").textContent="执行中";
+ const btn=$("runBtn"),oldText=btn.textContent;
+ batchRunning=true;btn.disabled=true;btn.textContent="执行中...";
+ $("batchStatus").textContent="执行中";
  try{
-  await jf(batchApi+"/run",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({business_month:m,operator:op})});
-  $("reviewMonth").value=m;await loadBatch();await loadReviews()
- }catch(e){$("batchStatus").textContent="失败";$("batchMsg").textContent=e.message;alert(e.message)}
- finally{$("runBtn").disabled=false}
+  const result=await jf(batchApi+"/run",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({business_month:m,operator:op})});
+  activeBatchId=result.id||result.batch_id||"";
+  $("reviewMonth").value=m;
+  await loadBatch();
+  await loadReviews();
+ }catch(e){
+  $("batchStatus").textContent="失败";
+  $("batchMsg").textContent=e.message;
+  alert(e.message);
+ }finally{
+  batchRunning=false;
+  btn.disabled=false;
+  btn.textContent=oldText;
+ }
 }
 async function loadBatch(){
  const m=$("batchMonth").value.trim();
  if(!monthOk(m)){batchMetrics();return}
  try{
   const b=await jf(batchApi+"/latest?business_month="+encodeURIComponent(m));
+  activeBatchId=b.id||b.batch_id||activeBatchId;
   $("batchStatus").textContent=b.status||"无记录";
   $("batchMsg").innerHTML=`异常文件：${esc(b.exception_report_path||"无")}<br>${esc(b.message||"")}`;
   batchMetrics(b||{});
@@ -110,6 +125,7 @@ async function loadBatch(){
 async function loadReviews(){
  const q=new URLSearchParams({
   business_month:$("reviewMonth").value.trim(),
+  batch_id:$("latestBatchOnly").checked?activeBatchId:"",
   review_status:$("reviewStatus").value,
   compare_status:$("reviewCompare").value,
   customer_match_status:$("reviewCustomer").value,
@@ -134,7 +150,115 @@ async function decide(s,f){
 }
 (function init(){
  const d=new Date(),m=String(d.getFullYear())+String(d.getMonth()+1).padStart(2,"0");
- $("batchMonth").value=m;$("reviewMonth").value=m;batchMetrics();loadBatch();loadReviews()
+ $("batchMonth").value=m;$("reviewMonth").value=m;batchMetrics();loadBatch().then(loadReviews)
+})();
+</script>
+<script>
+/* TLC_TABLE_ROW_SELECTOR_V1 */
+(function(){
+  const NUMBER_CLASS="tlc-row-no";
+  const CHECK_CLASS="tlc-row-check";
+  let scheduled=false;
+
+  function headerRows(table){
+    const explicit=[...table.querySelectorAll("thead tr")];
+    if(explicit.length) return explicit;
+    const first=[...table.querySelectorAll("tr")].find(row=>row.querySelector("th"));
+    return first?[first]:[];
+  }
+
+  function dataRows(table,headers){
+    const headerSet=new Set(headers);
+    return [...table.querySelectorAll("tr")].filter(row=>{
+      if(headerSet.has(row)) return false;
+      if(row.querySelector("th") && !row.querySelector("td")) return false;
+      return true;
+    });
+  }
+
+  function addHeader(row){
+    if(row.querySelector("."+NUMBER_CLASS)) return;
+
+    const checkTh=document.createElement("th");
+    checkTh.className=CHECK_CLASS;
+    checkTh.style.width="38px";
+    checkTh.style.textAlign="center";
+
+    const all=document.createElement("input");
+    all.type="checkbox";
+    all.title="全选/取消全选";
+    all.addEventListener("click",event=>event.stopPropagation());
+    all.addEventListener("change",()=>{
+      const table=row.closest("table");
+      table.querySelectorAll("input.tlc-row-select").forEach(input=>{
+        input.checked=all.checked;
+      });
+    });
+    checkTh.appendChild(all);
+
+    const noTh=document.createElement("th");
+    noTh.className=NUMBER_CLASS;
+    noTh.textContent="No";
+    noTh.style.width="52px";
+    noTh.style.textAlign="center";
+
+    row.insertBefore(checkTh,row.firstChild);
+    row.insertBefore(noTh,row.firstChild);
+  }
+
+  function addData(row,index){
+    let no=row.querySelector(":scope > td."+NUMBER_CLASS);
+    let check=row.querySelector(":scope > td."+CHECK_CLASS);
+
+    if(!check){
+      check=document.createElement("td");
+      check.className=CHECK_CLASS;
+      check.style.textAlign="center";
+      const input=document.createElement("input");
+      input.type="checkbox";
+      input.className="tlc-row-select";
+      input.addEventListener("click",event=>event.stopPropagation());
+      check.appendChild(input);
+      row.insertBefore(check,row.firstChild);
+    }
+
+    if(!no){
+      no=document.createElement("td");
+      no.className=NUMBER_CLASS;
+      no.style.textAlign="center";
+      row.insertBefore(no,row.firstChild);
+    }
+
+    no.textContent=String(index);
+  }
+
+  function enhance(table){
+    const headers=headerRows(table);
+    headers.forEach(addHeader);
+    dataRows(table,headers).forEach((row,index)=>addData(row,index+1));
+  }
+
+  function run(){
+    scheduled=false;
+    document.querySelectorAll("table").forEach(enhance);
+  }
+
+  function schedule(){
+    if(scheduled) return;
+    scheduled=true;
+    setTimeout(run,0);
+  }
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",run,{once:true});
+  }else{
+    run();
+  }
+
+  new MutationObserver(schedule).observe(document.documentElement,{
+    childList:true,
+    subtree:true
+  });
 })();
 </script>
 </body>

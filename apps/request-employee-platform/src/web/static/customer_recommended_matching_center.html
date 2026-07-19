@@ -11,4 +11,112 @@ async function decide(id,s){if(!op.value.trim()){alert("请输入操作人");ret
 async function showAudit(id){try{const a=await jf(`/api/tlc-customer-recommended-matching/${id}/audit`);audit.innerHTML='<table><tr><th>时间</th><th>事件</th><th>操作者</th><th>状态</th><th>说明</th></tr>'+a.map(x=>`<tr><td>${e(x.event_at)}</td><td>${e(x.event_type)}</td><td>${e(x.actor)}</td><td>${e(x.old_status)} → ${e(x.new_status)}</td><td>${e(x.message)}</td></tr>`).join('')+'</table>'}catch(x){alert(x.message)}}
 async function loadRows(){const q=new URLSearchParams();if(rid.value.trim())q.set("reconciliation_id",rid.value.trim());if(status.value)q.set("status",status.value);try{const a=await jf("/api/tlc-customer-recommended-matching?"+q);rows.innerHTML='<table><tr><th>客户</th><th>销售</th><th>入金</th><th>差额</th><th>评分</th><th>规则</th><th>状态</th><th>操作</th></tr>'+a.map(x=>`<tr><td>${e(x.customer_id)}<br>${e(x.customer_name)}</td><td>${e(x.sales_date)}<br>${e(x.sales_document_no)}<br>${e(x.sales_amount)}</td><td>${e(x.payment_date)}<br>${e(x.payment_reference_no)}<br>${e(x.payment_amount)}</td><td>${e(x.difference_amount)}</td><td>金额 ${x.amount_score}<br>日期 ${x.date_score}<br><b>总分 ${x.total_score}</b></td><td>${e(x.recommendation_rule)}</td><td>${e(x.status)}</td><td><button onclick="showAudit('${x.id}')">审计</button> ${x.status==='RECOMMENDED'?`<button onclick="decide('${x.id}','ACCEPTED')">接受</button><button onclick="decide('${x.id}','REJECTED')">驳回</button>`:''} ${x.status==='ACCEPTED'?`<button onclick="decide('${x.id}','CANCELLED')">取消</button>`:''}</td></tr>`).join('')+'</table>'}catch(x){alert(x.message)}}
 status.addEventListener("change",loadRows);loadRows();
-</script></body></html>
+</script><script>
+/* TLC_TABLE_ROW_SELECTOR_V1 */
+(function(){
+  const NUMBER_CLASS="tlc-row-no";
+  const CHECK_CLASS="tlc-row-check";
+  let scheduled=false;
+
+  function headerRows(table){
+    const explicit=[...table.querySelectorAll("thead tr")];
+    if(explicit.length) return explicit;
+    const first=[...table.querySelectorAll("tr")].find(row=>row.querySelector("th"));
+    return first?[first]:[];
+  }
+
+  function dataRows(table,headers){
+    const headerSet=new Set(headers);
+    return [...table.querySelectorAll("tr")].filter(row=>{
+      if(headerSet.has(row)) return false;
+      if(row.querySelector("th") && !row.querySelector("td")) return false;
+      return true;
+    });
+  }
+
+  function addHeader(row){
+    if(row.querySelector("."+NUMBER_CLASS)) return;
+
+    const checkTh=document.createElement("th");
+    checkTh.className=CHECK_CLASS;
+    checkTh.style.width="38px";
+    checkTh.style.textAlign="center";
+
+    const all=document.createElement("input");
+    all.type="checkbox";
+    all.title="全选/取消全选";
+    all.addEventListener("click",event=>event.stopPropagation());
+    all.addEventListener("change",()=>{
+      const table=row.closest("table");
+      table.querySelectorAll("input.tlc-row-select").forEach(input=>{
+        input.checked=all.checked;
+      });
+    });
+    checkTh.appendChild(all);
+
+    const noTh=document.createElement("th");
+    noTh.className=NUMBER_CLASS;
+    noTh.textContent="No";
+    noTh.style.width="52px";
+    noTh.style.textAlign="center";
+
+    row.insertBefore(checkTh,row.firstChild);
+    row.insertBefore(noTh,row.firstChild);
+  }
+
+  function addData(row,index){
+    let no=row.querySelector(":scope > td."+NUMBER_CLASS);
+    let check=row.querySelector(":scope > td."+CHECK_CLASS);
+
+    if(!check){
+      check=document.createElement("td");
+      check.className=CHECK_CLASS;
+      check.style.textAlign="center";
+      const input=document.createElement("input");
+      input.type="checkbox";
+      input.className="tlc-row-select";
+      input.addEventListener("click",event=>event.stopPropagation());
+      check.appendChild(input);
+      row.insertBefore(check,row.firstChild);
+    }
+
+    if(!no){
+      no=document.createElement("td");
+      no.className=NUMBER_CLASS;
+      no.style.textAlign="center";
+      row.insertBefore(no,row.firstChild);
+    }
+
+    no.textContent=String(index);
+  }
+
+  function enhance(table){
+    const headers=headerRows(table);
+    headers.forEach(addHeader);
+    dataRows(table,headers).forEach((row,index)=>addData(row,index+1));
+  }
+
+  function run(){
+    scheduled=false;
+    document.querySelectorAll("table").forEach(enhance);
+  }
+
+  function schedule(){
+    if(scheduled) return;
+    scheduled=true;
+    setTimeout(run,0);
+  }
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",run,{once:true});
+  }else{
+    run();
+  }
+
+  new MutationObserver(schedule).observe(document.documentElement,{
+    childList:true,
+    subtree:true
+  });
+})();
+</script>
+</body></html>
