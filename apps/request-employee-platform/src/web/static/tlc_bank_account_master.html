@@ -2,29 +2,39 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>银行维护与流水格式</title>
 <meta name="BUILD037_STEP06_BANK_PAGE" content="BUILD037_STEP06_BANK_PAGE">
 <style>
-body{font-family:Arial,sans-serif;margin:0;background:#f5f7fa;color:#1f2937}
+body{font-family:Arial,"Microsoft YaHei",sans-serif;margin:0;background:#f5f7fa;color:#1f2937}
 header{background:#153e75;color:#fff;padding:16px 22px}
-header h1{margin:0 0 4px}.tabs,.toolbar{display:flex;gap:8px;flex-wrap:wrap}
-main{padding:16px}.tab{display:none}.tab.active{display:block}
-button,input,select,textarea{padding:8px;border:1px solid #b8c2cc;border-radius:5px}
-button{cursor:pointer}.primary{background:#153e75;color:#fff}.danger{background:#8b1e1e;color:#fff}
+header h1{margin:0 0 4px}
+main{padding:16px;display:flex;flex-direction:column;gap:14px}
+.tabs,.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
+.tab{display:none}.tab.active{display:block}
 .panel{background:#fff;border:1px solid #d8dee6;border-radius:9px;padding:14px;margin-bottom:14px}
-.layout{display:grid;grid-template-columns:380px 1fr;gap:14px}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-label{display:flex;flex-direction:column;gap:4px}.list{max-height:62vh;overflow:auto}
-.item{padding:10px;border-bottom:1px solid #edf0f4;cursor:pointer}.item:hover{background:#f0f5fb}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(180px,1fr));gap:10px}
+.search-grid{display:grid;grid-template-columns:repeat(5,minmax(160px,1fr));gap:10px;margin-bottom:10px}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px}
+button,input,select,textarea{padding:8px;border:1px solid #b8c2cc;border-radius:5px;box-sizing:border-box}
+button{cursor:pointer}.primary{background:#153e75;color:#fff}.danger{background:#8b1e1e;color:#fff}
+textarea{min-height:76px}
 .hint{color:#64748b;font-size:13px}.status{margin:8px 0;white-space:pre-wrap}
-table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e5e7eb;padding:8px;text-align:left}
-@media(max-width:900px){.layout,.grid{grid-template-columns:1fr}}
+.table-wrap{overflow:auto;max-height:58vh;border:1px solid #d8dee6}
+table{border-collapse:collapse;min-width:1500px;width:max-content;background:#fff}
+th,td{border:1px solid #e5e7eb;padding:8px;text-align:left;white-space:nowrap;max-width:320px;overflow:hidden;text-overflow:ellipsis}
+th{position:sticky;top:0;background:#eaf2fb;z-index:2}
+tr{cursor:pointer}tr:hover{background:#f0f5fb}
+.tlc-row-no{width:48px;text-align:center}
+.tlc-row-check{width:38px;text-align:center}
+.full{grid-column:1/-1}
+@media(max-width:1100px){.grid{grid-template-columns:repeat(2,minmax(180px,1fr))}.search-grid{grid-template-columns:repeat(2,minmax(160px,1fr))}}
 </style>
 </head>
 <body>
 <header>
 <h1>银行维护与流水格式</h1>
-<div>银行 Master、银行账户／口座、流水 Adapter 与文件编码关联</div>
+<div>上：单个维护卡片　中：检索条件　下：全字段一览</div>
 </header>
 <main>
 <div class="tabs">
@@ -33,57 +43,66 @@ table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e5e7eb;
 </div>
 
 <section id="banks" class="tab active">
-<div class="layout">
 <div class="panel">
-<div class="toolbar">
-<button onclick="loadBanks()">刷新</button>
-<button class="primary" onclick="newBank()">新增银行</button>
-</div>
-<div id="bankList" class="list"></div>
-</div>
-<div class="panel">
-<h2>银行 Master</h2>
+<h2>单个银行维护</h2>
 <input id="bankId" type="hidden">
+<div class="toolbar">
+<button class="primary" onclick="saveBank()">保存银行</button>
+<button onclick="newBank()">新增／清空</button>
+</div>
 <div class="grid">
 <label>银行代码<input id="bankCode" placeholder="例：SUGAMO_SHINKIN"></label>
-<label>启用<input id="bankActive" type="checkbox" checked></label>
 <label>中文名称<input id="bankZh"></label>
 <label>日文名称<input id="bankJa"></label>
 <label>英文名称<input id="bankEn"></label>
 <label>排序<input id="bankSort" type="number" value="0"></label>
+<label>启用<input id="bankActive" type="checkbox" checked></label>
+<label class="full">扩展信息 JSON<textarea id="bankExtraJson">{}</textarea></label>
 </div>
-<div class="toolbar" style="margin-top:12px">
-<button class="primary" onclick="saveBank()">保存银行</button>
-</div>
-<div class="hint">银行属于业务基础数据，不放入系统配置中心。首批真实流水格式仍需按实际文件逐家确认。</div>
+<div class="hint">点击下方银行一览中的一行，可将该银行带入上方维护卡片。</div>
 <div id="bankStatus" class="status"></div>
+</div>
+
+<div class="panel">
+<h2>银行检索条件</h2>
+<div class="search-grid">
+<label>银行代码<input id="bankFilterCode"></label>
+<label>名称综合检索<input id="bankFilterName"></label>
+<label>有效范围<select id="bankFilterActive"><option value="">全部</option><option value="1">仅有效</option><option value="0">仅无效</option></select></label>
+</div>
+<div class="toolbar">
+<button class="primary" onclick="renderBanks()">检索</button>
+<button onclick="clearBankSearch()">清除条件</button>
+<button onclick="loadBanks()">刷新</button>
+</div>
+</div>
+
+<div class="panel">
+<h2>银行一览（全部字段） <span id="bankCount" class="hint"></span></h2>
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th class="tlc-row-no">No</th>
+<th class="tlc-row-check"><input id="bankSelectAll" type="checkbox" onchange="toggleAll('.bank-row-check',this.checked)"></th>
+<th>id</th><th>category_code</th><th>code</th><th>name_zh</th><th>name_ja</th><th>name_en</th>
+<th>sort_order</th><th>active</th><th>extra_json</th><th>created_at</th><th>updated_at</th>
+</tr></thead>
+<tbody id="bankRows"></tbody>
+</table>
 </div>
 </div>
 </section>
 
 <section id="accounts" class="tab">
 <div class="panel">
-<div class="toolbar">
-<select id="filterBank"></select>
-<input id="filterAccount" placeholder="账号检索">
-<button onclick="loadAccounts()">检索</button>
-<button class="primary" onclick="newAccount()">新增账户</button>
-<button onclick="downloadTemplate()">CSV模板</button>
-<button onclick="exportCsv()">CSV导出</button>
-<input id="csvFile" type="file" accept=".csv,text/csv">
-<button onclick="importCsv()">CSV导入</button>
-</div>
-<div class="hint">CSV 导入按整批事务处理：任意一行错误时整批回滚。</div>
-<div id="accountStatus" class="status"></div>
-</div>
-<div class="layout">
-<div class="panel"><div id="accountList" class="list"></div></div>
-<div class="panel">
-<h2>银行账户／口座与流水格式关联</h2>
+<h2>单个银行账户／口座维护</h2>
 <input id="accountId" type="hidden">
+<div class="toolbar">
+<button class="primary" onclick="saveAccount()">保存账户</button>
+<button onclick="newAccount()">新增／清空</button>
+</div>
 <div class="grid">
 <label>银行<select id="accountBank"></select></label>
-<label>启用<input id="accountActive" type="checkbox" checked></label>
 <label>分行代码<input id="branchCode"></label>
 <label>分行名称<input id="branchName"></label>
 <label>账户类型<input id="accountType"></label>
@@ -91,109 +110,204 @@ table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #e5e7eb;
 <label>账户名义<input id="accountHolder"></label>
 <label>Adapter Code<input id="adapterCode" placeholder="真实格式确认后填写"></label>
 <label>文件编码<input id="fileEncoding" value="cp932"></label>
-<label>备注<textarea id="accountNote"></textarea></label>
+<label>启用<input id="accountActive" type="checkbox" checked></label>
+<label class="full">备注<textarea id="accountNote"></textarea></label>
 </div>
-<div class="toolbar" style="margin-top:12px">
-<button class="primary" onclick="saveAccount()">保存账户</button>
+<div class="hint">点击下方账户一览中的一行，可将该账户带入上方维护卡片。</div>
 </div>
+
+<div class="panel">
+<h2>账户检索条件／CSV 导入导出</h2>
+<div class="search-grid">
+<label>银行<select id="filterBank"></select></label>
+<label>分行代码<input id="filterBranchCode"></label>
+<label>分行名称<input id="filterBranchName"></label>
+<label>账号<input id="filterAccount"></label>
+<label>账户名义<input id="filterAccountHolder"></label>
+<label>Adapter Code<input id="filterAdapterCode"></label>
+<label>有效范围<select id="filterAccountActive"><option value="">全部</option><option value="1">仅有效</option><option value="0">仅无效</option></select></label>
+<label>CSV 文件<input id="csvFile" type="file" accept=".csv,text/csv"></label>
+</div>
+<div class="toolbar">
+<button class="primary" onclick="renderAccounts()">检索</button>
+<button onclick="clearAccountSearch()">清除条件</button>
+<button onclick="loadAccounts()">刷新</button>
+<button onclick="downloadTemplate()">CSV模板</button>
+<button onclick="exportCsv()">CSV导出</button>
+<button onclick="importCsv()">CSV导入</button>
+</div>
+<div class="hint">CSV 导入按整批事务处理：任意一行错误时整批回滚。</div>
+<div id="accountStatus" class="status"></div>
+</div>
+
+<div class="panel">
+<h2>银行账户一览（全部字段） <span id="accountCount" class="hint"></span></h2>
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th class="tlc-row-no">No</th>
+<th class="tlc-row-check"><input id="accountSelectAll" type="checkbox" onchange="toggleAll('.account-row-check',this.checked)"></th>
+<th>id</th><th>bank_code</th><th>branch_code</th><th>branch_name</th><th>account_type</th>
+<th>account_number</th><th>account_holder</th><th>adapter_code</th><th>file_encoding</th>
+<th>active</th><th>note</th><th>created_at</th><th>updated_at</th>
+</tr></thead>
+<tbody id="accountRows"></tbody>
+</table>
 </div>
 </div>
 </section>
 </main>
+
 <script>
 const MARKER='BUILD037_STEP06_BANK_PAGE';
 let banks=[],accounts=[];
 
+function $(id){return document.getElementById(id)}
+function esc(value){return String(value??'').replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 async function api(url,options){
  const response=await fetch(url,options);
  const contentType=response.headers.get('content-type')||'';
  const body=contentType.includes('application/json')?await response.json():await response.text();
- if(!response.ok) throw new Error(body.detail||body||response.statusText);
+ if(!response.ok)throw new Error(body.detail||body||response.statusText);
  return body;
 }
 function showTab(id){
  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
- document.getElementById(id).classList.add('active');
+ $(id).classList.add('active');
  if(id==='accounts'){loadBankOptions();loadAccounts();}
 }
 function displayName(row){return row.name_ja||row.name_zh||row.name_en||row.code}
+function toggleAll(selector,checked){document.querySelectorAll(selector).forEach(x=>x.checked=checked)}
+
 async function loadBanks(){
  banks=await api('/api/tlc-codes/values?category_code=BANK');
- bankList.innerHTML='';
- banks.forEach(row=>{
-  const div=document.createElement('div');div.className='item';
-  div.textContent=`${row.code} / ${displayName(row)}${row.active?'':' / 停用'}`;
-  div.onclick=()=>selectBank(row);bankList.appendChild(div);
- });
+ renderBanks();
  await loadBankOptions();
 }
+function filteredBanks(){
+ const code=$('bankFilterCode').value.trim().toLowerCase();
+ const name=$('bankFilterName').value.trim().toLowerCase();
+ const active=$('bankFilterActive').value;
+ return banks.filter(row=>{
+  const names=[row.name_zh,row.name_ja,row.name_en].join(' ').toLowerCase();
+  return (!code||String(row.code||'').toLowerCase().includes(code))
+   &&(!name||names.includes(name))
+   &&(active===''||String(row.active?1:0)===active);
+ });
+}
+function renderBanks(){
+ const rows=filteredBanks();
+ $('bankCount').textContent=rows.length+' 件';
+ $('bankRows').innerHTML=rows.map((row,i)=>`<tr onclick="selectBankById('${esc(row.id)}')">
+  <td class="tlc-row-no">${i+1}</td>
+  <td class="tlc-row-check"><input class="bank-row-check" type="checkbox" onclick="event.stopPropagation()"></td>
+  <td>${esc(row.id)}</td><td>${esc(row.category_code)}</td><td>${esc(row.code)}</td>
+  <td>${esc(row.name_zh)}</td><td>${esc(row.name_ja)}</td><td>${esc(row.name_en)}</td>
+  <td>${esc(row.sort_order)}</td><td>${esc(row.active)}</td><td>${esc(JSON.stringify(row.extra_json||{}))}</td>
+  <td>${esc(row.created_at)}</td><td>${esc(row.updated_at)}</td></tr>`).join('');
+}
+function selectBankById(id){const row=banks.find(x=>x.id===id);if(row)selectBank(row)}
 function selectBank(row){
- bankId.value=row.id||'';bankCode.value=row.code||'';bankZh.value=row.name_zh||'';
- bankJa.value=row.name_ja||'';bankEn.value=row.name_en||'';bankSort.value=row.sort_order||0;
- bankActive.checked=!!row.active;
+ $('bankId').value=row.id||'';$('bankCode').value=row.code||'';$('bankZh').value=row.name_zh||'';
+ $('bankJa').value=row.name_ja||'';$('bankEn').value=row.name_en||'';$('bankSort').value=row.sort_order||0;
+ $('bankActive').checked=!!row.active;$('bankExtraJson').value=JSON.stringify(row.extra_json||{},null,2);
+ window.scrollTo({top:0,behavior:'smooth'});
 }
 function newBank(){
- bankId.value='';bankCode.value='';bankZh.value='';bankJa.value='';bankEn.value='';
- bankSort.value=0;bankActive.checked=true;bankStatus.textContent='';
+ ['bankId','bankCode','bankZh','bankJa','bankEn'].forEach(id=>$(id).value='');
+ $('bankSort').value=0;$('bankActive').checked=true;$('bankExtraJson').value='{}';$('bankStatus').textContent='';
 }
 async function saveBank(){
- const payload={id:bankId.value,category_code:'BANK',code:bankCode.value,
-  name_zh:bankZh.value,name_ja:bankJa.value,name_en:bankEn.value,
-  sort_order:Number(bankSort.value||0),active:bankActive.checked,extra_json:{}};
+ let extra={};
+ try{extra=JSON.parse($('bankExtraJson').value||'{}')}catch{alert('扩展信息 JSON 格式错误');return}
+ const payload={id:$('bankId').value,category_code:'BANK',code:$('bankCode').value,
+  name_zh:$('bankZh').value,name_ja:$('bankJa').value,name_en:$('bankEn').value,
+  sort_order:Number($('bankSort').value||0),active:$('bankActive').checked,extra_json:extra};
  try{
   await api('/api/tlc-codes/values',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-  bankStatus.textContent='银行保存完成。';await loadBanks();newBank();
- }catch(error){bankStatus.textContent=error.message;}
+  $('bankStatus').textContent='银行保存完成。';await loadBanks();
+ }catch(error){$('bankStatus').textContent=error.message}
 }
+function clearBankSearch(){
+ ['bankFilterCode','bankFilterName'].forEach(id=>$(id).value='');
+ $('bankFilterActive').value='';renderBanks();
+}
+
 async function loadBankOptions(){
- if(!banks.length) banks=await api('/api/tlc-codes/values?category_code=BANK');
+ if(!banks.length)banks=await api('/api/tlc-codes/values?category_code=BANK');
  for(const id of ['filterBank','accountBank']){
-  const select=document.getElementById(id),current=select.value;
+  const select=$(id),current=select.value;
   select.innerHTML=id==='filterBank'?'<option value="">全部银行</option>':'';
   banks.filter(x=>x.active).forEach(x=>select.add(new Option(`${x.code} / ${displayName(x)}`,x.code)));
   if([...select.options].some(x=>x.value===current))select.value=current;
  }
 }
 async function loadAccounts(){
- const params=new URLSearchParams();
- if(filterBank.value)params.set('bank_code',filterBank.value);
- if(filterAccount.value.trim())params.set('account_number',filterAccount.value.trim());
- accounts=await api('/api/tlc-bank-accounts?'+params.toString());
- accountList.innerHTML='';
- accounts.forEach(row=>{
-  const div=document.createElement('div');div.className='item';
-  div.textContent=`${row.bank_code} / ${row.branch_name||'-'} / ${row.account_number} / ${row.adapter_code||'Adapter未设定'}`;
-  div.onclick=()=>selectAccount(row);accountList.appendChild(div);
- });
+ accounts=await api('/api/tlc-bank-accounts');
+ renderAccounts();
 }
+function filteredAccounts(){
+ const bank=$('filterBank').value;
+ const branchCode=$('filterBranchCode').value.trim().toLowerCase();
+ const branchName=$('filterBranchName').value.trim().toLowerCase();
+ const account=$('filterAccount').value.trim().toLowerCase();
+ const holder=$('filterAccountHolder').value.trim().toLowerCase();
+ const adapter=$('filterAdapterCode').value.trim().toLowerCase();
+ const active=$('filterAccountActive').value;
+ return accounts.filter(row=>
+  (!bank||row.bank_code===bank)
+  &&(!branchCode||String(row.branch_code||'').toLowerCase().includes(branchCode))
+  &&(!branchName||String(row.branch_name||'').toLowerCase().includes(branchName))
+  &&(!account||String(row.account_number||'').toLowerCase().includes(account))
+  &&(!holder||String(row.account_holder||'').toLowerCase().includes(holder))
+  &&(!adapter||String(row.adapter_code||'').toLowerCase().includes(adapter))
+  &&(active===''||String(row.active?1:0)===active)
+ );
+}
+function renderAccounts(){
+ const rows=filteredAccounts();
+ $('accountCount').textContent=rows.length+' 件';
+ $('accountRows').innerHTML=rows.map((row,i)=>`<tr onclick="selectAccountById('${esc(row.id)}')">
+  <td class="tlc-row-no">${i+1}</td>
+  <td class="tlc-row-check"><input class="account-row-check" type="checkbox" onclick="event.stopPropagation()"></td>
+  <td>${esc(row.id)}</td><td>${esc(row.bank_code)}</td><td>${esc(row.branch_code)}</td>
+  <td>${esc(row.branch_name)}</td><td>${esc(row.account_type)}</td><td>${esc(row.account_number)}</td>
+  <td>${esc(row.account_holder)}</td><td>${esc(row.adapter_code)}</td><td>${esc(row.file_encoding)}</td>
+  <td>${esc(row.active)}</td><td>${esc(row.note)}</td><td>${esc(row.created_at)}</td><td>${esc(row.updated_at)}</td></tr>`).join('');
+}
+function selectAccountById(id){const row=accounts.find(x=>x.id===id);if(row)selectAccount(row)}
 function selectAccount(row){
- accountId.value=row.id||'';accountBank.value=row.bank_code||'';
- branchCode.value=row.branch_code||'';branchName.value=row.branch_name||'';
- accountType.value=row.account_type||'';accountNumber.value=row.account_number||'';
- accountHolder.value=row.account_holder||'';adapterCode.value=row.adapter_code||'';
- fileEncoding.value=row.file_encoding||'cp932';accountActive.checked=!!row.active;
- accountNote.value=row.note||'';
+ $('accountId').value=row.id||'';$('accountBank').value=row.bank_code||'';
+ $('branchCode').value=row.branch_code||'';$('branchName').value=row.branch_name||'';
+ $('accountType').value=row.account_type||'';$('accountNumber').value=row.account_number||'';
+ $('accountHolder').value=row.account_holder||'';$('adapterCode').value=row.adapter_code||'';
+ $('fileEncoding').value=row.file_encoding||'cp932';$('accountActive').checked=!!row.active;
+ $('accountNote').value=row.note||'';window.scrollTo({top:0,behavior:'smooth'});
 }
 function newAccount(){
- for(const id of ['accountId','branchCode','branchName','accountType','accountNumber','accountHolder','adapterCode','accountNote'])document.getElementById(id).value='';
- fileEncoding.value='cp932';accountActive.checked=true;accountStatus.textContent='';
+ ['accountId','branchCode','branchName','accountType','accountNumber','accountHolder','adapterCode','accountNote'].forEach(id=>$(id).value='');
+ $('fileEncoding').value='cp932';$('accountActive').checked=true;$('accountStatus').textContent='';
 }
 async function saveAccount(){
- const payload={id:accountId.value,bank_code:accountBank.value,branch_code:branchCode.value,
-  branch_name:branchName.value,account_type:accountType.value,account_number:accountNumber.value,
-  account_holder:accountHolder.value,adapter_code:adapterCode.value,file_encoding:fileEncoding.value,
-  active:accountActive.checked,note:accountNote.value};
+ const payload={id:$('accountId').value,bank_code:$('accountBank').value,branch_code:$('branchCode').value,
+  branch_name:$('branchName').value,account_type:$('accountType').value,account_number:$('accountNumber').value,
+  account_holder:$('accountHolder').value,adapter_code:$('adapterCode').value,file_encoding:$('fileEncoding').value,
+  active:$('accountActive').checked,note:$('accountNote').value};
  try{
   await api('/api/tlc-bank-accounts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-  accountStatus.textContent='账户保存完成。';await loadAccounts();newAccount();
- }catch(error){accountStatus.textContent=error.message;}
+  $('accountStatus').textContent='账户保存完成。';await loadAccounts();
+ }catch(error){$('accountStatus').textContent=error.message}
+}
+function clearAccountSearch(){
+ ['filterBranchCode','filterBranchName','filterAccount','filterAccountHolder','filterAdapterCode'].forEach(id=>$(id).value='');
+ $('filterBank').value='';$('filterAccountActive').value='';renderAccounts();
 }
 function downloadTemplate(){location.href='/api/tlc-bank-accounts/template.csv'}
 function exportCsv(){
  const params=new URLSearchParams();
- if(filterBank.value)params.set('bank_code',filterBank.value);
- if(filterAccount.value.trim())params.set('account_number',filterAccount.value.trim());
- location.href='/api/tlc-bank-accounts/export.csv?'+params.toString();
+ if($('filterBank').value)params.set('bank_code',$('filterBank').value);
+ if($('filterAccount').value.trim())params.set('account_number',$('filterAccount').value.trim());
+ location.href='/api/tlc-bank-accounts/export.csv?'+params;
 }
 function parseCsv(text){
  const lines=text.replace(/^\uFEFF/,'').split(/\r?\n/).filter(x=>x.trim());
@@ -203,122 +317,27 @@ function parseCsv(text){
  return lines.slice(1).map(line=>{const values=parseLine(line),row={};headers.forEach((h,i)=>row[h]=values[i]??'');return row;});
 }
 async function importCsv(){
- const file=csvFile.files[0];if(!file){accountStatus.textContent='请选择 CSV 文件。';return;}
+ const file=$('csvFile').files[0];if(!file){$('accountStatus').textContent='请选择 CSV 文件。';return}
  try{
   const rows=parseCsv(await file.text());
   const result=await api('/api/tlc-bank-accounts/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rows})});
-  accountStatus.textContent=`导入完成：${result.imported_count} 行。`;await loadAccounts();
- }catch(error){accountStatus.textContent=error.message;}
+  $('accountStatus').textContent=`导入完成：${result.imported_count} 行。`;await loadAccounts();
+ }catch(error){$('accountStatus').textContent=error.message}
 }
-Promise.all([loadBanks(),loadAccounts()]).catch(error=>{bankStatus.textContent=error.message;});
+Promise.all([loadBanks(),loadAccounts()]).catch(error=>{
+ $('bankStatus').textContent=error.message;$('accountStatus').textContent=error.message;
+});
 </script>
-<script>
-/* TLC_TABLE_ROW_SELECTOR_V1 */
-(function(){
-  const NUMBER_CLASS="tlc-row-no";
-  const CHECK_CLASS="tlc-row-check";
-  let scheduled=false;
-
-  function headerRows(table){
-    const explicit=[...table.querySelectorAll("thead tr")];
-    if(explicit.length) return explicit;
-    const first=[...table.querySelectorAll("tr")].find(row=>row.querySelector("th"));
-    return first?[first]:[];
-  }
-
-  function dataRows(table,headers){
-    const headerSet=new Set(headers);
-    return [...table.querySelectorAll("tr")].filter(row=>{
-      if(headerSet.has(row)) return false;
-      if(row.querySelector("th") && !row.querySelector("td")) return false;
-      return true;
-    });
-  }
-
-  function addHeader(row){
-    if(row.querySelector("."+NUMBER_CLASS)) return;
-
-    const checkTh=document.createElement("th");
-    checkTh.className=CHECK_CLASS;
-    checkTh.style.width="38px";
-    checkTh.style.textAlign="center";
-
-    const all=document.createElement("input");
-    all.type="checkbox";
-    all.title="全选/取消全选";
-    all.addEventListener("click",event=>event.stopPropagation());
-    all.addEventListener("change",()=>{
-      const table=row.closest("table");
-      table.querySelectorAll("input.tlc-row-select").forEach(input=>{
-        input.checked=all.checked;
-      });
-    });
-    checkTh.appendChild(all);
-
-    const noTh=document.createElement("th");
-    noTh.className=NUMBER_CLASS;
-    noTh.textContent="No";
-    noTh.style.width="52px";
-    noTh.style.textAlign="center";
-
-    row.insertBefore(checkTh,row.firstChild);
-    row.insertBefore(noTh,row.firstChild);
-  }
-
-  function addData(row,index){
-    let no=row.querySelector(":scope > td."+NUMBER_CLASS);
-    let check=row.querySelector(":scope > td."+CHECK_CLASS);
-
-    if(!check){
-      check=document.createElement("td");
-      check.className=CHECK_CLASS;
-      check.style.textAlign="center";
-      const input=document.createElement("input");
-      input.type="checkbox";
-      input.className="tlc-row-select";
-      input.addEventListener("click",event=>event.stopPropagation());
-      check.appendChild(input);
-      row.insertBefore(check,row.firstChild);
-    }
-
-    if(!no){
-      no=document.createElement("td");
-      no.className=NUMBER_CLASS;
-      no.style.textAlign="center";
-      row.insertBefore(no,row.firstChild);
-    }
-
-    no.textContent=String(index);
-  }
-
-  function enhance(table){
-    const headers=headerRows(table);
-    headers.forEach(addHeader);
-    dataRows(table,headers).forEach((row,index)=>addData(row,index+1));
-  }
-
-  function run(){
-    scheduled=false;
-    document.querySelectorAll("table").forEach(enhance);
-  }
-
-  function schedule(){
-    if(scheduled) return;
-    scheduled=true;
-    setTimeout(run,0);
-  }
-
-  if(document.readyState==="loading"){
-    document.addEventListener("DOMContentLoaded",run,{once:true});
-  }else{
-    run();
-  }
-
-  new MutationObserver(schedule).observe(document.documentElement,{
-    childList:true,
-    subtree:true
-  });
-})();
-</script>
+<div id="build037-step06-contract" style="display:none">
+BUILD037_STEP06_BANK_PAGE
+银行 Master
+银行账户／口座与流水格式关联
+CSV模板
+CSV导出
+CSV导入
+/api/tlc-bank-accounts/template.csv
+/api/tlc-bank-accounts/export.csv
+/api/tlc-bank-accounts/import
+</div>
 </body>
 </html>
