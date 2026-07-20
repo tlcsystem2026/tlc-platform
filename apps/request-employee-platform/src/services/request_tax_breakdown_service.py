@@ -83,14 +83,36 @@ def _amount_after(line: str, pattern: str) -> str:
         return ""
 
 
-def _extract_line(result: dict[str, str], raw_line: str) -> None:
+def _detect_section_rate(line: str) -> str:
+    normalized = unicodedata.normalize("NFKC", str(line or ""))
+    compact = re.sub(r"\s+", "", normalized)
+
+    if re.search(r"(?:①|1)[^\n]{0,20}(?:通常税率|標準税率)", compact):
+        return "10"
+    if re.search(r"(?:②|2)[^\n]{0,20}(?:軽減税率)", compact):
+        return "8"
+    if re.search(r"(?:10\s*[%％]|標準税率|通常税率)", normalized):
+        return "10"
+    if re.search(r"(?:8\s*[%％]|軽減税率)", normalized):
+        return "8"
+    return ""
+
+
+def _extract_line(
+    result: dict[str, str],
+    raw_line: str,
+    current_rate: str = "",
+) -> str:
     line = unicodedata.normalize("NFKC", str(raw_line or "")).strip()
     if not line:
-        return
+        return current_rate
 
     compact = re.sub(r"\s+", "", line)
+    detected_rate = _detect_section_rate(line)
+    if detected_rate:
+        current_rate = detected_rate
 
-    # Non-taxable and exempt amounts are independent from rate-based lines.
+    # Non-taxable and exempt amounts are independent from rate sections.
     if "非課税" in compact:
         _set_if_empty(
             result,
@@ -104,53 +126,89 @@ def _extract_line(result: dict[str, str], raw_line: str) -> None:
             _amount_after(line, r"免\s*税") or _last_amount(line),
         )
 
-    rate = ""
-    if re.search(r"(?:10\s*[%％]|標準税率)", line):
-        rate = "10"
-    elif re.search(r"(?:8\s*[%％]|軽減税率)", line):
-        rate = "8"
+    rate = detected_rate or current_rate
     if not rate:
-        return
+        return current_rate
 
     rate_pattern = (
-        r"(?:10\s*[%％]|標準税率)"
+        r"(?:10\s*[%％]|標準税率|通常税率)"
         if rate == "10"
         else r"(?:8\s*[%％]|軽減税率)"
     )
 
-    # Prefer explicit label/value patterns on the same line.
     inclusive = (
-        _amount_after(line, rate_pattern + r".{0,30}(?:税込|含税|税込金額|合計)")
-        or _amount_after(line, r"(?:税込|含税|税込金額)" + r".{0,30}" + rate_pattern)
+        _amount_after(
+            line,
+            rate_pattern + r".{0,30}(?:税込|含税|税込金額|合計)",
+        )
+        or _amount_after(
+            line,
+            r"(?:税込|含税|税込金額)" + r".{0,30}" + rate_pattern,
+        )
     )
     tax = (
-        _amount_after(line, rate_pattern + r".{0,30}(?:消費税|税額)")
-        or _amount_after(line, r"(?:消費税|税額)" + r".{0,30}" + rate_pattern)
+        _amount_after(
+            line,
+            rate_pattern + r".{0,30}(?:消費税|税額)",
+        )
+        or _amount_after(
+            line,
+            r"(?:消費税|税額)" + r".{0,30}" + rate_pattern,
+        )
     )
     taxable = (
-        _amount_after(line, rate_pattern + r".{0,30}(?:対象額|課税対象|税抜|対象)")
-        or _amount_after(line, r"(?:対象額|課税対象|税抜|対象)" + r".{0,30}" + rate_pattern)
+        _amount_after(
+            line,
+            rate_pattern + r".{0,30}(?:対象額|課税対象|税抜|対象|小計)",
+        )
+        or _amount_after(
+            line,
+            r"(?:対象額|課税対象|税抜|対象|小計)"
+            + r".{0,30}"
+            + rate_pattern,
+        )
     )
 
     if inclusive:
-        _set_if_empty(result, f"tax_inclusive_amount_{rate}", inclusive)
+        _set_if_empty(
+            result,
+            f"tax_inclusive_amount_{rate}",
+            inclusive,
+        )
     if tax:
         _set_if_empty(result, f"tax_amount_{rate}", tax)
     if taxable:
         _set_if_empty(result, f"taxable_amount_{rate}", taxable)
 
-    # A common layout has one label per row/line. Classify the last amount.
     fallback = _last_amount(line)
     if not fallback:
-        return
+        return current_rate
 
-    if any(token in compact for token in ("税込", "含税")):
-        _set_if_empty(result, f"tax_inclusive_amount_{rate}", fallback)
+    if any(
+        token in compact
+        for token in ("税込額", "税込金額", "含税額", "含税金額")
+    ):
+        _set_if_empty(
+            result,
+            f"tax_inclusive_amount_{rate}",
+            fallback,
+        )
     elif any(token in compact for token in ("消費税", "税額")):
         _set_if_empty(result, f"tax_amount_{rate}", fallback)
-    elif any(token in compact for token in ("対象額", "課税対象", "税抜", "対象")):
+    elif any(
+        token in compact
+        for token in (
+            "小計(税抜)",
+            "小計（税抜）",
+            "税抜小計",
+            "対象額",
+            "課税対象",
+            "税抜",
+        )
+    ):
         _set_if_empty(result, f"taxable_amount_{rate}", fallback)
 
+    return current_rate
 
 def _decimal(value: str) -> Decimal | None:
     if value in (None, ""):
@@ -218,21 +276,47 @@ def finalize_tax_breakdown(result: dict[str, str]) -> dict[str, str]:
 def extract_tax_breakdown_from_text(value: str) -> dict[str, str]:
     result = empty_tax_breakdown()
     normalized = unicodedata.normalize("NFKC", str(value or ""))
+    current_rate = ""
     for line in normalized.splitlines():
-        _extract_line(result, line)
+        current_rate = _extract_line(result, line, current_rate)
     return finalize_tax_breakdown(result)
 
 
-def extract_tax_breakdown_from_excel(data: dict[str, Any]) -> dict[str, str]:
+def extract_tax_breakdown_from_excel(
+    data: dict[str, Any],
+) -> dict[str, str]:
     result = empty_tax_breakdown()
+    current_rate = ""
+
     for sheet in data.get("sheets", []):
+        current_rate = ""
         for row in sheet.get("rows", []):
-            line = " ".join(
+            values = [
                 str(cell)
                 for cell in row
                 if cell not in (None, "")
+            ]
+            line = " ".join(values)
+
+            # Excel often stores 10%/8% as 0.1/0.08.
+            if any(
+                token in line
+                for token in ("消費税", "税額")
+            ):
+                for cell in row:
+                    if isinstance(cell, (int, float, Decimal)):
+                        decimal_value = Decimal(str(cell))
+                        if decimal_value == Decimal("0.1"):
+                            current_rate = "10"
+                        elif decimal_value == Decimal("0.08"):
+                            current_rate = "8"
+
+            current_rate = _extract_line(
+                result,
+                line,
+                current_rate,
             )
-            _extract_line(result, line)
+
     return finalize_tax_breakdown(result)
 
 
