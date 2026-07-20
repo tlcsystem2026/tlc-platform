@@ -2,10 +2,29 @@
 from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
+import json
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from src.services.request_pending_review_service import create_pending_review
 
 ALLOWED={"WAIT_REVIEW","REVIEWED_OK","SOURCE_CORRECTION_REQUIRED","ON_HOLD"}
+
+def _business_review_payload(current: dict[str, Any]) -> dict[str, Any]:
+    try: excel=json.loads(str(current.get("excel_raw_json") or "{}"))
+    except Exception: excel={}
+    request_date=""
+    if isinstance(excel,dict): request_date=str(excel.get("request_date") or excel.get("invoice_date") or "")
+    request_no=str(current.get("pair_key") or current.get("item_id") or current.get("id") or "").strip()
+    return {
+      "matched":True,"request_no":request_no,"file_review_id":str(current.get("id") or ""),
+      "batch_id":str(current.get("batch_id") or ""),"batch_item_id":str(current.get("item_id") or ""),
+      "business_month":str(current.get("business_month") or ""),
+      "request_document":{"request_date":request_date,"customer_id":str(current.get("system_customer_code") or ""),
+        "customer_name":str(current.get("system_customer_name") or current.get("raw_customer_name") or ""),
+        "currency":"JPY","subtotal":"","tax_amount":"","total_amount":str(current.get("excel_total_amount") or current.get("pdf_total_amount") or "")},
+      "sources":{"excel":str(current.get("final_excel_path") or current.get("excel_file_name") or ""),
+                 "pdf":str(current.get("final_pdf_path") or current.get("pdf_file_name") or "")},
+    }
 
 def ensure_review_tables(db:Session)->None:
     db.execute(text("""
@@ -76,31 +95,25 @@ def get_review(db:Session, review_id:str):
 
 def update_review(db:Session, review_id:str, new_status:str, operator:str, comment:str="", forced:bool=False):
     ensure_review_tables(db)
-    new_status=str(new_status or "").strip().upper()
-    operator=str(operator or "").strip()
-    comment=str(comment or "").strip()
-    if new_status not in ALLOWED-{"WAIT_REVIEW"}: raise ValueError("Unsupported review status")
+    new_status=str(new_status or "").strip().upper();operator=str(operator or "").strip();comment=str(comment or "").strip()
+    if new_status not in ALLOWED-{"WAIT_REVIEW"}: raise ValueError("Unsupported file review status")
     if not operator: raise ValueError("operator is required")
     current=get_review(db,review_id)
-    if current["review_status"]!="WAIT_REVIEW": raise ValueError("Only WAIT_REVIEW item can be updated")
-    if new_status in {"SOURCE_CORRECTION_REQUIRED","ON_HOLD"} and not comment:
-        raise ValueError("comment is required")
-    if new_status=="REVIEWED_OK":
-        if forced and not comment:
-            raise ValueError("Forced review requires a comment")
+    if current["review_status"]!="WAIT_REVIEW": raise ValueError("Only WAIT_REVIEW file-review item can be updated")
+    if new_status in {"SOURCE_CORRECTION_REQUIRED","ON_HOLD"} and not comment: raise ValueError("comment is required")
+    if new_status=="REVIEWED_OK" and forced and not comment: raise ValueError("Forced file review requires a comment")
     now=datetime.now(timezone.utc).isoformat()
-    db.execute(text("""
-      UPDATE tlc_request_review_queue
-      SET review_status=:status,reviewer=:operator,reviewed_at=:now,
-          review_comment=:comment,forced_review=:forced
-      WHERE id=:id
-    """),{"status":new_status,"operator":operator,"now":now,"comment":comment,"forced":1 if forced else 0,"id":review_id})
-    db.execute(text("""
-      INSERT INTO tlc_request_review_audit(review_id,old_status,new_status,operator,comment,forced,created_at)
-      VALUES(:id,:old,:new,:operator,:comment,:forced,:now)
-    """),{"id":review_id,"old":current["review_status"],"new":new_status,"operator":operator,"comment":comment,"forced":1 if forced else 0,"now":now})
-    db.commit()
-    return get_review(db,review_id)
+    try:
+        db.execute(text("""UPDATE tlc_request_review_queue SET review_status=:status,reviewer=:operator,reviewed_at=:now,review_comment=:comment,forced_review=:forced WHERE id=:id"""),{"status":new_status,"operator":operator,"now":now,"comment":comment,"forced":1 if forced else 0,"id":review_id})
+        db.execute(text("""INSERT INTO tlc_request_review_audit(review_id,old_status,new_status,operator,comment,forced,created_at) VALUES(:id,:old,:new,:operator,:comment,:forced,:now)"""),{"id":review_id,"old":current["review_status"],"new":new_status,"operator":operator,"comment":comment,"forced":1 if forced else 0,"now":now})
+        transfer=None
+        if new_status=="REVIEWED_OK": transfer=create_pending_review(db,_business_review_payload(current),commit=False)
+        db.commit()
+    except Exception:
+        db.rollback();raise
+    result=get_review(db,review_id)
+    if new_status=="REVIEWED_OK": result["business_review_transfer"]=transfer
+    return result
 
 def wait_review_count(db:Session)->int:
     ensure_review_tables(db)

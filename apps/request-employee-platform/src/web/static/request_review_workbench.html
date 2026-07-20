@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>销售请求书审核工作台</title>
+<title>请求书业务审核</title>
 <style>
 body{font-family:Arial,"Microsoft YaHei",sans-serif;margin:0;background:#f6f7f9;color:#222}
 header{background:#1f4e78;color:#fff;padding:18px 24px}
@@ -28,14 +28,14 @@ th{background:#eef3f8}
 </head>
 <body>
 <header>
-  <h1>销售请求书审核工作台</h1>
-  <div>待审核 → 审核处理 → 正式销售请求一览</div>
+  <h1>请求书业务审核</h1>
+  <div>文件核对通过 → 业务内容审核 → 审核通过后自动登记正式销售台账</div>
 </header>
 
-<main>
+<main><section class="card"><strong>业务审核范围：</strong>确认请求金额、重复、取消、现收／无需请求书等业务内容。只有“业务审核通过”自动登记正式销售台账。</section>
 <div class="grid">
 <section class="card">
-<h2>待审核请求书</h2>
+<h2>待业务审核请求书</h2>
 <div class="toolbar">
   <select id="reviewStatus">
     <option value="PENDING_REVIEW">PENDING_REVIEW</option>
@@ -63,7 +63,7 @@ th{background:#eef3f8}
 </section>
 
 <section class="card">
-<h2>正式销售请求一览</h2>
+<h2>正式销售台账（业务审核通过后自动登记）</h2>
 <div class="toolbar">
   <input id="salesCustomerId" placeholder="Customer ID">
   <input id="salesCustomerName" placeholder="Customer Name">
@@ -113,16 +113,16 @@ async function loadPending(){
   body.innerHTML = "";
   rows.forEach(row => {
     const canResolve = row.status === "PENDING_REVIEW";
-    const canPost = row.status === "APPROVED" && !row.sales_ledger_id;
     const actions = [];
     if(canResolve){
-      actions.push(`<button class="ok" onclick="resolveRecord('${esc(row.id)}','APPROVE')">通过</button>`);
+      actions.push(`<button class="ok" onclick="resolveRecord('${esc(row.id)}','APPROVE')">业务审核通过</button>`);
       actions.push(`<button class="danger" onclick="resolveRecord('${esc(row.id)}','REJECT')">驳回</button>`);
-      actions.push(`<button class="warn" onclick="resolveRecord('${esc(row.id)}','CANCEL')">取消</button>`);
-      actions.push(`<button onclick="resolveRecord('${esc(row.id)}','MARK_DUPLICATE')">重复</button>`);
-    }
-    if(canPost){
-      actions.push(`<button class="primary" onclick="postLedger('${esc(row.id)}')">进入正式台账</button>`);
+      actions.push(`<button class="warn" onclick="resolveRecord('${esc(row.id)}','CANCEL')">已取消</button>`);
+      actions.push(`<button onclick="resolveRecord('${esc(row.id)}','MARK_DUPLICATE')">重复请求书</button>`);
+      actions.push(`<button onclick="resolveRecord('${esc(row.id)}','MARK_CASH_SALE_NO_INVOICE')">现收／无需请求书</button>`);
+      actions.push(`<button onclick="resolveRecord('${esc(row.id)}','REQUIRE_AMOUNT_CORRECTION')">金额需修正</button>`);
+      actions.push(`<button onclick="resolveRecord('${esc(row.id)}','REQUIRE_BUSINESS_CORRECTION')">业务内容需修正</button>`);
+      actions.push(`<button class="warn" onclick="resolveRecord('${esc(row.id)}','HOLD')">暂缓处理</button>`);
     }
     if(row.sales_ledger_id){
       actions.push(`<span class="small">已入台账</span>`);
@@ -154,13 +154,6 @@ async function resolveRecord(id, action){
   }catch(e){ alert(e.message); }
 }
 
-async function postLedger(id){
-  try{
-    await api(`/api/sales-ledger/from-pending-review/${id}`, {method:"POST"});
-    await loadPending();
-    await loadSales();
-  }catch(e){ alert(e.message); }
-}
 
 async function loadSales(){
   const qs = new URLSearchParams();

@@ -40,38 +40,21 @@ def ensure_sales_ledger_table(db:Session)->None:
 def _row(row:Any)->dict[str,Any]:
     return dict(row._mapping if hasattr(row,"_mapping") else row)
 
-def post_approved_pending_review(db:Session,record_id:str)->dict[str,Any]:
-    ensure_sales_ledger_table(db)
-    pending=get_pending_review(db,record_id)
-    if pending is None: raise LookupError("Pending review record not found")
-    if pending.get("status")!="APPROVED":
-        raise ValueError("Only APPROVED pending-review records can enter Sales Ledger")
-    existing=db.execute(text(f"SELECT * FROM {LEDGER_TABLE} WHERE pending_review_id=:rid OR request_no=:no"),
-                        {"rid":record_id,"no":pending["request_no"]}).first()
-    if existing: return {"status":"exists","ledger":_row(existing)}
-    lid=uuid4().hex; now=datetime.now(timezone.utc).isoformat()
-    p={"id":lid,"pending_review_id":record_id,"request_no":pending.get("request_no",""),
-       "request_date":pending.get("request_date",""),"customer_id":pending.get("customer_id",""),
-       "customer_name":pending.get("customer_name",""),"currency":pending.get("currency",""),
-       "subtotal":pending.get("subtotal",""),"tax_amount":pending.get("tax_amount",""),
-       "total_amount":pending.get("total_amount",""),"excel_source":pending.get("excel_source",""),
-       "pdf_source":pending.get("pdf_source",""),"reviewed_by":pending.get("reviewed_by",""),
-       "review_note":pending.get("review_note",""),"reviewed_at":pending.get("reviewed_at",""),
-       "posted_at":now,"status":"ACTIVE"}
-    db.execute(text(f"""INSERT INTO {LEDGER_TABLE}(
-      id,pending_review_id,request_no,request_date,customer_id,customer_name,currency,
-      subtotal,tax_amount,total_amount,excel_source,pdf_source,reviewed_by,review_note,
-      reviewed_at,posted_at,status
-    ) VALUES(
-      :id,:pending_review_id,:request_no,:request_date,:customer_id,:customer_name,:currency,
-      :subtotal,:tax_amount,:total_amount,:excel_source,:pdf_source,:reviewed_by,:review_note,
-      :reviewed_at,:posted_at,:status
-    )"""),p)
-    db.execute(text(f"UPDATE {TABLE_NAME} SET sales_ledger_id=:lid,posted_at=:posted,updated_at=:posted WHERE id=:id"),
-               {"lid":lid,"posted":now,"id":record_id})
-    db.commit()
-    row=db.execute(text(f"SELECT * FROM {LEDGER_TABLE} WHERE id=:id"),{"id":lid}).first()
-    return {"status":"posted","ledger":_row(row)}
+def post_approved_pending_review(db:Session,record_id:str,*,commit:bool=True)->dict[str,Any]:
+    ensure_sales_ledger_table(db);pending=get_pending_review(db,record_id)
+    if pending is None: raise LookupError("Business review record not found")
+    if pending.get("status")!="APPROVED": raise ValueError("Only APPROVED business-review records can enter Sales Ledger")
+    source_no=str(pending.get("source_request_no") or pending.get("request_no") or "")
+    existing=db.execute(text(f"SELECT * FROM {LEDGER_TABLE} WHERE pending_review_id=:rid OR request_no=:no"),{"rid":record_id,"no":source_no}).first()
+    if existing:
+        row=_row(existing)
+        if row.get("pending_review_id")==record_id:return {"status":"exists","ledger":row}
+        raise ValueError("The request number already exists in the formal Sales Ledger. Use DUPLICATE instead of APPROVED.")
+    lid=uuid4().hex;now=datetime.now(timezone.utc).isoformat();p={"id":lid,"pending_review_id":record_id,"request_no":source_no,"request_date":pending.get("request_date",""),"customer_id":pending.get("customer_id",""),"customer_name":pending.get("customer_name",""),"currency":pending.get("currency",""),"subtotal":pending.get("subtotal",""),"tax_amount":pending.get("tax_amount",""),"total_amount":pending.get("total_amount",""),"excel_source":pending.get("excel_source",""),"pdf_source":pending.get("pdf_source",""),"reviewed_by":pending.get("reviewed_by",""),"review_note":pending.get("review_note",""),"reviewed_at":pending.get("reviewed_at",""),"posted_at":now,"status":"ACTIVE"}
+    db.execute(text(f"""INSERT INTO {LEDGER_TABLE}(id,pending_review_id,request_no,request_date,customer_id,customer_name,currency,subtotal,tax_amount,total_amount,excel_source,pdf_source,reviewed_by,review_note,reviewed_at,posted_at,status) VALUES(:id,:pending_review_id,:request_no,:request_date,:customer_id,:customer_name,:currency,:subtotal,:tax_amount,:total_amount,:excel_source,:pdf_source,:reviewed_by,:review_note,:reviewed_at,:posted_at,:status)"""),p)
+    db.execute(text(f"UPDATE {TABLE_NAME} SET sales_ledger_id=:lid,posted_at=:now,updated_at=:now WHERE id=:id"),{"lid":lid,"now":now,"id":record_id})
+    if commit: db.commit()
+    row=db.execute(text(f"SELECT * FROM {LEDGER_TABLE} WHERE id=:id"),{"id":lid}).first();return {"status":"posted","ledger":_row(row)}
 
 def list_sales_ledger(db:Session,customer_id:str="",customer_name:str="",request_no:str="",status:str="",limit:int=500):
     ensure_sales_ledger_table(db)

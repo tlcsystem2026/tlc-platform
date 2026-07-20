@@ -28,6 +28,18 @@ def ensure_pending_review_table(db: Session) -> None:
         created_at VARCHAR(64) NOT NULL,
         updated_at VARCHAR(64) NOT NULL
     )"""))
+    columns={row[1] for row in db.execute(text(f"PRAGMA table_info({TABLE_NAME})")).all()}
+    additions={
+      "file_review_id":"VARCHAR(64) NOT NULL DEFAULT ''",
+      "batch_id":"VARCHAR(64) NOT NULL DEFAULT ''",
+      "batch_item_id":"VARCHAR(64) NOT NULL DEFAULT ''",
+      "business_month":"VARCHAR(6) NOT NULL DEFAULT ''",
+      "source_request_no":"VARCHAR(255) NOT NULL DEFAULT ''",
+      "file_review_status":"VARCHAR(64) NOT NULL DEFAULT ''",
+    }
+    for column,definition in additions.items():
+        if column not in columns:
+            db.execute(text(f"ALTER TABLE {TABLE_NAME} ADD COLUMN {column} {definition}"))
     db.commit()
 
 def _row_to_dict(row: Any) -> dict[str, Any]:
@@ -37,47 +49,36 @@ def _row_to_dict(row: Any) -> dict[str, Any]:
         except Exception: result[key] = {}
     return result
 
-def create_pending_review(db: Session, payload: dict[str, Any]) -> dict[str, Any]:
+def create_pending_review(db: Session, payload: dict[str, Any], *, commit: bool = True) -> dict[str, Any]:
     ensure_pending_review_table(db)
-    if not bool(payload.get("matched", False)):
-        raise ValueError("Only matched request documents can enter pending review")
-    request_no = str(payload.get("request_no", "") or "").strip()
-    if not request_no:
-        raise ValueError("request_no is required")
-    existing = db.execute(text(f"SELECT * FROM {TABLE_NAME} WHERE request_no=:request_no"), {"request_no": request_no}).first()
-    if existing:
-        return {"status": "exists", "record": _row_to_dict(existing)}
-    doc = payload.get("request_document") or {}
-    sources = payload.get("sources") or {}
-    now = datetime.now(timezone.utc).isoformat()
-    params = {
-        "id": uuid4().hex, "request_no": request_no,
-        "request_date": str(doc.get("request_date", "") or ""),
-        "customer_id": str(doc.get("customer_id", "") or ""),
-        "customer_name": str(doc.get("customer_name", "") or ""),
-        "currency": str(doc.get("currency", "") or ""),
-        "subtotal": str(doc.get("subtotal", "") or ""),
-        "tax_amount": str(doc.get("tax_amount", "") or ""),
-        "total_amount": str(doc.get("total_amount", "") or ""),
-        "excel_source": str(sources.get("excel", "") or ""),
-        "pdf_source": str(sources.get("pdf", "") or ""),
-        "compare_summary": json.dumps({"matched": True, "difference_count": int(payload.get("difference_count", 0) or 0)}, ensure_ascii=False),
-        "request_payload": json.dumps(doc, ensure_ascii=False),
-        "status": "PENDING_REVIEW", "created_at": now, "updated_at": now,
+    if not bool(payload.get("matched",False)):
+        raise ValueError("Only file-reviewed request documents can enter business review")
+    source_request_no=str(payload.get("request_no","") or "").strip()
+    if not source_request_no: raise ValueError("request_no is required")
+    file_review_id=str(payload.get("file_review_id","") or "").strip()
+    if file_review_id:
+        existing=db.execute(text(f"SELECT * FROM {TABLE_NAME} WHERE file_review_id=:v"),{"v":file_review_id}).first()
+        if existing:return {"status":"exists","record":_row_to_dict(existing)}
+    internal_no=source_request_no
+    collision=db.execute(text(f"SELECT id FROM {TABLE_NAME} WHERE request_no=:v"),{"v":internal_no}).first()
+    if collision: internal_no=f"{source_request_no}#FR-{(file_review_id or uuid4().hex)[:8]}"
+    doc=payload.get("request_document") or {}; sources=payload.get("sources") or {}; now=datetime.now(timezone.utc).isoformat()
+    p={
+      "id":uuid4().hex,"request_no":internal_no,"request_date":str(doc.get("request_date","") or ""),
+      "customer_id":str(doc.get("customer_id","") or ""),"customer_name":str(doc.get("customer_name","") or ""),
+      "currency":str(doc.get("currency","JPY") or "JPY"),"subtotal":str(doc.get("subtotal","") or ""),
+      "tax_amount":str(doc.get("tax_amount","") or ""),"total_amount":str(doc.get("total_amount","") or ""),
+      "excel_source":str(sources.get("excel","") or ""),"pdf_source":str(sources.get("pdf","") or ""),
+      "compare_summary":json.dumps({"matched":True,"difference_count":0,"file_review_status":"FILE_REVIEWED_OK"},ensure_ascii=False),
+      "request_payload":json.dumps(doc,ensure_ascii=False),"status":"PENDING_REVIEW","created_at":now,"updated_at":now,
+      "file_review_id":file_review_id,"batch_id":str(payload.get("batch_id","") or ""),
+      "batch_item_id":str(payload.get("batch_item_id","") or ""),"business_month":str(payload.get("business_month","") or ""),
+      "source_request_no":source_request_no,"file_review_status":"FILE_REVIEWED_OK",
     }
-    db.execute(text(f"""
-    INSERT INTO {TABLE_NAME} (
-      id,request_no,request_date,customer_id,customer_name,currency,
-      subtotal,tax_amount,total_amount,excel_source,pdf_source,
-      compare_summary,request_payload,status,created_at,updated_at
-    ) VALUES (
-      :id,:request_no,:request_date,:customer_id,:customer_name,:currency,
-      :subtotal,:tax_amount,:total_amount,:excel_source,:pdf_source,
-      :compare_summary,:request_payload,:status,:created_at,:updated_at
-    )"""), params)
-    db.commit()
-    row = db.execute(text(f"SELECT * FROM {TABLE_NAME} WHERE id=:id"), {"id": params["id"]}).first()
-    return {"status": "created", "record": _row_to_dict(row)}
+    db.execute(text(f"""INSERT INTO {TABLE_NAME}(id,request_no,request_date,customer_id,customer_name,currency,subtotal,tax_amount,total_amount,excel_source,pdf_source,compare_summary,request_payload,status,created_at,updated_at,file_review_id,batch_id,batch_item_id,business_month,source_request_no,file_review_status) VALUES(:id,:request_no,:request_date,:customer_id,:customer_name,:currency,:subtotal,:tax_amount,:total_amount,:excel_source,:pdf_source,:compare_summary,:request_payload,:status,:created_at,:updated_at,:file_review_id,:batch_id,:batch_item_id,:business_month,:source_request_no,:file_review_status)"""),p)
+    if commit: db.commit()
+    row=db.execute(text(f"SELECT * FROM {TABLE_NAME} WHERE id=:id"),{"id":p["id"]}).first()
+    return {"status":"created","record":_row_to_dict(row)}
 
 def list_pending_reviews(db: Session, *, status: str = "", limit: int = 200) -> list[dict[str, Any]]:
     ensure_pending_review_table(db)

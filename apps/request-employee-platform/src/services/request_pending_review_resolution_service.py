@@ -12,11 +12,10 @@ from src.services.request_pending_review_service import (
     get_pending_review,
 )
 
-ALLOWED_ACTIONS = {
-    "APPROVE": "APPROVED",
-    "REJECT": "REJECTED",
-    "CANCEL": "CANCELLED",
-    "MARK_DUPLICATE": "DUPLICATE",
+ALLOWED_ACTIONS={
+ "APPROVE":"APPROVED","REJECT":"REJECTED","CANCEL":"CANCELLED","MARK_DUPLICATE":"DUPLICATE",
+ "MARK_CASH_SALE_NO_INVOICE":"CASH_SALE_NO_INVOICE","REQUIRE_AMOUNT_CORRECTION":"AMOUNT_CORRECTION_REQUIRED",
+ "REQUIRE_BUSINESS_CORRECTION":"BUSINESS_CORRECTION_REQUIRED","HOLD":"ON_HOLD",
 }
 TERMINAL_STATUSES = set(ALLOWED_ACTIONS.values())
 
@@ -46,77 +45,28 @@ def ensure_review_audit_table(db: Session) -> None:
     db.commit()
 
 
-def resolve_pending_review(
-    db: Session,
-    record_id: str,
-    *,
-    action: str,
-    reviewed_by: str,
-    note: str = "",
-) -> dict[str, Any]:
-    ensure_review_audit_table(db)
-    action = str(action or "").strip().upper()
-    if action not in ALLOWED_ACTIONS:
-        raise ValueError("action must be one of: APPROVE, REJECT, CANCEL, MARK_DUPLICATE")
-    reviewed_by = str(reviewed_by or "").strip()
-    if not reviewed_by:
-        raise ValueError("reviewed_by is required")
-
-    current = get_pending_review(db, record_id)
-    if current is None:
-        raise LookupError("Pending review record not found")
-
-    old_status = str(current.get("status", "") or "")
-    if old_status in TERMINAL_STATUSES:
-        raise ValueError(f"Record is already finalized with status {old_status}")
-    if old_status != "PENDING_REVIEW":
-        raise ValueError(f"Unsupported current status: {old_status}")
-
-    new_status = ALLOWED_ACTIONS[action]
-    reviewed_at = datetime.now(timezone.utc).isoformat()
-
-    db.execute(text(f"""
-        UPDATE {TABLE_NAME}
-        SET status=:status, reviewed_by=:reviewed_by, review_note=:review_note,
-            reviewed_at=:reviewed_at, updated_at=:updated_at
-        WHERE id=:id
-    """), {
-        "id": record_id,
-        "status": new_status,
-        "reviewed_by": reviewed_by,
-        "review_note": str(note or ""),
-        "reviewed_at": reviewed_at,
-        "updated_at": reviewed_at,
-    })
-
-    db.execute(text("""
-        INSERT INTO request_pending_review_history (
-            record_id, request_no, old_status, new_status,
-            action, reviewed_by, note, reviewed_at
-        ) VALUES (
-            :record_id, :request_no, :old_status, :new_status,
-            :action, :reviewed_by, :note, :reviewed_at
-        )
-    """), {
-        "record_id": record_id,
-        "request_no": current["request_no"],
-        "old_status": old_status,
-        "new_status": new_status,
-        "action": action,
-        "reviewed_by": reviewed_by,
-        "note": str(note or ""),
-        "reviewed_at": reviewed_at,
-    })
-    db.commit()
-
-    return {
-        "status": "resolved",
-        "action": action,
-        "old_status": old_status,
-        "new_status": new_status,
-        "record": get_pending_review(db, record_id),
-    }
-
+def resolve_pending_review(db:Session,record_id:str,*,action:str,reviewed_by:str,note:str="")->dict[str,Any]:
+    ensure_review_audit_table(db);action=str(action or "").strip().upper();reviewed_by=str(reviewed_by or "").strip();note=str(note or "").strip()
+    if action not in ALLOWED_ACTIONS: raise ValueError("Unsupported business review action")
+    if not reviewed_by: raise ValueError("reviewed_by is required")
+    if action in {"REJECT","CANCEL","MARK_DUPLICATE","MARK_CASH_SALE_NO_INVOICE","REQUIRE_AMOUNT_CORRECTION","REQUIRE_BUSINESS_CORRECTION","HOLD"} and not note: raise ValueError("Business review note is required")
+    current=get_pending_review(db,record_id)
+    if current is None: raise LookupError("Business review record not found")
+    old_status=str(current.get("status","") or "")
+    if old_status in TERMINAL_STATUSES: raise ValueError(f"Record is already finalized with status {old_status}")
+    if old_status!="PENDING_REVIEW": raise ValueError(f"Unsupported current status: {old_status}")
+    new_status=ALLOWED_ACTIONS[action];reviewed_at=datetime.now(timezone.utc).isoformat()
+    try:
+        db.execute(text(f"""UPDATE {TABLE_NAME} SET status=:status,reviewed_by=:reviewed_by,review_note=:review_note,reviewed_at=:reviewed_at,updated_at=:updated_at WHERE id=:id"""),{"id":record_id,"status":new_status,"reviewed_by":reviewed_by,"review_note":note,"reviewed_at":reviewed_at,"updated_at":reviewed_at})
+        db.execute(text("""INSERT INTO request_pending_review_history(record_id,request_no,old_status,new_status,action,reviewed_by,note,reviewed_at) VALUES(:record_id,:request_no,:old_status,:new_status,:action,:reviewed_by,:note,:reviewed_at)"""),{"record_id":record_id,"request_no":current["request_no"],"old_status":old_status,"new_status":new_status,"action":action,"reviewed_by":reviewed_by,"note":note,"reviewed_at":reviewed_at})
+        ledger=None
+        if action=="APPROVE":
+            from src.services.formal_sales_ledger_service import post_approved_pending_review
+            ledger=post_approved_pending_review(db,record_id,commit=False)
+        db.commit()
+    except Exception:
+        db.rollback();raise
+    return {"status":"resolved","action":action,"old_status":old_status,"new_status":new_status,"record":get_pending_review(db,record_id),"sales_ledger":ledger}
 
 def list_review_history(db: Session, record_id: str) -> list[dict[str, Any]]:
     ensure_review_audit_table(db)

@@ -29,10 +29,10 @@ th{background:#edf2f7}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 <h1>请求书批量核对、初步导入与 Review</h1>
 <div>上部执行 Batch；下部处理 WAIT_REVIEW。</div>
 </header>
-<main>
+<main><div class="card"><strong>文件核对范围：</strong>这里只确认 PDF／Excel 配对、文件间内容一致性、文件名和业务年月。此页面不审核请求书业务内容。文件核对通过后自动进入“请求书业务审核”队列。</div>
 <!-- BUILD037_S05_UNIFIED_BATCH_REVIEW -->
 <section class="card">
-<h2>1. 请求书批量核对与初步导入 <span id="batchStatus" class="status">未执行</span></h2>
+<h2>1. 请求书导入Batch与文件核对 <span id="batchStatus" class="status">未执行</span></h2>
 <div class="toolbar">
 <label>业务年月（YYYYMM）<input id="batchMonth"></label>
 <label>操作人<input id="batchOperator"></label>
@@ -52,7 +52,7 @@ th{background:#edf2f7}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 <hr class="sep">
 
 <section class="card">
-<h2>2. 请求书 Review <span id="reviewCount" class="status">0件</span></h2>
+<h2>2. 请求书文件核对 Review <span id="reviewCount" class="status">0件</span></h2>
 <div class="toolbar">
 <label>业务年月<input id="reviewMonth"></label>
 <label>Review 状态<select id="reviewStatus"><option>WAIT_REVIEW</option><option value="">全部</option><option>REVIEWED_OK</option><option>SOURCE_CORRECTION_REQUIRED</option><option>ON_HOLD</option></select></label>
@@ -67,7 +67,7 @@ th{background:#edf2f7}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 <section class="card"><div class="batch-actions">
 <label>批量操作人<input id="bulkOperator"></label>
 <label>批量意见<textarea id="bulkComment" rows="2"></textarea></label>
-<button onclick="bulkDecide('REVIEWED_OK',false)">批量核对通过</button>
+<button onclick="bulkDecide('REVIEWED_OK',false)">批量文件核对通过</button>
 <button onclick="bulkDecide('REVIEWED_OK',true)">批量强制通过</button>
 <button onclick="bulkDecide('SOURCE_CORRECTION_REQUIRED',false)">批量需要修正原始文件</button>
 <button onclick="bulkDecide('ON_HOLD',false)">批量暂缓处理</button>
