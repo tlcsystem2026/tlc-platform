@@ -16,6 +16,12 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from src.services.request_folder_settings_service import ensure_month_directories, validate_business_month
+from src.services.request_tax_breakdown_service import (
+    BREAKDOWN_FIELDS,
+    compare_tax_breakdowns,
+    extract_tax_breakdown_from_excel,
+    extract_tax_breakdown_from_text,
+)
 
 try:
     from pypdf import PdfReader
@@ -61,6 +67,30 @@ def ensure_tables(db: Session) -> None:
         raw_customer_name VARCHAR(500) NOT NULL DEFAULT '',system_customer_code VARCHAR(255) NOT NULL DEFAULT '',
         system_customer_name VARCHAR(500) NOT NULL DEFAULT '',exception_codes TEXT NOT NULL DEFAULT '',
         created_at VARCHAR(64) NOT NULL)"""))
+
+    item_columns = {
+        row[1]
+        for row in db.execute(
+            text(f"PRAGMA table_info({ITEM_TABLE})")
+        ).all()
+    }
+    tax_columns = {
+        "pdf_tax_breakdown_json": "TEXT NOT NULL DEFAULT '{}'",
+        "excel_tax_breakdown_json": "TEXT NOT NULL DEFAULT '{}'",
+    }
+    for side in ("pdf", "excel"):
+        for field in BREAKDOWN_FIELDS:
+            tax_columns[f"{side}_{field}"] = (
+                "VARCHAR(64) NOT NULL DEFAULT ''"
+            )
+    for column, definition in tax_columns.items():
+        if column not in item_columns:
+            db.execute(
+                text(
+                    f"ALTER TABLE {ITEM_TABLE} "
+                    f"ADD COLUMN {column} {definition}"
+                )
+            )
     db.commit()
 
 
@@ -295,6 +325,8 @@ def run_request_batch(db: Session, *, business_month: str, operator: str) -> dic
             codes, details = [], []
             pdf_text, excel_data = "", {"sheets": []}
             pdf_total = excel_total = raw_customer = ""
+            pdf_tax_breakdown = {}
+            excel_tax_breakdown = {}
             fatal = False
             if pdf_path is None:
                 codes.append("PDF_MISSING"); details.append("Matching PDF file is missing")
@@ -306,6 +338,14 @@ def run_request_batch(db: Session, *, business_month: str, operator: str) -> dic
                 if pdf_path and excel_path:
                     excel_text = _flatten_excel(excel_data)
                     pdf_total, excel_total = _pdf_labeled_total(pdf_text), _excel_labeled_total(excel_data)
+                    pdf_tax_breakdown = extract_tax_breakdown_from_text(pdf_text)
+                    excel_tax_breakdown = extract_tax_breakdown_from_excel(excel_data)
+                    tax_codes, tax_details = compare_tax_breakdowns(
+                        pdf_tax_breakdown,
+                        excel_tax_breakdown,
+                    )
+                    codes.extend(tax_codes)
+                    details.extend(tax_details)
                     raw_customer = _likely_customer(excel_data)
                     if not pdf_text: codes.append("PDF_TEXT_EMPTY"); details.append("PDF text could not be extracted")
                     if not excel_text: codes.append("EXCEL_DATA_EMPTY"); details.append("Excel contains no readable data")
@@ -322,6 +362,37 @@ def run_request_batch(db: Session, *, business_month: str, operator: str) -> dic
             final_excel = _move(excel_path, destination / excel_path.name) if excel_path and excel_path.exists() else None
             item_id, created_at = uuid4().hex, _now()
             db.execute(text(f"""INSERT INTO {ITEM_TABLE}(id,batch_id,business_month,pair_key,pdf_file_name,excel_file_name,original_pdf_path,original_excel_path,final_pdf_path,final_excel_path,pdf_sha256,excel_sha256,pdf_raw_text,excel_raw_json,raw_customer_name,system_customer_code,system_customer_name,customer_match_status,compare_status,exception_codes,exception_details,pdf_total_amount,excel_total_amount,review_status,created_at) VALUES(:id,:batch_id,:month,:pair_key,:pdf_name,:excel_name,:original_pdf,:original_excel,:final_pdf,:final_excel,:pdf_hash,:excel_hash,:pdf_text,:excel_json,:raw_customer,:customer_code,:customer_name,:customer_status,:compare_status,:codes,:details,:pdf_total,:excel_total,'WAIT_REVIEW',:created_at)"""), {"id": item_id, "batch_id": batch_id, "month": month, "pair_key": pair_key, "pdf_name": pdf_path.name if pdf_path else "", "excel_name": excel_path.name if excel_path else "", "original_pdf": str(incoming / pdf_path.name) if pdf_path else "", "original_excel": str(incoming / excel_path.name) if excel_path else "", "final_pdf": str(final_pdf or ""), "final_excel": str(final_excel or ""), "pdf_hash": _sha256(final_pdf) if final_pdf else "", "excel_hash": _sha256(final_excel) if final_excel else "", "pdf_text": pdf_text, "excel_json": json.dumps(excel_data, ensure_ascii=False, default=str), "raw_customer": raw_customer, "customer_code": customer_code, "customer_name": customer_name, "customer_status": customer_status, "compare_status": compare_status, "codes": ",".join(codes), "details": "\n".join(details), "pdf_total": pdf_total, "excel_total": excel_total, "created_at": created_at})
+            tax_params = {
+                "id": item_id,
+                "pdf_tax_breakdown_json": json.dumps(
+                    pdf_tax_breakdown,
+                    ensure_ascii=False,
+                ),
+                "excel_tax_breakdown_json": json.dumps(
+                    excel_tax_breakdown,
+                    ensure_ascii=False,
+                ),
+            }
+            tax_assignments = [
+                "pdf_tax_breakdown_json=:pdf_tax_breakdown_json",
+                "excel_tax_breakdown_json=:excel_tax_breakdown_json",
+            ]
+            for side, breakdown in (
+                ("pdf", pdf_tax_breakdown),
+                ("excel", excel_tax_breakdown),
+            ):
+                for field in BREAKDOWN_FIELDS:
+                    key = f"{side}_{field}"
+                    tax_params[key] = str(breakdown.get(field, "") or "")
+                    tax_assignments.append(f"{key}=:{key}")
+            db.execute(
+                text(
+                    f"UPDATE {ITEM_TABLE} SET "
+                    + ",".join(tax_assignments)
+                    + " WHERE id=:id"
+                ),
+                tax_params,
+            )
             db.execute(text(f"INSERT INTO {REVIEW_TABLE}(id,batch_id,item_id,business_month,pair_key,compare_status,raw_customer_name,system_customer_code,system_customer_name,exception_codes,created_at) VALUES(:id,:batch_id,:item_id,:month,:pair_key,:compare_status,:raw_customer,:customer_code,:customer_name,:codes,:created_at)"), {"id": uuid4().hex, "batch_id": batch_id, "item_id": item_id, "month": month, "pair_key": pair_key, "compare_status": compare_status, "raw_customer": raw_customer, "customer_code": customer_code, "customer_name": customer_name, "codes": ",".join(codes), "created_at": created_at})
             db.commit(); pair_count += 1; review_count += 1
             if compare_status != "MATCHED":

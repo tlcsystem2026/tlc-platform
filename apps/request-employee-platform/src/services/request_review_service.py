@@ -10,20 +10,123 @@ from src.services.request_pending_review_service import create_pending_review
 ALLOWED={"WAIT_REVIEW","REVIEWED_OK","SOURCE_CORRECTION_REQUIRED","ON_HOLD"}
 
 def _business_review_payload(current: dict[str, Any]) -> dict[str, Any]:
-    try: excel=json.loads(str(current.get("excel_raw_json") or "{}"))
-    except Exception: excel={}
-    request_date=""
-    if isinstance(excel,dict): request_date=str(excel.get("request_date") or excel.get("invoice_date") or "")
-    request_no=str(current.get("pair_key") or current.get("item_id") or current.get("id") or "").strip()
+    try:
+        excel = json.loads(
+            str(current.get("excel_raw_json") or "{}")
+        )
+    except Exception:
+        excel = {}
+
+    request_date = ""
+    if isinstance(excel, dict):
+        request_date = str(
+            excel.get("request_date")
+            or excel.get("invoice_date")
+            or ""
+        )
+
+    request_no = str(
+        current.get("pair_key")
+        or current.get("item_id")
+        or current.get("id")
+        or ""
+    ).strip()
+
+    def amount(field: str) -> str:
+        return str(
+            current.get(f"excel_{field}")
+            or current.get(f"pdf_{field}")
+            or ""
+        )
+
+    taxable_10 = amount("taxable_amount_10")
+    taxable_8 = amount("taxable_amount_8")
+    non_taxable = amount("non_taxable_amount")
+    tax_exempt = amount("tax_exempt_amount")
+    tax_10 = amount("tax_amount_10")
+    tax_8 = amount("tax_amount_8")
+
+    def sum_values(values: list[str]) -> str:
+        from decimal import Decimal, InvalidOperation
+        result = Decimal("0")
+        found = False
+        for value in values:
+            if value in (None, ""):
+                continue
+            try:
+                result += Decimal(str(value))
+                found = True
+            except InvalidOperation:
+                pass
+        if not found:
+            return ""
+        return str(
+            result.quantize(Decimal("0.01"))
+        ).rstrip("0").rstrip(".")
+
+    subtotal = sum_values(
+        [taxable_10, taxable_8, non_taxable, tax_exempt]
+    )
+    tax_amount = sum_values([tax_10, tax_8])
+
     return {
-      "matched":True,"request_no":request_no,"file_review_id":str(current.get("id") or ""),
-      "batch_id":str(current.get("batch_id") or ""),"batch_item_id":str(current.get("item_id") or ""),
-      "business_month":str(current.get("business_month") or ""),
-      "request_document":{"request_date":request_date,"customer_id":str(current.get("system_customer_code") or ""),
-        "customer_name":str(current.get("system_customer_name") or current.get("raw_customer_name") or ""),
-        "currency":"JPY","subtotal":"","tax_amount":"","total_amount":str(current.get("excel_total_amount") or current.get("pdf_total_amount") or "")},
-      "sources":{"excel":str(current.get("final_excel_path") or current.get("excel_file_name") or ""),
-                 "pdf":str(current.get("final_pdf_path") or current.get("pdf_file_name") or "")},
+        "matched": True,
+        "request_no": request_no,
+        "file_review_id": str(current.get("id") or ""),
+        "batch_id": str(current.get("batch_id") or ""),
+        "batch_item_id": str(current.get("item_id") or ""),
+        "business_month": str(
+            current.get("business_month") or ""
+        ),
+        "request_document": {
+            "request_date": request_date,
+            "customer_id": str(
+                current.get("system_customer_code") or ""
+            ),
+            "customer_name": str(
+                current.get("system_customer_name")
+                or current.get("raw_customer_name")
+                or ""
+            ),
+            "currency": "JPY",
+            "taxable_amount_10": taxable_10,
+            "tax_amount_10": tax_10,
+            "tax_inclusive_amount_10": amount(
+                "tax_inclusive_amount_10"
+            ),
+            "taxable_amount_8": taxable_8,
+            "tax_amount_8": tax_8,
+            "tax_inclusive_amount_8": amount(
+                "tax_inclusive_amount_8"
+            ),
+            "non_taxable_amount": non_taxable,
+            "tax_exempt_amount": tax_exempt,
+            "subtotal": subtotal,
+            "tax_amount": tax_amount,
+            "total_amount": str(
+                current.get("excel_total_amount")
+                or current.get("pdf_total_amount")
+                or ""
+            ),
+            "pdf_tax_breakdown_json": str(
+                current.get("pdf_tax_breakdown_json") or "{}"
+            ),
+            "excel_tax_breakdown_json": str(
+                current.get("excel_tax_breakdown_json") or "{}"
+            ),
+        },
+        "sources": {
+            "excel": str(
+                current.get("final_excel_path")
+                or current.get("excel_file_name")
+                or ""
+            ),
+            "pdf": str(
+                current.get("final_pdf_path")
+                or current.get("pdf_file_name")
+                or ""
+            ),
+        },
     }
 
 def ensure_review_tables(db:Session)->None:
@@ -71,6 +174,15 @@ def list_reviews(db:Session, business_month:str="", batch_id:str="", review_stat
     where=("WHERE "+" AND ".join(clauses)) if clauses else ""
     rows=db.execute(text(f"""
       SELECT q.*,i.pdf_file_name,i.excel_file_name,i.pdf_total_amount,i.excel_total_amount,
+             i.pdf_tax_breakdown_json,i.excel_tax_breakdown_json,
+             i.pdf_taxable_amount_10,i.excel_taxable_amount_10,
+             i.pdf_tax_amount_10,i.excel_tax_amount_10,
+             i.pdf_tax_inclusive_amount_10,i.excel_tax_inclusive_amount_10,
+             i.pdf_taxable_amount_8,i.excel_taxable_amount_8,
+             i.pdf_tax_amount_8,i.excel_tax_amount_8,
+             i.pdf_tax_inclusive_amount_8,i.excel_tax_inclusive_amount_8,
+             i.pdf_non_taxable_amount,i.excel_non_taxable_amount,
+             i.pdf_tax_exempt_amount,i.excel_tax_exempt_amount,
              i.exception_details,i.customer_match_status,i.final_pdf_path,i.final_excel_path,
              i.pdf_sha256,i.excel_sha256,i.pdf_raw_text,i.excel_raw_json,i.created_at AS imported_at
       FROM tlc_request_review_queue q
@@ -84,6 +196,15 @@ def get_review(db:Session, review_id:str):
     ensure_review_tables(db)
     row=db.execute(text("""
       SELECT q.*,i.pdf_file_name,i.excel_file_name,i.pdf_total_amount,i.excel_total_amount,
+             i.pdf_tax_breakdown_json,i.excel_tax_breakdown_json,
+             i.pdf_taxable_amount_10,i.excel_taxable_amount_10,
+             i.pdf_tax_amount_10,i.excel_tax_amount_10,
+             i.pdf_tax_inclusive_amount_10,i.excel_tax_inclusive_amount_10,
+             i.pdf_taxable_amount_8,i.excel_taxable_amount_8,
+             i.pdf_tax_amount_8,i.excel_tax_amount_8,
+             i.pdf_tax_inclusive_amount_8,i.excel_tax_inclusive_amount_8,
+             i.pdf_non_taxable_amount,i.excel_non_taxable_amount,
+             i.pdf_tax_exempt_amount,i.excel_tax_exempt_amount,
              i.exception_details,i.customer_match_status,i.final_pdf_path,i.final_excel_path,
              i.pdf_sha256,i.excel_sha256,i.pdf_raw_text,i.excel_raw_json,i.created_at AS imported_at
       FROM tlc_request_review_queue q

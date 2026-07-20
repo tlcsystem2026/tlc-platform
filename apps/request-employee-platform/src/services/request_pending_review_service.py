@@ -36,6 +36,21 @@ def ensure_pending_review_table(db: Session) -> None:
       "business_month":"VARCHAR(6) NOT NULL DEFAULT ''",
       "source_request_no":"VARCHAR(255) NOT NULL DEFAULT ''",
       "file_review_status":"VARCHAR(64) NOT NULL DEFAULT ''",
+      "reviewed_by":"VARCHAR(255) NOT NULL DEFAULT ''",
+      "review_note":"TEXT NOT NULL DEFAULT ''",
+      "reviewed_at":"VARCHAR(64) NOT NULL DEFAULT ''",
+      "sales_ledger_id":"VARCHAR(64) NOT NULL DEFAULT ''",
+      "posted_at":"VARCHAR(64) NOT NULL DEFAULT ''",
+      "taxable_amount_10":"VARCHAR(64) NOT NULL DEFAULT ''",
+      "tax_amount_10":"VARCHAR(64) NOT NULL DEFAULT ''",
+      "tax_inclusive_amount_10":"VARCHAR(64) NOT NULL DEFAULT ''",
+      "taxable_amount_8":"VARCHAR(64) NOT NULL DEFAULT ''",
+      "tax_amount_8":"VARCHAR(64) NOT NULL DEFAULT ''",
+      "tax_inclusive_amount_8":"VARCHAR(64) NOT NULL DEFAULT ''",
+      "non_taxable_amount":"VARCHAR(64) NOT NULL DEFAULT ''",
+      "tax_exempt_amount":"VARCHAR(64) NOT NULL DEFAULT ''",
+      "pdf_tax_breakdown_json":"TEXT NOT NULL DEFAULT '{}'",
+      "excel_tax_breakdown_json":"TEXT NOT NULL DEFAULT '{}'",
     }
     for column,definition in additions.items():
         if column not in columns:
@@ -74,8 +89,38 @@ def create_pending_review(db: Session, payload: dict[str, Any], *, commit: bool 
       "file_review_id":file_review_id,"batch_id":str(payload.get("batch_id","") or ""),
       "batch_item_id":str(payload.get("batch_item_id","") or ""),"business_month":str(payload.get("business_month","") or ""),
       "source_request_no":source_request_no,"file_review_status":"FILE_REVIEWED_OK",
+      "taxable_amount_10":str(doc.get("taxable_amount_10","") or ""),
+      "tax_amount_10":str(doc.get("tax_amount_10","") or ""),
+      "tax_inclusive_amount_10":str(doc.get("tax_inclusive_amount_10","") or ""),
+      "taxable_amount_8":str(doc.get("taxable_amount_8","") or ""),
+      "tax_amount_8":str(doc.get("tax_amount_8","") or ""),
+      "tax_inclusive_amount_8":str(doc.get("tax_inclusive_amount_8","") or ""),
+      "non_taxable_amount":str(doc.get("non_taxable_amount","") or ""),
+      "tax_exempt_amount":str(doc.get("tax_exempt_amount","") or ""),
+      "pdf_tax_breakdown_json":str(doc.get("pdf_tax_breakdown_json","{}") or "{}"),
+      "excel_tax_breakdown_json":str(doc.get("excel_tax_breakdown_json","{}") or "{}"),
     }
-    db.execute(text(f"""INSERT INTO {TABLE_NAME}(id,request_no,request_date,customer_id,customer_name,currency,subtotal,tax_amount,total_amount,excel_source,pdf_source,compare_summary,request_payload,status,created_at,updated_at,file_review_id,batch_id,batch_item_id,business_month,source_request_no,file_review_status) VALUES(:id,:request_no,:request_date,:customer_id,:customer_name,:currency,:subtotal,:tax_amount,:total_amount,:excel_source,:pdf_source,:compare_summary,:request_payload,:status,:created_at,:updated_at,:file_review_id,:batch_id,:batch_item_id,:business_month,:source_request_no,:file_review_status)"""),p)
+    db.execute(text(f"""INSERT INTO {TABLE_NAME}(
+      id,request_no,request_date,customer_id,customer_name,currency,
+      subtotal,tax_amount,total_amount,excel_source,pdf_source,
+      compare_summary,request_payload,status,created_at,updated_at,
+      file_review_id,batch_id,batch_item_id,business_month,
+      source_request_no,file_review_status,
+      taxable_amount_10,tax_amount_10,tax_inclusive_amount_10,
+      taxable_amount_8,tax_amount_8,tax_inclusive_amount_8,
+      non_taxable_amount,tax_exempt_amount,
+      pdf_tax_breakdown_json,excel_tax_breakdown_json
+    ) VALUES(
+      :id,:request_no,:request_date,:customer_id,:customer_name,:currency,
+      :subtotal,:tax_amount,:total_amount,:excel_source,:pdf_source,
+      :compare_summary,:request_payload,:status,:created_at,:updated_at,
+      :file_review_id,:batch_id,:batch_item_id,:business_month,
+      :source_request_no,:file_review_status,
+      :taxable_amount_10,:tax_amount_10,:tax_inclusive_amount_10,
+      :taxable_amount_8,:tax_amount_8,:tax_inclusive_amount_8,
+      :non_taxable_amount,:tax_exempt_amount,
+      :pdf_tax_breakdown_json,:excel_tax_breakdown_json
+    )"""),p)
     if commit: db.commit()
     row=db.execute(text(f"SELECT * FROM {TABLE_NAME} WHERE id=:id"),{"id":p["id"]}).first()
     return {"status":"created","record":_row_to_dict(row)}

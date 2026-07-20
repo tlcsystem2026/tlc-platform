@@ -27,6 +27,7 @@ th{background:#eef3f8}
 </style>
 </head>
 <body>
+<!-- BUILD037_REQUEST_TAX_BREAKDOWN_R1 -->
 <header>
   <h1>请求书业务审核</h1>
   <div>文件核对通过 → 业务内容审核 → 审核通过后自动登记正式销售台账</div>
@@ -54,7 +55,7 @@ th{background:#eef3f8}
 <table>
 <thead>
 <tr>
-<th>请求书编号</th><th>客户</th><th>日期</th><th>金额</th><th>状态</th><th>操作</th>
+<th>请求书编号</th><th>客户</th><th>日期</th><th>10%对象</th><th>10%税</th><th>8%对象</th><th>8%税</th><th>非课税</th><th>免税</th><th>请求总额</th><th>状态</th><th>操作</th>
 </tr>
 </thead>
 <tbody id="pendingBody"></tbody>
@@ -75,7 +76,7 @@ th{background:#eef3f8}
 <table>
 <thead>
 <tr>
-<th>请求书编号</th><th>客户</th><th>日期</th><th>币种</th><th>总金额</th><th>审核人</th><th>状态</th>
+<th>请求书编号</th><th>客户</th><th>日期</th><th>币种</th><th>10%对象</th><th>10%税</th><th>8%对象</th><th>8%税</th><th>非课税</th><th>免税</th><th>总金额</th><th>审核人</th><th>状态</th>
 </tr>
 </thead>
 <tbody id="salesBody"></tbody>
@@ -132,6 +133,12 @@ async function loadPending(){
       <td>${esc(row.request_no)}</td>
       <td>${esc(row.customer_id)}<br>${esc(row.customer_name)}</td>
       <td>${esc(row.request_date)}</td>
+      <td>${esc(row.taxable_amount_10)}</td>
+      <td>${esc(row.tax_amount_10)}</td>
+      <td>${esc(row.taxable_amount_8)}</td>
+      <td>${esc(row.tax_amount_8)}</td>
+      <td>${esc(row.non_taxable_amount)}</td>
+      <td>${esc(row.tax_exempt_amount)}</td>
       <td>${esc(row.currency)} ${esc(row.total_amount)}</td>
       <td class="status">${esc(row.status)}</td>
       <td><div class="actions">${actions.join("")}</div></td>`;
@@ -174,6 +181,12 @@ async function loadSales(){
       <td>${esc(row.customer_id)}<br>${esc(row.customer_name)}</td>
       <td>${esc(row.request_date)}</td>
       <td>${esc(row.currency)}</td>
+      <td>${esc(row.taxable_amount_10)}</td>
+      <td>${esc(row.tax_amount_10)}</td>
+      <td>${esc(row.taxable_amount_8)}</td>
+      <td>${esc(row.tax_amount_8)}</td>
+      <td>${esc(row.non_taxable_amount)}</td>
+      <td>${esc(row.tax_exempt_amount)}</td>
       <td>${esc(row.total_amount)}</td>
       <td>${esc(row.reviewed_by)}</td>
       <td class="status">${esc(row.status)}</td>`;

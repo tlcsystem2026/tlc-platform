@@ -35,6 +35,30 @@ def ensure_sales_ledger_table(db:Session)->None:
       posted_at VARCHAR(64) NOT NULL,
       status VARCHAR(64) NOT NULL DEFAULT 'ACTIVE'
     )"""))
+    ledger_columns={
+      row[1]
+      for row in db.execute(
+        text(f"PRAGMA table_info({LEDGER_TABLE})")
+      ).all()
+    }
+    tax_columns={
+      "taxable_amount_10":"VARCHAR(64) NOT NULL DEFAULT ''",
+      "tax_amount_10":"VARCHAR(64) NOT NULL DEFAULT ''",
+      "tax_inclusive_amount_10":"VARCHAR(64) NOT NULL DEFAULT ''",
+      "taxable_amount_8":"VARCHAR(64) NOT NULL DEFAULT ''",
+      "tax_amount_8":"VARCHAR(64) NOT NULL DEFAULT ''",
+      "tax_inclusive_amount_8":"VARCHAR(64) NOT NULL DEFAULT ''",
+      "non_taxable_amount":"VARCHAR(64) NOT NULL DEFAULT ''",
+      "tax_exempt_amount":"VARCHAR(64) NOT NULL DEFAULT ''",
+    }
+    for column,definition in tax_columns.items():
+        if column not in ledger_columns:
+            db.execute(
+                text(
+                    f"ALTER TABLE {LEDGER_TABLE} "
+                    f"ADD COLUMN {column} {definition}"
+                )
+            )
     db.commit()
 
 def _row(row:Any)->dict[str,Any]:
@@ -50,8 +74,29 @@ def post_approved_pending_review(db:Session,record_id:str,*,commit:bool=True)->d
         row=_row(existing)
         if row.get("pending_review_id")==record_id:return {"status":"exists","ledger":row}
         raise ValueError("The request number already exists in the formal Sales Ledger. Use DUPLICATE instead of APPROVED.")
-    lid=uuid4().hex;now=datetime.now(timezone.utc).isoformat();p={"id":lid,"pending_review_id":record_id,"request_no":source_no,"request_date":pending.get("request_date",""),"customer_id":pending.get("customer_id",""),"customer_name":pending.get("customer_name",""),"currency":pending.get("currency",""),"subtotal":pending.get("subtotal",""),"tax_amount":pending.get("tax_amount",""),"total_amount":pending.get("total_amount",""),"excel_source":pending.get("excel_source",""),"pdf_source":pending.get("pdf_source",""),"reviewed_by":pending.get("reviewed_by",""),"review_note":pending.get("review_note",""),"reviewed_at":pending.get("reviewed_at",""),"posted_at":now,"status":"ACTIVE"}
-    db.execute(text(f"""INSERT INTO {LEDGER_TABLE}(id,pending_review_id,request_no,request_date,customer_id,customer_name,currency,subtotal,tax_amount,total_amount,excel_source,pdf_source,reviewed_by,review_note,reviewed_at,posted_at,status) VALUES(:id,:pending_review_id,:request_no,:request_date,:customer_id,:customer_name,:currency,:subtotal,:tax_amount,:total_amount,:excel_source,:pdf_source,:reviewed_by,:review_note,:reviewed_at,:posted_at,:status)"""),p)
+    lid=uuid4().hex;now=datetime.now(timezone.utc).isoformat();p={"id":lid,"pending_review_id":record_id,"request_no":source_no,"request_date":pending.get("request_date",""),"customer_id":pending.get("customer_id",""),"customer_name":pending.get("customer_name",""),"currency":pending.get("currency",""),"subtotal":pending.get("subtotal",""),"tax_amount":pending.get("tax_amount",""),"total_amount":pending.get("total_amount",""),
+       "taxable_amount_10":pending.get("taxable_amount_10",""),"tax_amount_10":pending.get("tax_amount_10",""),
+       "tax_inclusive_amount_10":pending.get("tax_inclusive_amount_10",""),"taxable_amount_8":pending.get("taxable_amount_8",""),
+       "tax_amount_8":pending.get("tax_amount_8",""),"tax_inclusive_amount_8":pending.get("tax_inclusive_amount_8",""),
+       "non_taxable_amount":pending.get("non_taxable_amount",""),"tax_exempt_amount":pending.get("tax_exempt_amount",""),
+       "excel_source":pending.get("excel_source",""),"pdf_source":pending.get("pdf_source",""),"reviewed_by":pending.get("reviewed_by",""),"review_note":pending.get("review_note",""),"reviewed_at":pending.get("reviewed_at",""),"posted_at":now,"status":"ACTIVE"}
+    db.execute(text(f"""INSERT INTO {LEDGER_TABLE}(
+      id,pending_review_id,request_no,request_date,customer_id,customer_name,
+      currency,subtotal,tax_amount,total_amount,
+      taxable_amount_10,tax_amount_10,tax_inclusive_amount_10,
+      taxable_amount_8,tax_amount_8,tax_inclusive_amount_8,
+      non_taxable_amount,tax_exempt_amount,
+      excel_source,pdf_source,reviewed_by,review_note,
+      reviewed_at,posted_at,status
+    ) VALUES(
+      :id,:pending_review_id,:request_no,:request_date,:customer_id,:customer_name,
+      :currency,:subtotal,:tax_amount,:total_amount,
+      :taxable_amount_10,:tax_amount_10,:tax_inclusive_amount_10,
+      :taxable_amount_8,:tax_amount_8,:tax_inclusive_amount_8,
+      :non_taxable_amount,:tax_exempt_amount,
+      :excel_source,:pdf_source,:reviewed_by,:review_note,
+      :reviewed_at,:posted_at,:status
+    )"""),p)
     db.execute(text(f"UPDATE {TABLE_NAME} SET sales_ledger_id=:lid,posted_at=:now,updated_at=:now WHERE id=:id"),{"lid":lid,"now":now,"id":record_id})
     if commit: db.commit()
     row=db.execute(text(f"SELECT * FROM {LEDGER_TABLE} WHERE id=:id"),{"id":lid}).first();return {"status":"posted","ledger":_row(row)}
