@@ -59,6 +59,47 @@ pre{white-space:pre-wrap;background:#101828;color:#d1fadf;padding:14px;border-ra
     </div>
   </section>
 
+<section class="card section" id="business-workflow-entrances">
+  <!-- BUILD037_DASHBOARD_BUSINESS_WORKFLOW_LINKS_R1 -->
+  <h2>业务流程与测试入口</h2>
+  <p class="desc">按当前测试衔接顺序进入：基础主数据 → 请求书与销售 → 银行入金 → 客户匹配与对账 → 月结与异常。</p>
+
+  <h3>① 基础主数据</h3>
+  <div class="grid nav">
+    <a class="navitem" href="/tlc-customer-master"><span class="cat">Master</span><h3>客户维护</h3><div class="desc">客户正式名称、配送信息、别名、TODOKEDL 导入与删除控制。</div></a>
+    <a class="navitem" href="/tlc-bank-account-master"><span class="cat">Master</span><h3>银行与账户维护</h3><div class="desc">银行 Master、银行账户、流水格式、CSV 导入导出与删除控制。</div></a>
+  </div>
+
+  <h3>② 请求书与正式销售</h3>
+  <div class="grid nav">
+    <a class="navitem" href="/request-review-center"><span class="cat">请求书</span><h3>请求书 Batch + Review</h3><div class="desc">PDF／Excel 批量核对、异常分流、单件与批量 Review。</div></a>
+    <a class="navitem" href="/requests/review-workbench"><span class="cat">请求书</span><h3>请求书审核工作台</h3><div class="desc">检查 Review 结果并衔接正式销售登记。</div></a>
+    <a class="navitem" href="/sales"><span class="cat">销售</span><h3>正式销售台账</h3><div class="desc">确认 Review 通过数据是否进入正式销售台账。</div></a>
+    <a class="navitem" href="/sales-ledger-evidence-center"><span class="cat">销售</span><h3>销售台账证据中心</h3><div class="desc">查看销售台账来源、证据、快照及批次关联。</div></a>
+  </div>
+
+  <h3>③ 银行入金与客户匹配</h3>
+  <div class="grid nav">
+    <a class="navitem" href="/bank-import"><span class="cat">银行</span><h3>银行流水导入</h3><div class="desc">导入真实银行 CSV，确认交易、金额、日期及重复控制。</div></a>
+    <a class="navitem" href="/customer-alias-matching-center"><span class="cat">匹配</span><h3>客户别名匹配</h3><div class="desc">核对银行振込人名称与客户正式名、别名及配送名称。</div></a>
+    <a class="navitem" href="/customer-auto-matching-center"><span class="cat">匹配</span><h3>客户自动匹配</h3><div class="desc">查看自动匹配候选、置信度及审计结果。</div></a>
+    <a class="navitem" href="/customer-recommended-matching-center"><span class="cat">匹配</span><h3>客户推荐匹配</h3><div class="desc">查看推荐候选并进行人工确认。</div></a>
+  </div>
+
+  <h3>④ 客户对账与确认</h3>
+  <div class="grid nav">
+    <a class="navitem" href="/customer-payment-reconciliation"><span class="cat">对账</span><h3>客户销售与入金核对</h3><div class="desc">比较销售合计、入金合计与差额。</div></a>
+    <a class="navitem" href="/customer-reconciliation-workbench"><span class="cat">对账</span><h3>客户对账工作台</h3><div class="desc">处理对账案件、修正、确认与审计。</div></a>
+    <a class="navitem" href="/customer-payment-reconciliation/confirm"><span class="cat">对账</span><h3>客户对账确认与结转</h3><div class="desc">确认结果、保存截至日并结转到下一期间。</div></a>
+  </div>
+
+  <h3>⑤ 异常、月度流程与月结</h3>
+  <div class="grid nav">
+    <a class="navitem" href="/operational-exception-dashboard"><span class="cat">异常</span><h3>重要异常与领导关注</h3><div class="desc">查看未匹配、歧义、导入错误及待处理异常。</div></a>
+    <a class="navitem" href="/guided-monthly-workflow"><span class="cat">月度</span><h3>月度业务引导</h3><div class="desc">按请求书、销售、银行、对账、月结顺序检查进度。</div></a>
+    <a class="navitem" href="/monthly-close-center"><span class="cat">月结</span><h3>月结控制中心</h3><div class="desc">检查清单、签核、未结事项与跨月结转。</div></a>
+  </div>
+</section>
 <section class="card section"><h2>业务入口</h2><div class="grid nav" id="navigator"></div></section>
 <div class="desc" id="footer" style="margin-top:20px"></div></main>
 
