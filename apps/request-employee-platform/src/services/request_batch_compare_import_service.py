@@ -235,12 +235,74 @@ def _excel_labeled_total(data: dict) -> str:
     return _likely_total(_flatten_excel(data))
 
 
+def _clean_customer_candidate(value: object) -> str:
+    candidate = unicodedata.normalize(
+        "NFKC",
+        str(value or ""),
+    ).strip()
+    candidate = re.sub(
+        r"\s*(?:御中|様|殿)\s*$",
+        "",
+        candidate,
+    ).strip()
+    return candidate
+
+
 def _likely_customer(data: dict) -> str:
+    # The invoice recipient is the name immediately before or beside
+    # honorifics such as 御中. This must take priority over the issuer name.
+    for sheet in data.get("sheets", []):
+        rows = sheet.get("rows", [])[:40]
+        for row_index, row in enumerate(rows):
+            for cell_index, value in enumerate(row):
+                cell = unicodedata.normalize(
+                    "NFKC",
+                    str(value or ""),
+                ).strip()
+                if cell not in {"御中", "様", "殿"}:
+                    continue
+
+                # Same row, immediately to the left.
+                for previous in reversed(row[:cell_index]):
+                    candidate = _clean_customer_candidate(previous)
+                    if candidate:
+                        return candidate
+
+                # Previous non-empty row, which is common in invoice forms.
+                for previous_row in reversed(rows[:row_index]):
+                    for previous in previous_row:
+                        candidate = _clean_customer_candidate(previous)
+                        if candidate:
+                            return candidate
+
+    # Fallback for older layouts without an explicit honorific cell.
+    issuer_tokens = {
+        "東京恋人株式会社",
+        "トウキヨウコイビトカブシキガイシヤ",
+    }
     for sheet in data.get("sheets", []):
         for row in sheet.get("rows", [])[:30]:
             for value in row[:12]:
-                candidate = str(value or "").strip()
-                if 2 <= len(candidate) <= 120 and any(k in candidate for k in ("株式会社", "有限会社", "合同会社", "法人", "会社", "商事")):
+                candidate = _clean_customer_candidate(value)
+                if not candidate or candidate in issuer_tokens:
+                    continue
+                if (
+                    2 <= len(candidate) <= 120
+                    and any(
+                        token in candidate
+                        for token in (
+                            "株式会社",
+                            "有限会社",
+                            "合同会社",
+                            "法人",
+                            "会社",
+                            "商事",
+                            "ストア",
+                            "ショップ",
+                            "店",
+                        )
+                    )
+                ):
                     return candidate
     return ""
 
@@ -252,18 +314,98 @@ def _normalize(value: str) -> str:
 def _match_customer(db: Session, raw_name: str) -> tuple[str, str, str]:
     if not raw_name:
         return "", "", "UNMATCHED"
-    for table_name in ("tlc_customer", "tlc_customer_master", "tlc_customers"):
-        exists = db.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name=:name"), {"name": table_name}).first()
+
+    normalized_raw = _normalize(raw_name)
+
+    for table_name in (
+        "tlc_customer",
+        "tlc_customer_master",
+        "tlc_customers",
+    ):
+        exists = db.execute(
+            text(
+                "SELECT name FROM sqlite_master "
+                "WHERE type='table' AND name=:name"
+            ),
+            {"name": table_name},
+        ).first()
         if not exists:
             continue
-        for code_col, name_col in (("customer_id", "formal_name"), ("id", "formal_name"), ("customer_id", "customer_name")):
+
+        if table_name == "tlc_customer_master":
             try:
-                rows = db.execute(text(f"SELECT {code_col} code,{name_col} name FROM {table_name}")).all()
+                columns = {
+                    str(row._mapping["name"])
+                    for row in db.execute(
+                        text(
+                            "PRAGMA table_info(tlc_customer_master)"
+                        )
+                    ).all()
+                }
+                candidate_columns = [
+                    column
+                    for column in (
+                        "formal_name",
+                        "hiragana_name",
+                        "katakana_name",
+                        "katakana_name_short",
+                        "short_name",
+                        "delivery_name_1",
+                        "delivery_name_2",
+                        "alias_1",
+                        "alias_2",
+                        "alias_3",
+                        "alias_4",
+                        "alias_5",
+                    )
+                    if column in columns
+                ]
+                select_columns = ",".join(candidate_columns)
+                rows = db.execute(
+                    text(
+                        "SELECT customer_id,"
+                        + select_columns
+                        + " FROM tlc_customer_master"
+                    )
+                ).all()
+                for row in rows:
+                    mapping = row._mapping
+                    for column in candidate_columns:
+                        value = str(mapping.get(column) or "")
+                        if value and _normalize(value) == normalized_raw:
+                            formal_name = str(
+                                mapping.get("formal_name")
+                                or value
+                            )
+                            return (
+                                str(mapping.get("customer_id") or ""),
+                                formal_name,
+                                "MATCHED",
+                            )
+            except Exception:
+                pass
+
+        for code_col, name_col in (
+            ("customer_id", "formal_name"),
+            ("id", "formal_name"),
+            ("customer_id", "customer_name"),
+        ):
+            try:
+                rows = db.execute(
+                    text(
+                        f"SELECT {code_col} code,"
+                        f"{name_col} name FROM {table_name}"
+                    )
+                ).all()
             except Exception:
                 continue
             for row in rows:
-                if _normalize(row._mapping["name"]) == _normalize(raw_name):
-                    return str(row._mapping["code"] or ""), str(row._mapping["name"] or ""), "MATCHED"
+                if _normalize(row._mapping["name"]) == normalized_raw:
+                    return (
+                        str(row._mapping["code"] or ""),
+                        str(row._mapping["name"] or ""),
+                        "MATCHED",
+                    )
     return "", "", "UNMATCHED"
 
 
