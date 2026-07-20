@@ -83,6 +83,16 @@ def _amount_after(line: str, pattern: str) -> str:
         return ""
 
 
+def _is_zero_placeholder(line: str) -> bool:
+    normalized = unicodedata.normalize("NFKC", str(line or ""))
+    return bool(
+        re.search(
+            r"(?:¥|￥|\\)?\s*[-－―ー]\s*$",
+            normalized.strip(),
+        )
+    )
+
+
 def _detect_section_rate(line: str) -> str:
     normalized = unicodedata.normalize("NFKC", str(line or ""))
     compact = re.sub(r"\s+", "", normalized)
@@ -180,22 +190,40 @@ def _extract_line(
     if taxable:
         _set_if_empty(result, f"taxable_amount_{rate}", taxable)
 
-    fallback = _last_amount(line)
-    if not fallback:
-        return current_rate
+    zero_placeholder = _is_zero_placeholder(line)
 
     if any(
         token in compact
         for token in ("税込額", "税込金額", "含税額", "含税金額")
     ):
-        _set_if_empty(
-            result,
-            f"tax_inclusive_amount_{rate}",
-            fallback,
-        )
-    elif any(token in compact for token in ("消費税", "税額")):
-        _set_if_empty(result, f"tax_amount_{rate}", fallback)
-    elif any(
+        fallback = _last_amount(line)
+        if fallback:
+            _set_if_empty(
+                result,
+                f"tax_inclusive_amount_{rate}",
+                fallback,
+            )
+        elif zero_placeholder:
+            _set_if_empty(
+                result,
+                f"tax_inclusive_amount_{rate}",
+                "0",
+            )
+        return current_rate
+
+    if any(token in compact for token in ("消費税", "税額")):
+        # A line such as "消費税 8% \\ -" contains the rate digit 8,
+        # but no tax amount. Treat the dash as zero instead of 8 yen.
+        if zero_placeholder:
+            _set_if_empty(result, f"tax_amount_{rate}", "0")
+            return current_rate
+
+        fallback = _last_amount(line)
+        if fallback and fallback != rate:
+            _set_if_empty(result, f"tax_amount_{rate}", fallback)
+        return current_rate
+
+    if any(
         token in compact
         for token in (
             "小計(税抜)",
@@ -206,7 +234,22 @@ def _extract_line(
             "税抜",
         )
     ):
-        _set_if_empty(result, f"taxable_amount_{rate}", fallback)
+        if zero_placeholder:
+            _set_if_empty(
+                result,
+                f"taxable_amount_{rate}",
+                "0",
+            )
+            return current_rate
+
+        fallback = _last_amount(line)
+        if fallback:
+            _set_if_empty(
+                result,
+                f"taxable_amount_{rate}",
+                fallback,
+            )
+        return current_rate
 
     return current_rate
 
