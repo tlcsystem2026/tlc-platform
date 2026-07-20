@@ -296,3 +296,220 @@ def import_profiles(
         "imported_count": len(imported),
         "rows": imported,
     }
+
+
+
+class BankDeleteConflict(ValueError):
+    def __init__(self, message: str, references: list[dict[str, Any]]):
+        super().__init__(message)
+        self.references = references
+
+
+def _quote_identifier(value: str) -> str:
+    return '"' + str(value).replace('"', '""') + '"'
+
+
+def _sqlite_tables(db: Session) -> list[str]:
+    return [
+        str(row._mapping["name"])
+        for row in db.execute(
+            text(
+                "SELECT name FROM sqlite_master "
+                "WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+            )
+        ).all()
+    ]
+
+
+def _table_columns(db: Session, table_name: str) -> set[str]:
+    quoted = _quote_identifier(table_name)
+    return {
+        str(row._mapping["name"])
+        for row in db.execute(text(f"PRAGMA table_info({quoted})")).all()
+    }
+
+
+def _reference_counts(
+    db: Session,
+    excluded_tables: set[str],
+    candidate_values: dict[str, str],
+) -> list[dict[str, Any]]:
+    references: list[dict[str, Any]] = []
+    for table_name in _sqlite_tables(db):
+        if table_name in excluded_tables:
+            continue
+        columns = _table_columns(db, table_name)
+        for column_name, expected in candidate_values.items():
+            if not expected or column_name not in columns:
+                continue
+            table_q = _quote_identifier(table_name)
+            column_q = _quote_identifier(column_name)
+            count = db.execute(
+                text(
+                    f"SELECT COUNT(*) FROM {table_q} "
+                    f"WHERE {column_q}=:value"
+                ),
+                {"value": expected},
+            ).scalar_one()
+            if int(count or 0) > 0:
+                references.append(
+                    {
+                        "table": table_name,
+                        "column": column_name,
+                        "count": int(count),
+                    }
+                )
+    return references
+
+
+def delete_profiles(
+    db: Session,
+    record_ids: list[str],
+) -> dict[str, Any]:
+    ensure_table(db)
+    ids: list[str] = []
+    for value in record_ids or []:
+        clean = str(value or "").strip()
+        if clean and clean not in ids:
+            ids.append(clean)
+    if not ids:
+        raise ValueError("ids is required")
+
+    targets: list[dict[str, Any]] = []
+    blocked: list[dict[str, Any]] = []
+
+    for record_id in ids:
+        row = db.execute(
+            text(
+                f"SELECT id,bank_code,account_number,account_holder "
+                f"FROM {TABLE_NAME} WHERE id=:id"
+            ),
+            {"id": record_id},
+        ).first()
+        if not row:
+            raise LookupError(f"Bank account profile not found: {record_id}")
+        target = dict(row._mapping)
+        references = _reference_counts(
+            db,
+            {TABLE_NAME},
+            {
+                "bank_account_id": target["id"],
+                "bank_account_profile_id": target["id"],
+                "account_profile_id": target["id"],
+                "account_number": target["account_number"],
+            },
+        )
+        if references:
+            blocked.append({**target, "references": references})
+        targets.append(target)
+
+    if blocked:
+        raise BankDeleteConflict(
+            "Bank account has associated data. Delete or unlink the "
+            "associated data before deleting the bank account.",
+            blocked,
+        )
+
+    try:
+        for target in targets:
+            db.execute(
+                text(f"DELETE FROM {TABLE_NAME} WHERE id=:id"),
+                {"id": target["id"]},
+            )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+    return {
+        "deleted": len(targets),
+        "ids": [target["id"] for target in targets],
+    }
+
+
+def delete_banks(
+    db: Session,
+    bank_value_ids: list[str],
+) -> dict[str, Any]:
+    ensure_table(db)
+    ids: list[str] = []
+    for value in bank_value_ids or []:
+        clean = str(value or "").strip()
+        if clean and clean not in ids:
+            ids.append(clean)
+    if not ids:
+        raise ValueError("ids is required")
+
+    targets: list[dict[str, Any]] = []
+    blocked: list[dict[str, Any]] = []
+
+    for value_id in ids:
+        row = db.execute(
+            text(
+                "SELECT id,code,name_zh,name_ja,name_en "
+                "FROM tlc_code_value "
+                "WHERE id=:id AND category_code='BANK'"
+            ),
+            {"id": value_id},
+        ).first()
+        if not row:
+            raise LookupError(f"Bank Master not found: {value_id}")
+        target = dict(row._mapping)
+
+        account_count = db.execute(
+            text(
+                f"SELECT COUNT(*) FROM {TABLE_NAME} "
+                "WHERE bank_code=:bank_code"
+            ),
+            {"bank_code": target["code"]},
+        ).scalar_one()
+        references: list[dict[str, Any]] = []
+        if int(account_count or 0) > 0:
+            references.append(
+                {
+                    "table": TABLE_NAME,
+                    "column": "bank_code",
+                    "count": int(account_count),
+                }
+            )
+
+        references.extend(
+            _reference_counts(
+                db,
+                {"tlc_code_value", TABLE_NAME},
+                {
+                    "bank_master_id": target["id"],
+                    "bank_code": target["code"],
+                },
+            )
+        )
+
+        if references:
+            blocked.append({**target, "references": references})
+        targets.append(target)
+
+    if blocked:
+        raise BankDeleteConflict(
+            "Bank Master has associated bank accounts or business data. "
+            "Delete the associated data first.",
+            blocked,
+        )
+
+    try:
+        for target in targets:
+            db.execute(
+                text(
+                    "DELETE FROM tlc_code_value "
+                    "WHERE id=:id AND category_code='BANK'"
+                ),
+                {"id": target["id"]},
+            )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+    return {
+        "deleted": len(targets),
+        "ids": [target["id"] for target in targets],
+    }

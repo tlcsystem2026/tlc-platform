@@ -49,6 +49,7 @@ tr{cursor:pointer}tr:hover{background:#f0f5fb}
 <div class="toolbar">
 <button class="primary" onclick="saveBank()">保存银行</button>
 <button onclick="newBank()">新增／清空</button>
+<button class="danger" onclick="deleteCurrentBank()">删除当前银行</button>
 </div>
 <div class="grid">
 <label>银行代码<input id="bankCode" placeholder="例：SUGAMO_SHINKIN"></label>
@@ -74,6 +75,7 @@ tr{cursor:pointer}tr:hover{background:#f0f5fb}
 <button class="primary" onclick="renderBanks()">检索</button>
 <button onclick="clearBankSearch()">清除条件</button>
 <button onclick="loadBanks()">刷新</button>
+<button class="danger" onclick="deleteSelectedBanks()">批量删除所选银行</button>
 </div>
 </div>
 
@@ -100,6 +102,7 @@ tr{cursor:pointer}tr:hover{background:#f0f5fb}
 <div class="toolbar">
 <button class="primary" onclick="saveAccount()">保存账户</button>
 <button onclick="newAccount()">新增／清空</button>
+<button class="danger" onclick="deleteCurrentAccount()">删除当前账户</button>
 </div>
 <div class="grid">
 <label>银行<select id="accountBank"></select></label>
@@ -135,6 +138,7 @@ tr{cursor:pointer}tr:hover{background:#f0f5fb}
 <button onclick="downloadTemplate()">CSV模板</button>
 <button onclick="exportCsv()">CSV导出</button>
 <button onclick="importCsv()">CSV导入</button>
+<button class="danger" onclick="deleteSelectedAccounts()">批量删除所选账户</button>
 </div>
 <div class="hint">CSV 导入按整批事务处理：任意一行错误时整批回滚。</div>
 <div id="accountStatus" class="status"></div>
@@ -179,6 +183,57 @@ function showTab(id){
 function displayName(row){return row.name_ja||row.name_zh||row.name_en||row.code}
 function toggleAll(selector,checked){document.querySelectorAll(selector).forEach(x=>x.checked=checked)}
 
+function checkedValues(selector){
+ return [...document.querySelectorAll(selector+":checked")].map(x=>x.value).filter(Boolean);
+}
+function formatDeleteConflict(error){
+ const detail=error.detail||error;
+ if(typeof detail==="string")return detail;
+ if(detail&&detail.message){
+  const lines=[detail.message];
+  (detail.blocked||[]).forEach(item=>{
+   lines.push(`${item.code||item.account_number||item.id}: `+(item.references||[]).map(r=>`${r.table}.${r.column}=${r.count}`).join(", "));
+  });
+  return lines.join("\n");
+ }
+ return error.message||String(error);
+}
+async function deleteCurrentBank(){
+ const id=$("bankId").value;
+ if(!id){alert("请先选择银行");return}
+ if(!confirm("确认删除当前银行吗？存在银行账户或业务关联时无法删除。"))return;
+ try{
+  await api("/api/tlc-banks/"+encodeURIComponent(id),{method:"DELETE"});
+  newBank();await loadBanks();$("bankStatus").textContent="银行删除完成。";
+ }catch(e){alert(formatDeleteConflict(e))}
+}
+async function deleteSelectedBanks(){
+ const ids=checkedValues(".bank-row-check");
+ if(!ids.length){alert("请先勾选银行");return}
+ if(!confirm(`确认批量删除 ${ids.length} 个银行吗？任一银行有关联时整批不删除。`))return;
+ try{
+  await api("/api/tlc-banks/delete-batch",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ids})});
+  newBank();await loadBanks();$("bankStatus").textContent=`批量删除完成：${ids.length} 件。`;
+ }catch(e){alert(formatDeleteConflict(e))}
+}
+async function deleteCurrentAccount(){
+ const id=$("accountId").value;
+ if(!id){alert("请先选择银行账户");return}
+ if(!confirm("确认删除当前银行账户吗？存在业务关联时无法删除。"))return;
+ try{
+  await api("/api/tlc-bank-accounts/"+encodeURIComponent(id),{method:"DELETE"});
+  newAccount();await loadAccounts();$("accountStatus").textContent="账户删除完成。";
+ }catch(e){alert(formatDeleteConflict(e))}
+}
+async function deleteSelectedAccounts(){
+ const ids=checkedValues(".account-row-check");
+ if(!ids.length){alert("请先勾选银行账户");return}
+ if(!confirm(`确认批量删除 ${ids.length} 个银行账户吗？任一账户有关联时整批不删除。`))return;
+ try{
+  await api("/api/tlc-bank-accounts/delete-batch",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ids})});
+  newAccount();await loadAccounts();$("accountStatus").textContent=`批量删除完成：${ids.length} 件。`;
+ }catch(e){alert(formatDeleteConflict(e))}
+}
 async function loadBanks(){
  banks=await api('/api/tlc-codes/values?category_code=BANK');
  renderBanks();
@@ -200,7 +255,7 @@ function renderBanks(){
  $('bankCount').textContent=rows.length+' 件';
  $('bankRows').innerHTML=rows.map((row,i)=>`<tr onclick="selectBankById('${esc(row.id)}')">
   <td class="tlc-row-no">${i+1}</td>
-  <td class="tlc-row-check"><input class="bank-row-check" type="checkbox" onclick="event.stopPropagation()"></td>
+  <td class="tlc-row-check"><input class="bank-row-check" type="checkbox" value="${esc(row.id)}" onclick="event.stopPropagation()"></td>
   <td>${esc(row.id)}</td><td>${esc(row.category_code)}</td><td>${esc(row.code)}</td>
   <td>${esc(row.name_zh)}</td><td>${esc(row.name_ja)}</td><td>${esc(row.name_en)}</td>
   <td>${esc(row.sort_order)}</td><td>${esc(row.active)}</td><td>${esc(JSON.stringify(row.extra_json||{}))}</td>
@@ -269,7 +324,7 @@ function renderAccounts(){
  $('accountCount').textContent=rows.length+' 件';
  $('accountRows').innerHTML=rows.map((row,i)=>`<tr onclick="selectAccountById('${esc(row.id)}')">
   <td class="tlc-row-no">${i+1}</td>
-  <td class="tlc-row-check"><input class="account-row-check" type="checkbox" onclick="event.stopPropagation()"></td>
+  <td class="tlc-row-check"><input class="account-row-check" type="checkbox" value="${esc(row.id)}" onclick="event.stopPropagation()"></td>
   <td>${esc(row.id)}</td><td>${esc(row.bank_code)}</td><td>${esc(row.branch_code)}</td>
   <td>${esc(row.branch_name)}</td><td>${esc(row.account_type)}</td><td>${esc(row.account_number)}</td>
   <td>${esc(row.account_holder)}</td><td>${esc(row.adapter_code)}</td><td>${esc(row.file_encoding)}</td>

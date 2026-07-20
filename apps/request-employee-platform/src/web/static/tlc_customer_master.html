@@ -1,7 +1,9 @@
 <!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>客户维护</title><style>
 body{font-family:Arial,"Microsoft YaHei",sans-serif;margin:0;background:#f6f7f9;color:#222}header{background:#1f4e78;color:#fff;padding:16px 22px}main{padding:16px;display:flex;flex-direction:column;gap:14px}.panel{background:#fff;border:1px solid #ddd;border-radius:8px;padding:14px}.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:end}.grid{display:grid;grid-template-columns:repeat(4,minmax(180px,1fr));gap:10px}.search{display:grid;grid-template-columns:repeat(5,minmax(160px,1fr));gap:10px;margin-bottom:10px}label{display:flex;flex-direction:column;gap:4px;font-size:13px}input,select,textarea,button{padding:8px;border:1px solid #bbb;border-radius:4px;box-sizing:border-box}button{cursor:pointer}.primary{background:#1f4e78;color:#fff}.full{grid-column:1/-1}.table-wrap{overflow:auto;max-height:58vh;border:1px solid #ddd}table{border-collapse:collapse;min-width:5200px;width:max-content}th,td{border:1px solid #ddd;padding:7px;white-space:nowrap;max-width:320px;overflow:hidden;text-overflow:ellipsis}th{position:sticky;top:0;background:#eaf2fb;z-index:2}.tlc-row-no{width:48px;text-align:center}.tlc-row-check{width:38px;text-align:center}.readonly{background:#f1f3f5}@media(max-width:1100px){.grid,.search{grid-template-columns:repeat(2,minmax(160px,1fr))}}</style></head><body><!-- BUILD037_STEP05_CUSTOMER_PAGE --><header><h1>客户维护</h1><div>单个客户维护 → 检索条件与CSV → 客户全字段一览</div></header><main>
-<section class="panel"><h2>单个客户维护</h2><div class="toolbar"><button class="primary" onclick="saveRecord()">保存</button><button onclick="newRecord()">新增／清空</button><button onclick="window.open('/tlc-code-master','_blank')">客户状态Code</button></div><input id="recordId" type="hidden"><div id="form" class="grid"></div><label class="full">备注<textarea id="note"></textarea></label><div>formal_name 与 katakana_name 不由配送名称或短カナ自动覆盖。</div></section>
-<section class="panel"><h2>检索条件／CSV 导入／CSV 导出</h2><div id="search" class="search"></div><div class="toolbar"><button class="primary" onclick="loadRecords()">检索</button><button onclick="clearSearch()">清除条件</button><input id="csvFile" type="file" accept=".csv"><button onclick="importCsv()">CSV 导入</button><button onclick="exportCsv()">CSV 导出</button><span id="msg"></span></div></section>
+<section class="panel"><h2>单个客户维护</h2><div class="toolbar"><button class="primary" onclick="saveRecord()">保存</button><button onclick="newRecord()">新增／清空</button>
+<button class="danger" onclick="deleteCurrentCustomer()">删除当前客户</button><button onclick="window.open('/tlc-code-master','_blank')">客户状态Code</button></div><input id="recordId" type="hidden"><div id="form" class="grid"></div><label class="full">备注<textarea id="note"></textarea></label><div>formal_name 与 katakana_name 不由配送名称或短カナ自动覆盖。</div></section>
+<section class="panel"><h2>检索条件／CSV 导入／CSV 导出</h2><div id="search" class="search"></div><div class="toolbar"><button class="primary" onclick="loadRecords()">检索</button><button onclick="clearSearch()">清除条件</button><input id="csvFile" type="file" accept=".csv"><button onclick="importCsv()">CSV 导入</button><button onclick="exportCsv()">CSV 导出</button>
+<button class="danger" onclick="deleteSelectedCustomers()">批量删除所选客户</button><span id="msg"></span></div></section>
 <section class="panel"><h2>客户一览（全部字段） <span id="count"></span></h2><div class="table-wrap"><table><thead><tr id="head"></tr></thead><tbody id="rows"></tbody></table></div></section><div style="display:none">别名5 /api/tlc-customers/import /api/tlc-customers/export.csv</div></main><script>
 const formFields=[['customerId','customer_id','Customer ID'],['formalName','formal_name','客户正式名全称'],['hiraganaName','hiragana_name','客户正式名ひらがな'],['katakanaName','katakana_name','客户正式名カナ'],['katakanaNameShort','katakana_name_short','短カナ'],['shortName','short_name','略称'],['deliveryName1','delivery_name_1','お届け先名称1'],['deliveryName2','delivery_name_2','お届け先名称2'],['postalCode','postal_code','郵便番号'],['address1','address_1','住所1'],['address2','address_2','住所2'],['phoneNumber','phone_number','電話番号'],['emailAddress','email_address','Eメール'],['jisMunicipalityCode','jis_municipality_code','JIS市町村コード'],['shippingNoticeEmailFlag','shipping_notice_email_flag','出荷通知メール希望区分'],['shipperCode','shipper_code','荷送人コード'],['alias1','alias_1','别名1'],['alias2','alias_2','别名2'],['alias3','alias_3','别名3'],['alias4','alias_4','别名4'],['alias5','alias_5','别名5'],['sourceSystem','source_system','数据来源'],['sourceUpdatedAt','source_updated_at','来源更新时间']];
 const all=['customer_id','formal_name','hiragana_name','katakana_name','katakana_name_short','short_name','delivery_name_1','delivery_name_2','postal_code','address_1','address_2','phone_number','email_address','jis_municipality_code','shipping_notice_email_flag','shipper_code','alias_1','alias_2','alias_3','alias_4','alias_5','normalized_formal_name','status_code','active','note','source_system','source_updated_at','created_at','updated_at'];let records=[];const $=id=>document.getElementById(id);const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));async function api(u,o){const r=await fetch(u,o),t=await r.text();let b;try{b=JSON.parse(t)}catch{b=t}if(!r.ok)throw Error(b.detail||b);return b}
@@ -13,5 +15,38 @@ async function loadRecords(){try{records=await api('/api/tlc-customers?'+qp());$
 function select(id){const r=records.find(x=>x.id===id);if(!r)return;$('recordId').value=r.id;for(const [id,k] of formFields)$(id).value=r[k]??'';$('statusCode').value=r.status_code||'ACTIVE';$('active').checked=!!r.active;$('note').value=r.note||'';$('normalizedFormalName').value=r.normalized_formal_name||'';$('createdAt').value=r.created_at||'';$('updatedAt').value=r.updated_at||'';scrollTo({top:0,behavior:'smooth'})}
 function newRecord(){$('recordId').value='';for(const [id] of formFields)$(id).value='';$('statusCode').value='ACTIVE';$('active').checked=true;$('note').value='';['normalizedFormalName','createdAt','updatedAt'].forEach(id=>$(id).value='')}
 async function saveRecord(){const p={id:$('recordId').value,status_code:$('statusCode').value,active:$('active').checked,note:$('note').value};for(const [id,k] of formFields)p[k]=$(id).value;try{await api('/api/tlc-customers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});$('msg').textContent='保存完成';await loadRecords()}catch(e){alert(e.message)}}
+function selectedCustomerIds(){
+ return [...document.querySelectorAll(".row-check:checked")].map(x=>x.value).filter(Boolean);
+}
+function formatDeleteError(error){
+ const detail=error.detail||error;
+ if(typeof detail==="string")return detail;
+ if(detail&&detail.message){
+  const lines=[detail.message];
+  (detail.blocked||[]).forEach(item=>{
+   lines.push(`${item.customer_id||item.id}: `+(item.references||[]).map(r=>`${r.table}.${r.column}=${r.count}`).join(", "));
+  });
+  return lines.join("\n");
+ }
+ return error.message||String(error);
+}
+async function deleteCurrentCustomer(){
+ const id=$("recordId").value;
+ if(!id){alert("请先选择需要删除的客户");return}
+ if(!confirm("确认删除当前客户吗？有关联数据时系统将拒绝删除。"))return;
+ try{
+  await api("/api/tlc-customers/"+encodeURIComponent(id),{method:"DELETE"});
+  $("message").textContent="客户删除完成";newRecord();await loadRecords();
+ }catch(e){alert(formatDeleteError(e))}
+}
+async function deleteSelectedCustomers(){
+ const ids=selectedCustomerIds();
+ if(!ids.length){alert("请先勾选需要删除的客户");return}
+ if(!confirm(`确认批量删除 ${ids.length} 个客户吗？其中任一客户有关联数据时整批不删除。`))return;
+ try{
+  await api("/api/tlc-customers/delete-batch",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ids})});
+  $("message").textContent=`批量删除完成：${ids.length} 件`;newRecord();await loadRecords();
+ }catch(e){alert(formatDeleteError(e))}
+}
 function clearSearch(){for(const [id] of searches)$(id).value='';$('includeInactive').value='true';loadRecords()}async function importCsv(){const f=$('csvFile').files[0];if(!f)return alert('请选择CSV文件');const d=new FormData();d.append('file',f);try{const r=await api('/api/tlc-customers/import',{method:'POST',body:d});$('msg').textContent=`CSV 导入完成：新增 ${r.inserted}，更新 ${r.updated}，跳过 ${r.skipped}`;await loadRecords()}catch(e){alert(e.message)}}function exportCsv(){location.href='/api/tlc-customers/export.csv?'+qp()}function toggleAll(v){document.querySelectorAll('.ck').forEach(x=>x.checked=v)}loadRecords();
 </script></body></html>

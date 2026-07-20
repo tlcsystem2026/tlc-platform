@@ -10,6 +10,9 @@ from sqlalchemy.orm import Session
 
 from src.db.session import get_db
 from src.services.tlc_bank_account_profile_service import (
+    BankDeleteConflict,
+    delete_banks,
+    delete_profiles,
     import_profiles,
     list_profiles,
     save_profile,
@@ -126,6 +129,68 @@ def export_csv(
             "Content-Disposition": 'attachment; filename="tlc_bank_accounts.csv"'
         },
     )
+
+
+
+
+@router.post("/api/tlc-bank-accounts/delete-batch")
+def delete_account_batch(payload: dict, db: Session = Depends(get_db)):
+    try:
+        return delete_profiles(db, payload.get("ids", []))
+    except BankDeleteConflict as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"message": str(exc), "blocked": exc.references},
+        ) from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.delete("/api/tlc-bank-accounts/{record_id}")
+def delete_account(record_id: str, db: Session = Depends(get_db)):
+    try:
+        return delete_profiles(db, [record_id])
+    except BankDeleteConflict as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"message": str(exc), "blocked": exc.references},
+        ) from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/api/tlc-banks/delete-batch")
+def delete_bank_batch(payload: dict, db: Session = Depends(get_db)):
+    try:
+        return delete_banks(db, payload.get("ids", []))
+    except BankDeleteConflict as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"message": str(exc), "blocked": exc.references},
+        ) from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.delete("/api/tlc-banks/{record_id}")
+def delete_bank(record_id: str, db: Session = Depends(get_db)):
+    try:
+        return delete_banks(db, [record_id])
+    except BankDeleteConflict as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"message": str(exc), "blocked": exc.references},
+        ) from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/tlc-bank-account-master", response_class=HTMLResponse)

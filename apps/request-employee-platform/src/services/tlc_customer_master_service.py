@@ -156,3 +156,142 @@ def import_customer_rows(db: Session, rows: list[dict[str, Any]]) -> dict[str, A
         "created": inserted,
         "updated": updated,
     }
+
+
+
+class MasterDeleteConflict(ValueError):
+    def __init__(self, message: str, references: list[dict[str, Any]]):
+        super().__init__(message)
+        self.references = references
+
+
+def _quote_identifier(value: str) -> str:
+    return '"' + str(value).replace('"', '""') + '"'
+
+
+def _sqlite_tables(db: Session) -> list[str]:
+    return [
+        str(row._mapping["name"])
+        for row in db.execute(
+            text(
+                "SELECT name FROM sqlite_master "
+                "WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+            )
+        ).all()
+    ]
+
+
+def _table_columns(db: Session, table_name: str) -> set[str]:
+    quoted = _quote_identifier(table_name)
+    return {
+        str(row._mapping["name"])
+        for row in db.execute(text(f"PRAGMA table_info({quoted})")).all()
+    }
+
+
+def _customer_references(
+    db: Session,
+    record_id: str,
+    customer_id: str,
+) -> list[dict[str, Any]]:
+    references: list[dict[str, Any]] = []
+    candidate_values = {
+        "customer_master_id": record_id,
+        "customer_record_id": record_id,
+        "customer_id": customer_id,
+        "customer_code": customer_id,
+        "system_customer_code": customer_id,
+    }
+
+    for table_name in _sqlite_tables(db):
+        if table_name == TABLE_NAME:
+            continue
+        columns = _table_columns(db, table_name)
+        for column_name, expected in candidate_values.items():
+            if not expected or column_name not in columns:
+                continue
+            table_q = _quote_identifier(table_name)
+            column_q = _quote_identifier(column_name)
+            count = db.execute(
+                text(
+                    f"SELECT COUNT(*) FROM {table_q} "
+                    f"WHERE {column_q}=:value"
+                ),
+                {"value": expected},
+            ).scalar_one()
+            if int(count or 0) > 0:
+                references.append(
+                    {
+                        "table": table_name,
+                        "column": column_name,
+                        "count": int(count),
+                    }
+                )
+    return references
+
+
+def delete_customers(
+    db: Session,
+    record_ids: list[str],
+) -> dict[str, Any]:
+    ensure_customer_master_table(db)
+    ids: list[str] = []
+    for value in record_ids or []:
+        clean = str(value or "").strip()
+        if clean and clean not in ids:
+            ids.append(clean)
+    if not ids:
+        raise ValueError("ids is required")
+
+    targets: list[dict[str, Any]] = []
+    blocked: list[dict[str, Any]] = []
+
+    for record_id in ids:
+        row = db.execute(
+            text(
+                f"SELECT id,customer_id,formal_name "
+                f"FROM {TABLE_NAME} WHERE id=:id"
+            ),
+            {"id": record_id},
+        ).first()
+        if not row:
+            raise LookupError(f"Customer not found: {record_id}")
+        target = dict(row._mapping)
+        references = _customer_references(
+            db,
+            target["id"],
+            target["customer_id"],
+        )
+        if references:
+            blocked.append(
+                {
+                    "id": target["id"],
+                    "customer_id": target["customer_id"],
+                    "formal_name": target["formal_name"],
+                    "references": references,
+                }
+            )
+        targets.append(target)
+
+    if blocked:
+        raise MasterDeleteConflict(
+            "Customer has associated data. Delete or unlink the associated "
+            "data before deleting the customer.",
+            blocked,
+        )
+
+    try:
+        for target in targets:
+            db.execute(
+                text(f"DELETE FROM {TABLE_NAME} WHERE id=:id"),
+                {"id": target["id"]},
+            )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+    return {
+        "deleted": len(targets),
+        "ids": [target["id"] for target in targets],
+    }

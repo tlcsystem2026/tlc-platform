@@ -3,7 +3,7 @@ from fastapi import APIRouter,Depends,HTTPException,Query,Request
 from fastapi.responses import HTMLResponse,Response
 from sqlalchemy.orm import Session
 from src.db.session import get_db
-from src.services.tlc_customer_master_service import export_customers_csv,get_customer,import_customer_rows,import_todokedl_csv,list_customers,save_customer
+from src.services.tlc_customer_master_service import MasterDeleteConflict,delete_customers,export_customers_csv,get_customer,import_customer_rows,import_todokedl_csv,list_customers,save_customer
 router=APIRouter(tags=['tlc-customer-master'])
 
 def _list(db,**kw):return list_customers(db,**kw)
@@ -30,6 +30,23 @@ async def import_records(request:Request,db:Session=Depends(get_db)):
 def export_records(query:str='',customer_id:str='',formal_name:str='',katakana_name:str='',katakana_name_short:str='',delivery_name_1:str='',delivery_name_2:str='',phone_number:str='',postal_code:str='',address:str='',status_code:str='',source_system:str='',include_inactive:bool=True,db:Session=Depends(get_db)):
  data=_list(db,query=query,customer_id=customer_id,formal_name=formal_name,katakana_name=katakana_name,katakana_name_short=katakana_name_short,delivery_name_1=delivery_name_1,delivery_name_2=delivery_name_2,phone_number=phone_number,postal_code=postal_code,address=address,status_code=status_code,source_system=source_system,include_inactive=include_inactive,limit=2000)
  return Response(export_customers_csv(data),media_type='text/csv; charset=utf-8',headers={'Content-Disposition':'attachment; filename="tlc_customer_master.csv"'})
+
+@router.post('/api/tlc-customers/delete-batch')
+def delete_batch(payload:dict,db:Session=Depends(get_db)):
+ try:return delete_customers(db,payload.get('ids',[]))
+ except MasterDeleteConflict as e:
+  raise HTTPException(409,detail={'message':str(e),'blocked':e.references}) from e
+ except LookupError as e:raise HTTPException(404,str(e)) from e
+ except ValueError as e:raise HTTPException(400,str(e)) from e
+
+@router.delete('/api/tlc-customers/{record_id}')
+def delete_record(record_id:str,db:Session=Depends(get_db)):
+ try:return delete_customers(db,[record_id])
+ except MasterDeleteConflict as e:
+  raise HTTPException(409,detail={'message':str(e),'blocked':e.references}) from e
+ except LookupError as e:raise HTTPException(404,str(e)) from e
+ except ValueError as e:raise HTTPException(400,str(e)) from e
+
 @router.get('/api/tlc-customers/{record_id}')
 def get_record(record_id:str,db:Session=Depends(get_db)):
  r=get_customer(db,record_id)
