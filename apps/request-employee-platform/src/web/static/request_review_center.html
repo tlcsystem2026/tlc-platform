@@ -45,7 +45,7 @@ th{background:#edf2f7}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 </section>
 
 <section class="card">
-<h3>Batch Review Queue 预览</h3>
+<h3>Batch Review Queue 预览</h3><div id="latestBatchToolbar" style="display:flex;align-items:center;gap:14px;margin:10px 0 14px 0;padding:10px 12px;border:1px solid #d8dee8;border-radius:8px;background:#f7f9fc"><label style="display:flex;flex-direction:row;align-items:center;gap:8px;margin:0;font-weight:600"><input id="latestBatchOnly" type="checkbox" checked onchange="loadReviews()">仅显示最新 Batch</label><span id="batchDisplayModeNote" class="muted">默认只显示所选业务年月最新一次执行；取消勾选可查看历史 Batch。</span><span id="batchLatestVersion" class="muted">显示规则：R4</span></div>
 <div id="batchQueue">暂无数据。</div>
 </section>
 
@@ -59,7 +59,7 @@ th{background:#edf2f7}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 <label>Compare<select id="reviewCompare"><option value="">全部</option><option>MATCHED</option><option>EXCEPTION</option><option>ERROR</option></select></label>
 <label>客户匹配<select id="reviewCustomer"><option value="">全部</option><option>MATCHED</option><option>UNMATCHED</option></select></label>
 <label>关键词<input id="reviewKeyword"></label>
-<label style="flex-direction:row;align-items:center;gap:6px"><input id="latestBatchOnly" type="checkbox" checked onchange="loadReviews()">仅显示最新 Batch</label><div id="batchDisplayModeNote" class="muted" style="margin-top:8px">默认仅显示所选业务年月中最新一次 Batch；取消勾选可查看历史执行。</div>
+
 <button class="primary" onclick="loadReviews()">查询</button>
 </div>
 </section>
@@ -78,7 +78,7 @@ th{background:#edf2f7}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 <div class="card" style="background:#eee"><h3>原始数据（只读）</h3><div id="raw">请选择一条记录。</div></div>
 <div class="card"><h3>系统数据与 Review</h3><div id="system">请选择一条记录。</div></div>
 </section>
-<div id="batchLatestVersion" class="muted" style="margin:8px 0">Batch Review 显示规则：R3（默认最新一次）</div></main>
+</main>
 
 <script>
 const batchApi="/api/tlc-request-batch-compare-import";
