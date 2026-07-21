@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Any
 
 
@@ -328,7 +328,66 @@ def _derive_rate_triplet(
         result[inclusive_key] = "0"
 
 
+def _decimal_or_none(value: str):
+    try:
+        if value in (None, ""):
+            return None
+        return Decimal(str(value).replace(",", ""))
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def _derive_rate_from_inclusive(
+    result: dict[str, str],
+    rate: str,
+) -> None:
+    inclusive_key = f"tax_inclusive_amount_{rate}"
+    taxable_key = f"taxable_amount_{rate}"
+    tax_key = f"tax_amount_{rate}"
+
+    inclusive = _decimal_or_none(result.get(inclusive_key, ""))
+    taxable = _decimal_or_none(result.get(taxable_key, ""))
+    tax = _decimal_or_none(result.get(tax_key, ""))
+
+    if inclusive is None:
+        return
+
+    if inclusive == 0:
+        result[taxable_key] = "0"
+        result[tax_key] = "0"
+        result[inclusive_key] = "0"
+        return
+
+    valid_pair = (
+        taxable is not None
+        and tax is not None
+        and taxable + tax == inclusive
+    )
+    if valid_pair:
+        return
+
+    divisor = Decimal("1.10") if rate == "10" else Decimal("1.08")
+    derived_taxable = (inclusive / divisor).quantize(
+        Decimal("1"),
+        rounding=ROUND_HALF_UP,
+    )
+    derived_tax = inclusive - derived_taxable
+
+    result[taxable_key] = amount_string(derived_taxable)
+    result[tax_key] = amount_string(derived_tax)
+    result[inclusive_key] = amount_string(inclusive)
+
+
+def _repair_tax_breakdown_from_inclusive(
+    result: dict[str, str],
+) -> dict[str, str]:
+    _derive_rate_from_inclusive(result, "10")
+    _derive_rate_from_inclusive(result, "8")
+    return result
+
+
 def finalize_tax_breakdown(result: dict[str, str]) -> dict[str, str]:
+    result = _repair_tax_breakdown_from_inclusive(dict(result))
     _derive_rate_triplet(result, "10")
     _derive_rate_triplet(result, "8")
 
