@@ -93,6 +93,26 @@ def _is_zero_placeholder(line: str) -> bool:
     )
 
 
+def _amount_candidates_without_markers(value: str) -> list[str]:
+    normalized = unicodedata.normalize("NFKC", str(value or ""))
+    normalized = re.sub(
+        r"(税込額|税込金額|含税額|含税金額)\s*[12](?!\d)",
+        r"\1",
+        normalized,
+    )
+    return re.findall(_AMOUNT, normalized)
+
+
+def _last_real_amount(value: str) -> str:
+    values = _amount_candidates_without_markers(value)
+    if not values:
+        return ""
+    try:
+        return amount_string(Decimal(values[-1].replace(",", "")))
+    except InvalidOperation:
+        return ""
+
+
 def _detect_section_rate(line: str) -> str:
     normalized = unicodedata.normalize("NFKC", str(line or ""))
     compact = re.sub(r"\s+", "", normalized)
@@ -196,7 +216,7 @@ def _extract_line(
         token in compact
         for token in ("税込額", "税込金額", "含税額", "含税金額")
     ):
-        fallback = _last_amount(line)
+        fallback = _last_real_amount(line)
         if fallback:
             _set_if_empty(
                 result,
@@ -218,7 +238,7 @@ def _extract_line(
             _set_if_empty(result, f"tax_amount_{rate}", "0")
             return current_rate
 
-        fallback = _last_amount(line)
+        fallback = _last_real_amount(line)
         if fallback and fallback != rate:
             _set_if_empty(result, f"tax_amount_{rate}", fallback)
         return current_rate
@@ -242,7 +262,7 @@ def _extract_line(
             )
             return current_rate
 
-        fallback = _last_amount(line)
+        fallback = _last_real_amount(line)
         if fallback:
             _set_if_empty(
                 result,
@@ -270,7 +290,48 @@ def _sum_present(values: list[str]) -> str:
     return amount_string(sum(actual, Decimal("0")))
 
 
+def _derive_rate_triplet(
+    result: dict[str, str],
+    rate: str,
+) -> None:
+    taxable_key = f"taxable_amount_{rate}"
+    tax_key = f"tax_amount_{rate}"
+    inclusive_key = f"tax_inclusive_amount_{rate}"
+
+    taxable = _decimal(result.get(taxable_key, ""))
+    tax = _decimal(result.get(tax_key, ""))
+    inclusive = _decimal(result.get(inclusive_key, ""))
+
+    # Derive a missing formula/cached value when the other two values exist.
+    if taxable is not None and tax is not None and inclusive is None:
+        result[inclusive_key] = amount_string(taxable + tax)
+        inclusive = taxable + tax
+    elif taxable is not None and inclusive is not None and tax is None:
+        result[tax_key] = amount_string(inclusive - taxable)
+        tax = inclusive - taxable
+    elif tax is not None and inclusive is not None and taxable is None:
+        result[taxable_key] = amount_string(inclusive - tax)
+        taxable = inclusive - tax
+
+    # A section explicitly having a zero inclusive amount means that both
+    # taxable amount and consumption tax are zero, even when Excel formula
+    # cache cells are blank.
+    if inclusive == Decimal("0"):
+        if taxable is None:
+            result[taxable_key] = "0"
+        if tax is None:
+            result[tax_key] = "0"
+
+    # If both component amounts are explicitly zero, the inclusive amount is
+    # also zero.
+    if taxable == Decimal("0") and tax == Decimal("0") and inclusive is None:
+        result[inclusive_key] = "0"
+
+
 def finalize_tax_breakdown(result: dict[str, str]) -> dict[str, str]:
+    _derive_rate_triplet(result, "10")
+    _derive_rate_triplet(result, "8")
+
     subtotal = _sum_present(
         [
             result.get("taxable_amount_10", ""),
@@ -320,8 +381,46 @@ def extract_tax_breakdown_from_text(value: str) -> dict[str, str]:
     result = empty_tax_breakdown()
     normalized = unicodedata.normalize("NFKC", str(value or ""))
     current_rate = ""
-    for line in normalized.splitlines():
+    pending_key = ""
+
+    for raw_line in normalized.splitlines():
+        line = str(raw_line or "").strip()
+        if not line:
+            continue
+
+        compact = re.sub(r"\s+", "", line)
+        detected_rate = _detect_section_rate(line)
+        if detected_rate:
+            current_rate = detected_rate
+
+        if pending_key:
+            amount = _last_real_amount(line)
+            if amount:
+                _set_if_empty(result, pending_key, amount)
+                pending_key = ""
+
         current_rate = _extract_line(result, line, current_rate)
+
+        rate = detected_rate or current_rate
+        if not rate:
+            continue
+
+        label_key = ""
+        if any(token in compact for token in ("税込額", "税込金額", "含税額", "含税金額")):
+            label_key = f"tax_inclusive_amount_{rate}"
+        elif any(token in compact for token in ("消費税", "税額")):
+            label_key = f"tax_amount_{rate}"
+        elif any(token in compact for token in ("小計(税抜)", "小計（税抜）", "税抜小計", "対象額", "課税対象", "税抜")):
+            label_key = f"taxable_amount_{rate}"
+
+        if (
+            label_key
+            and not result.get(label_key)
+            and not _is_zero_placeholder(line)
+            and not _last_real_amount(line)
+        ):
+            pending_key = label_key
+
     return finalize_tax_breakdown(result)
 
 
