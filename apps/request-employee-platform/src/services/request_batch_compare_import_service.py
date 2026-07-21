@@ -308,7 +308,51 @@ def _likely_customer(data: dict) -> str:
 
 
 def _normalize(value: str) -> str:
-    return re.sub(r"[\s　・･,，。．.\-_/\\()（）「」『』]", "", str(value or "").lower())
+    normalized = unicodedata.normalize("NFKC", str(value or "")).casefold()
+    normalized = re.sub(
+        r"[\s\u3000・･·•∙⋅,，。．.\-‐‑‒–—―_/\\()（）「」『』【】]",
+        "",
+        normalized,
+    )
+    replacements = {
+        "㈱": "株式会社",
+        "(株)": "株式会社",
+        "（株）": "株式会社",
+        "㈲": "有限会社",
+        "(有)": "有限会社",
+        "（有）": "有限会社",
+    }
+    for source, target in replacements.items():
+        normalized = normalized.replace(source, target)
+    return normalized
+
+
+def _pdf_recipient_name(pdf_text: str) -> str:
+    normalized = unicodedata.normalize("NFKC", str(pdf_text or ""))
+    for match in re.finditer(
+        r"(?m)^\s*(.+?)\s*(?:御中|様|殿)\s*$",
+        normalized,
+    ):
+        candidate = _clean_customer_candidate(match.group(1))
+        if candidate and candidate != "東京恋人株式会社":
+            return candidate
+    lines = [line.strip() for line in normalized.splitlines() if line.strip()]
+    for index, line in enumerate(lines):
+        if line in {"御中", "様", "殿"} and index > 0:
+            candidate = _clean_customer_candidate(lines[index - 1])
+            if candidate and candidate != "東京恋人株式会社":
+                return candidate
+    return ""
+
+
+def _customer_name_found_in_pdf(raw_customer: str, pdf_text: str) -> bool:
+    raw_normalized = _normalize(raw_customer)
+    if not raw_normalized:
+        return False
+    recipient = _pdf_recipient_name(pdf_text)
+    if recipient:
+        return raw_normalized == _normalize(recipient)
+    return raw_normalized in _normalize(pdf_text)
 
 
 def _match_customer(db: Session, raw_name: str) -> tuple[str, str, str]:
@@ -493,8 +537,12 @@ def run_request_batch(db: Session, *, business_month: str, operator: str) -> dic
                     if not excel_text: codes.append("EXCEL_DATA_EMPTY"); details.append("Excel contains no readable data")
                     if pdf_total and excel_total and pdf_total != excel_total:
                         codes.append("TOTAL_AMOUNT_MISMATCH"); details.append(f"PDF total={pdf_total}, Excel total={excel_total}")
-                    if raw_customer and _normalize(raw_customer) not in _normalize(pdf_text):
-                        codes.append("CUSTOMER_NAME_NOT_FOUND_IN_PDF"); details.append(f"Excel customer name not found in PDF: {raw_customer}")
+                    if raw_customer and not _customer_name_found_in_pdf(raw_customer, pdf_text):
+                        codes.append("CUSTOMER_NAME_NOT_FOUND_IN_PDF")
+                        details.append(
+                            "Excel customer name does not match PDF recipient: "
+                            f"{raw_customer}"
+                        )
                 compare_status = "MATCHED" if not codes else "EXCEPTION"
             except Exception as exc:
                 fatal = True; compare_status = "ERROR"; codes.append("PROCESSING_ERROR"); details.append(str(exc)); error_count += 1
