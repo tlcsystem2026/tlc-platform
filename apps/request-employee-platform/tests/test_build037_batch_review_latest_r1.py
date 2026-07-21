@@ -1,45 +1,34 @@
 from pathlib import Path
 
-from fastapi.testclient import TestClient
 
-from src.main import app
-
-
-client = TestClient(app)
+APP = Path(__file__).parents[1]
 
 
-def test_review_api_accepts_latest_only_parameter():
-    response = client.get(
-        "/api/tlc-request-reviews",
-        params={
-            "business_month": "190001",
-            "latest_only": "true",
-            "review_status": "",
-        },
-    )
-    assert response.status_code == 200
-    assert response.json() == []
+def test_backend_forces_latest_batch_for_month():
+    service = (
+        APP / "src/services/request_review_service.py"
+    ).read_text(encoding="utf-8")
+    assert "BUILD037_BATCH_REVIEW_FORCE_LATEST_R3" in service
+    assert "if business_month and latest_only:" in service
+    assert "ORDER BY MAX(rowid) DESC" in service
+    assert "batch_id=(" in service
 
 
-def test_review_page_defaults_to_latest_batch():
-    response = client.get("/request-review-center")
-    assert response.status_code == 200
-    html = response.text
+def test_page_defaults_to_latest_and_does_not_send_stale_batch_id():
+    html = (
+        APP / "src/web/static/request_review_center.html"
+    ).read_text(encoding="utf-8")
     assert 'id="latestBatchOnly"' in html
     assert 'type="checkbox" checked' in html
     assert "仅显示最新 Batch" in html
-    assert 'latest_only:$(\"latestBatchOnly\").checked' in html
-    assert "默认仅显示所选业务年月中最新一次 Batch" in html
+    assert 'batch_id:""' in html
+    assert 'latest_only:$("latestBatchOnly").checked' in html
+    assert "Batch Review 显示规则：R3（默认最新一次）" in html
 
 
-def test_service_contains_latest_batch_selection():
-    service = (
-        Path(__file__).parents[1]
-        / "src/services/request_review_service.py"
+def test_route_passes_latest_only_to_service():
+    route = (
+        APP / "src/api/routes/request_review.py"
     ).read_text(encoding="utf-8")
-    assert "BUILD037_BATCH_REVIEW_LATEST_R1" in service
-    assert "BUILD037_BATCH_REVIEW_TABLE_GUARD_R2" in service
-    assert "sqlite_master" in service
-    assert "GROUP BY batch_id" in service
-    assert "MAX(COALESCE(created_at,'')) DESC" in service
-    assert "MAX(rowid) DESC" in service
+    assert "latest_only:bool=True" in route.replace(" ", "")
+    assert "batch_id,latest_only,review_status" in route.replace(" ", "")

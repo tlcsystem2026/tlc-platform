@@ -78,7 +78,7 @@ th{background:#edf2f7}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 <div class="card" style="background:#eee"><h3>原始数据（只读）</h3><div id="raw">请选择一条记录。</div></div>
 <div class="card"><h3>系统数据与 Review</h3><div id="system">请选择一条记录。</div></div>
 </section>
-</main>
+<div id="batchLatestVersion" class="muted" style="margin:8px 0">Batch Review 显示规则：R3（默认最新一次）</div></main>
 
 <script>
 const batchApi="/api/tlc-request-batch-compare-import";
@@ -133,7 +133,7 @@ async function loadBatch(){
 async function loadReviews(){
  const q=new URLSearchParams({
   business_month:$("reviewMonth").value.trim(),
-  batch_id:$("latestBatchOnly").checked?activeBatchId:"",
+  batch_id:"",
   latest_only:$("latestBatchOnly").checked,
   review_status:$("reviewStatus").value,
   compare_status:$("reviewCompare").value,
