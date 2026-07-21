@@ -155,8 +155,43 @@ def ensure_review_tables(db:Session)->None:
 def _row(r)->dict[str,Any]:
     return dict(r._mapping)
 
-def list_reviews(db:Session, business_month:str="", batch_id:str="", review_status:str="WAIT_REVIEW", compare_status:str="", customer_match_status:str="", keyword:str="", limit:int=500):
+def list_reviews(db:Session, business_month:str="", batch_id:str="", latest_only:bool=True, review_status:str="WAIT_REVIEW", compare_status:str="", customer_match_status:str="", keyword:str="", limit:int=500):
+    # BUILD037_BATCH_REVIEW_TABLE_GUARD_R2
+    table_exists=db.execute(
+        text(
+            "SELECT 1 FROM sqlite_master "
+            "WHERE type='table' AND name='tlc_request_review_queue'"
+        )
+    ).first()
+    if not table_exists:
+        return []
+
     ensure_review_tables(db)
+    # BUILD037_BATCH_REVIEW_LATEST_R1
+    business_month=str(business_month or "").strip()
+    batch_id=str(batch_id or "").strip()
+
+    # Keep historical rows, but default the queue to the newest Batch
+    # that actually produced Review rows for the selected month.
+    if business_month and latest_only and not batch_id:
+        latest=db.execute(
+            text(
+                "SELECT batch_id "
+                "FROM tlc_request_review_queue "
+                "WHERE business_month=:business_month "
+                "AND COALESCE(batch_id,'')<>'' "
+                "GROUP BY batch_id "
+                "ORDER BY MAX(COALESCE(created_at,'')) DESC, "
+                "MAX(rowid) DESC, batch_id DESC "
+                "LIMIT 1"
+            ),
+            {"business_month":business_month},
+        ).first()
+        if latest:
+            batch_id=str(
+                latest._mapping.get("batch_id") or ""
+            ).strip()
+
     clauses=[]; params={"limit":min(max(int(limit),1),2000)}
     if business_month:
         clauses.append("q.business_month=:business_month"); params["business_month"]=business_month

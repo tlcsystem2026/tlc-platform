@@ -59,7 +59,7 @@ th{background:#edf2f7}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 <label>Compare<select id="reviewCompare"><option value="">全部</option><option>MATCHED</option><option>EXCEPTION</option><option>ERROR</option></select></label>
 <label>客户匹配<select id="reviewCustomer"><option value="">全部</option><option>MATCHED</option><option>UNMATCHED</option></select></label>
 <label>关键词<input id="reviewKeyword"></label>
-<label style="flex-direction:row;align-items:center;gap:6px"><input id="latestBatchOnly" type="checkbox" checked onchange="loadReviews()">仅本次 Batch</label>
+<label style="flex-direction:row;align-items:center;gap:6px"><input id="latestBatchOnly" type="checkbox" checked onchange="loadReviews()">仅显示最新 Batch</label><div id="batchDisplayModeNote" class="muted" style="margin-top:8px">默认仅显示所选业务年月中最新一次 Batch；取消勾选可查看历史执行。</div>
 <button class="primary" onclick="loadReviews()">查询</button>
 </div>
 </section>
@@ -134,6 +134,7 @@ async function loadReviews(){
  const q=new URLSearchParams({
   business_month:$("reviewMonth").value.trim(),
   batch_id:$("latestBatchOnly").checked?activeBatchId:"",
+  latest_only:$("latestBatchOnly").checked,
   review_status:$("reviewStatus").value,
   compare_status:$("reviewCompare").value,
   customer_match_status:$("reviewCustomer").value,
