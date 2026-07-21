@@ -377,7 +377,101 @@ def finalize_tax_breakdown(result: dict[str, str]) -> dict[str, str]:
     return result
 
 
+def _compact_pdf_text(value: str) -> str:
+    raw = str(value or "")
+    raw = re.sub(
+        r"(税\s*込\s*額)\s*[①②]",
+        r"\1 ",
+        raw,
+    )
+    normalized = unicodedata.normalize("NFKC", raw)
+    normalized = normalized.replace("\\x00", "")
+    normalized = normalized.replace(chr(0), "")
+    return re.sub(r"\s+", "", normalized)
+
+
+def _section_amount(section: str, patterns: tuple[str, ...]) -> str:
+    for pattern in patterns:
+        match = re.search(pattern, section, re.I)
+        if not match:
+            continue
+        try:
+            return amount_string(
+                Decimal(match.group(1).replace(",", ""))
+            )
+        except InvalidOperation:
+            continue
+    return ""
+
+
+def _extract_compact_pdf_sections(value: str) -> dict[str, str]:
+    compact = _compact_pdf_text(value)
+    result = empty_tax_breakdown()
+
+    markers = [
+        ("10", marker.start())
+        for marker in re.finditer(r"(?:①|1)通常税率商品", compact)
+    ]
+    markers += [
+        ("8", marker.start())
+        for marker in re.finditer(r"(?:②|2)軽減税率商品", compact)
+    ]
+    markers.sort(key=lambda item: item[1])
+
+    if not markers:
+        return result
+
+    for index, (rate, start) in enumerate(markers):
+        end = (
+            markers[index + 1][1]
+            if index + 1 < len(markers)
+            else len(compact)
+        )
+        section = compact[start:end]
+
+        taxable = _section_amount(
+            section,
+            (
+                r"小計(?:\(税抜\)|（税抜）|税抜)?"
+                r"(?:¥|￥|\\)?(-?\d[\d,]*(?:\.\d+)?)",
+                r"税抜小計(?:¥|￥|\\)?"
+                r"(-?\d[\d,]*(?:\.\d+)?)",
+            ),
+        )
+        tax = _section_amount(
+            section,
+            (
+                rf"消費税{rate}[%％]?"
+                r"(?:¥|￥|\\)?(-?\d[\d,]*(?:\.\d+)?)",
+                r"消費税(?:¥|￥|\\)?"
+                r"(-?\d[\d,]*(?:\.\d+)?)",
+            ),
+        )
+        inclusive = _section_amount(
+            section,
+            (
+                r"税込額(?:¥|￥|\\)?"
+                r"(-?\d[\d,]*(?:\.\d+)?)",
+                r"税込金額(?:¥|￥|\\)?"
+                r"(-?\d[\d,]*(?:\.\d+)?)",
+            ),
+        )
+
+        if taxable:
+            result[f"taxable_amount_{rate}"] = taxable
+        if tax:
+            result[f"tax_amount_{rate}"] = tax
+        if inclusive:
+            result[f"tax_inclusive_amount_{rate}"] = inclusive
+
+    return finalize_tax_breakdown(result)
+
+
 def extract_tax_breakdown_from_text(value: str) -> dict[str, str]:
+    compact_result = _extract_compact_pdf_sections(value)
+    if has_tax_breakdown(compact_result):
+        return compact_result
+
     result = empty_tax_breakdown()
     normalized = unicodedata.normalize("NFKC", str(value or ""))
     current_rate = ""
