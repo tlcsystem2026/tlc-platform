@@ -45,7 +45,7 @@ th{background:#edf2f7}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 </section>
 
 <section class="card">
-<h3>Batch Review Queue 预览</h3><div id="latestBatchToolbar" style="display:flex;align-items:center;gap:14px;margin:10px 0 14px 0;padding:10px 12px;border:1px solid #d8dee8;border-radius:8px;background:#f7f9fc"><label style="display:flex;flex-direction:row;align-items:center;gap:8px;margin:0;font-weight:600"><input id="latestBatchOnly" type="checkbox" checked onchange="loadReviews()">仅显示最新 Batch</label><span id="batchDisplayModeNote" class="muted">默认只显示所选业务年月最新一次执行；取消勾选可查看历史 Batch。</span><span id="batchLatestVersion" class="muted">显示规则：R6</span></div><div id="latestBatchToolbar" style="display:flex;align-items:center;gap:14px;margin:10px 0 14px 0;padding:10px 12px;border:1px solid #d8dee8;border-radius:8px;background:#f7f9fc"><span id="batchDisplayModeNote" class="muted">默认只显示所选业务年月最新一次执行；取消勾选可查看历史 Batch。</span><span id="batchLatestVersion" class="muted">显示规则：R6</span></div>
+<h3>Batch Review Queue 预览</h3><div id="latestBatchToolbar" style="display:flex;align-items:center;gap:14px;margin:10px 0 14px 0;padding:10px 12px;border:1px solid #d8dee8;border-radius:8px;background:#f7f9fc"><label style="display:flex;flex-direction:row;align-items:center;gap:8px;margin:0;font-weight:600"><input id="latestBatchOnly" type="checkbox" checked onchange="loadBatch()">仅显示最新 Batch</label><span id="batchDisplayModeNote" class="muted">默认只显示所选业务年月最新一次执行；取消勾选可查看历史 Batch。</span><span id="batchLatestVersion" class="muted">显示规则：R8</span></div><div id="latestBatchToolbar" style="display:flex;align-items:center;gap:14px;margin:10px 0 14px 0;padding:10px 12px;border:1px solid #d8dee8;border-radius:8px;background:#f7f9fc"><span id="batchDisplayModeNote" class="muted">默认只显示所选业务年月最新一次执行；取消勾选可查看历史 Batch。</span><span id="batchLatestVersion" class="muted">显示规则：R8</span></div>
 <div id="batchQueue">暂无数据。</div>
 </section>
 
@@ -123,6 +123,21 @@ async function loadBatch(){
  try{
   const b=await jf(batchApi+"/latest?business_month="+encodeURIComponent(m));
   activeBatchId=b.id||b.batch_id||activeBatchId;
+  // BUILD037_BATCH_PREVIEW_FILTER_R8
+  if($("latestBatchOnly") && $("latestBatchOnly").checked && activeBatchId){
+    const previewKeys=[
+      "items","rows","review_items","review_rows",
+      "review_preview","preview","queue","queue_items"
+    ];
+    for(const key of previewKeys){
+      if(Array.isArray(b[key])){
+        b[key]=b[key].filter(row=>
+          String(row.batch_id||"")===String(activeBatchId)
+        );
+      }
+    }
+  }
+
   $("batchStatus").textContent=b.status||"无记录";
   $("batchMsg").innerHTML=`异常文件：${esc(b.exception_report_path||"无")}<br>${esc(b.message||"")}`;
   batchMetrics(b||{});
