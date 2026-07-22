@@ -150,6 +150,20 @@ def ensure_review_tables(db:Session)->None:
         db.execute(text("ALTER TABLE tlc_request_review_queue ADD COLUMN review_comment TEXT NOT NULL DEFAULT ''"))
     if "forced_review" not in cols:
         db.execute(text("ALTER TABLE tlc_request_review_queue ADD COLUMN forced_review INTEGER NOT NULL DEFAULT 0"))
+    # BUILD037_REVIEW_CURRENT_FLAG_SCHEMA_R6
+    review_columns = {
+        row[1]
+        for row in db.execute(
+            text("PRAGMA table_info(tlc_request_review_queue)")
+        ).all()
+    }
+    if "is_current" not in review_columns:
+        db.execute(
+            text(
+                "ALTER TABLE tlc_request_review_queue "
+                "ADD COLUMN is_current INTEGER NOT NULL DEFAULT 0"
+            )
+        )
     db.commit()
 
 def _row(r)->dict[str,Any]:
@@ -205,9 +219,14 @@ def list_reviews(db:Session, business_month:str="", batch_id:str="", latest_only
 
     clauses=[]; params={"limit":min(max(int(limit),1),2000)}
     if business_month:
-        clauses.append("q.business_month=:business_month"); params["business_month"]=business_month
-    if batch_id:
-        clauses.append("q.batch_id=:batch_id"); params["batch_id"]=batch_id
+        clauses.append("q.business_month=:business_month")
+        params["business_month"]=business_month
+    # BUILD037_REVIEW_CURRENT_FLAG_FILTER_R6
+    if business_month and latest_only:
+        clauses.append("COALESCE(q.is_current,0)=1")
+    elif batch_id:
+        clauses.append("q.batch_id=:batch_id")
+        params["batch_id"]=batch_id
     if review_status:
         clauses.append("q.review_status=:review_status"); params["review_status"]=review_status
     if compare_status:

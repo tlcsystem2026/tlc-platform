@@ -91,6 +91,34 @@ def ensure_tables(db: Session) -> None:
                     f"ADD COLUMN {column} {definition}"
                 )
             )
+    # BUILD037_BATCH_CURRENT_FLAG_SCHEMA_R6
+    batch_columns = {
+        row[1]
+        for row in db.execute(
+            text(f"PRAGMA table_info({BATCH_TABLE})")
+        ).all()
+    }
+    if "is_current" not in batch_columns:
+        db.execute(
+            text(
+                f"ALTER TABLE {BATCH_TABLE} "
+                "ADD COLUMN is_current INTEGER NOT NULL DEFAULT 0"
+            )
+        )
+
+    review_columns = {
+        row[1]
+        for row in db.execute(
+            text(f"PRAGMA table_info({REVIEW_TABLE})")
+        ).all()
+    }
+    if "is_current" not in review_columns:
+        db.execute(
+            text(
+                f"ALTER TABLE {REVIEW_TABLE} "
+                "ADD COLUMN is_current INTEGER NOT NULL DEFAULT 0"
+            )
+        )
     db.commit()
 
 
@@ -583,7 +611,7 @@ def run_request_batch(db: Session, *, business_month: str, operator: str) -> dic
                 ),
                 tax_params,
             )
-            db.execute(text(f"INSERT INTO {REVIEW_TABLE}(id,batch_id,item_id,business_month,pair_key,compare_status,raw_customer_name,system_customer_code,system_customer_name,exception_codes,created_at) VALUES(:id,:batch_id,:item_id,:month,:pair_key,:compare_status,:raw_customer,:customer_code,:customer_name,:codes,:created_at)"), {"id": uuid4().hex, "batch_id": batch_id, "item_id": item_id, "month": month, "pair_key": pair_key, "compare_status": compare_status, "raw_customer": raw_customer, "customer_code": customer_code, "customer_name": customer_name, "codes": ",".join(codes), "created_at": created_at})
+            db.execute(text(f"INSERT INTO {REVIEW_TABLE}(id,batch_id,item_id,business_month,pair_key,compare_status,raw_customer_name,system_customer_code,system_customer_name,exception_codes,created_at,is_current) VALUES(:id,:batch_id,:item_id,:month,:pair_key,:compare_status,:raw_customer,:customer_code,:customer_name,:codes,:created_at,0)"), {"id": uuid4().hex, "batch_id": batch_id, "item_id": item_id, "month": month, "pair_key": pair_key, "compare_status": compare_status, "raw_customer": raw_customer, "customer_code": customer_code, "customer_name": customer_name, "codes": ",".join(codes), "created_at": created_at})
             db.commit(); pair_count += 1; review_count += 1
             if compare_status != "MATCHED":
                 exception_rows.append({"batch_id": batch_id, "business_month": month, "pair_key": pair_key, "pdf_file_name": pdf_path.name if pdf_path else "", "excel_file_name": excel_path.name if excel_path else "", "compare_status": compare_status, "exception_codes": ",".join(codes), "exception_details": " | ".join(details), "raw_customer_name": raw_customer, "system_customer_code": customer_code, "system_customer_name": customer_name})
@@ -596,5 +624,31 @@ def run_request_batch(db: Session, *, business_month: str, operator: str) -> dic
         report_path = str(report)
     message = f"files={len(files)}, pairs={pair_count}, review={review_count}, exceptions={len(exception_rows)}, errors={error_count}"
     db.execute(text(f"UPDATE {BATCH_TABLE} SET status=:status,pair_count=:pairs,review_count=:reviews,exception_count=:exceptions,error_count=:errors,exception_report_path=:report,completed_at=:completed_at,message=:message WHERE id=:id"), {"status": "COMPLETED_WITH_ERRORS" if exception_rows else "COMPLETED", "pairs": pair_count, "reviews": review_count, "exceptions": len(exception_rows), "errors": error_count, "report": report_path, "completed_at": _now(), "message": message, "id": batch_id})
+    # BUILD037_BATCH_PROMOTE_CURRENT_R6
+    db.execute(
+        text(
+            f"UPDATE {BATCH_TABLE} SET is_current=0 "
+            "WHERE business_month=:month"
+        ),
+        {"month": month},
+    )
+    db.execute(
+        text(f"UPDATE {BATCH_TABLE} SET is_current=1 WHERE id=:id"),
+        {"id": batch_id},
+    )
+    db.execute(
+        text(
+            f"UPDATE {REVIEW_TABLE} SET is_current=0 "
+            "WHERE business_month=:month"
+        ),
+        {"month": month},
+    )
+    db.execute(
+        text(
+            f"UPDATE {REVIEW_TABLE} SET is_current=1 "
+            "WHERE batch_id=:id"
+        ),
+        {"id": batch_id},
+    )
     db.commit()
     return latest_batch(db, month)
