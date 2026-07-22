@@ -500,15 +500,182 @@ def latest_batch(db: Session, business_month: str = "") -> dict | None:
     return dict(row._mapping) if row else None
 
 
-def list_review_queue(db: Session, business_month: str = "", limit: int = 1000) -> list[dict]:
+def list_review_queue(
+    db: Session,
+    business_month: str = "",
+    batch_id: str = "",
+    latest_only: bool = True,
+    limit: int = 1000,
+) -> list[dict]:
     ensure_tables(db)
     params = {"limit": min(max(int(limit), 1), 2000)}
-    where = ""
+    clauses = []
+
     if business_month:
         params["month"] = validate_business_month(business_month)
-        where = "WHERE business_month=:month"
-    rows = db.execute(text(f"SELECT * FROM {REVIEW_TABLE} {where} ORDER BY created_at DESC LIMIT :limit"), params).all()
-    return [dict(row._mapping) for row in rows]
+        clauses.append("business_month=:month")
+
+    batch_id = str(batch_id or "").strip()
+
+    # BUILD037_BATCH_PREVIEW_BACKEND_FILTER_R9
+    if latest_only:
+        clauses.append("COALESCE(is_current,0)=1")
+    elif batch_id:
+        clauses.append("batch_id=:batch_id")
+        params["batch_id"] = batch_id
+
+    where = "WHERE " + " AND ".join(clauses) if clauses else ""
+    rows = db.execute(
+        text(
+            f"SELECT * FROM {REVIEW_TABLE} "
+            f"{where} ORDER BY created_at DESC, rowid DESC "
+            "LIMIT :limit"
+        ),
+        params,
+    ).all()
+
+    result = []
+    seen = set()
+    for row in rows:
+        item = dict(row._mapping)
+        row_id = str(item.get("id") or "")
+        if row_id and row_id in seen:
+            continue
+        if row_id:
+            seen.add(row_id)
+        result.append(item)
+    return result
+
+
+def bulk_delete_review_queue(
+    db: Session,
+    ids: list[str],
+) -> dict:
+    ensure_tables(db)
+
+    clean_ids = []
+    seen = set()
+    for value in ids or []:
+        value = str(value or "").strip()
+        if value and value not in seen:
+            clean_ids.append(value)
+            seen.add(value)
+
+    if not clean_ids:
+        raise ValueError("No Review Queue rows selected")
+    if len(clean_ids) > 2000:
+        raise ValueError("At most 2000 rows can be deleted at once")
+
+    placeholders = ",".join(
+        f":id_{index}" for index in range(len(clean_ids))
+    )
+    params = {
+        f"id_{index}": value
+        for index, value in enumerate(clean_ids)
+    }
+
+    rows = db.execute(
+        text(
+            f"SELECT id,batch_id,item_id,business_month "
+            f"FROM {REVIEW_TABLE} "
+            f"WHERE id IN ({placeholders})"
+        ),
+        params,
+    ).all()
+
+    if len(rows) != len(clean_ids):
+        found = {str(row._mapping["id"]) for row in rows}
+        missing = [value for value in clean_ids if value not in found]
+        raise ValueError(
+            "Some selected rows no longer exist: " + ",".join(missing)
+        )
+
+    batch_ids = {
+        str(row._mapping["batch_id"] or "")
+        for row in rows
+        if row._mapping["batch_id"]
+    }
+    item_ids = {
+        str(row._mapping["item_id"] or "")
+        for row in rows
+        if row._mapping["item_id"]
+    }
+
+    try:
+        db.execute(
+            text(
+                f"DELETE FROM {REVIEW_TABLE} "
+                f"WHERE id IN ({placeholders})"
+            ),
+            params,
+        )
+
+        if item_ids:
+            ordered_item_ids = sorted(item_ids)
+            item_placeholders = ",".join(
+                f":item_{index}"
+                for index in range(len(ordered_item_ids))
+            )
+            item_params = {
+                f"item_{index}": value
+                for index, value in enumerate(ordered_item_ids)
+            }
+            db.execute(
+                text(
+                    f"DELETE FROM {ITEM_TABLE} "
+                    f"WHERE id IN ({item_placeholders})"
+                ),
+                item_params,
+            )
+
+        for current_batch_id in batch_ids:
+            counts = db.execute(
+                text(
+                    f"SELECT "
+                    "COUNT(*) AS review_count,"
+                    "SUM(CASE WHEN compare_status='EXCEPTION' "
+                    "THEN 1 ELSE 0 END) AS exception_count,"
+                    "SUM(CASE WHEN compare_status='ERROR' "
+                    "THEN 1 ELSE 0 END) AS error_count "
+                    f"FROM {REVIEW_TABLE} "
+                    "WHERE batch_id=:batch_id"
+                ),
+                {"batch_id": current_batch_id},
+            ).first()
+            mapping = counts._mapping
+            db.execute(
+                text(
+                    f"UPDATE {BATCH_TABLE} SET "
+                    "review_count=:review_count,"
+                    "pair_count=:review_count,"
+                    "exception_count=:exception_count,"
+                    "error_count=:error_count "
+                    "WHERE id=:batch_id"
+                ),
+                {
+                    "batch_id": current_batch_id,
+                    "review_count": int(
+                        mapping.get("review_count") or 0
+                    ),
+                    "exception_count": int(
+                        mapping.get("exception_count") or 0
+                    ),
+                    "error_count": int(
+                        mapping.get("error_count") or 0
+                    ),
+                },
+            )
+
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+    return {
+        "deleted_count": len(clean_ids),
+        "deleted_review_ids": clean_ids,
+        "affected_batch_ids": sorted(batch_ids),
+    }
 
 
 def run_request_batch(db: Session, *, business_month: str, operator: str) -> dict:

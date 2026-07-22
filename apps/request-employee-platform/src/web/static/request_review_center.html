@@ -45,8 +45,8 @@ th{background:#edf2f7}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 </section>
 
 <section class="card">
-<h3>Batch Review Queue 预览</h3><div id="latestBatchToolbar" style="display:flex;align-items:center;gap:14px;margin:10px 0 14px 0;padding:10px 12px;border:1px solid #d8dee8;border-radius:8px;background:#f7f9fc"><label style="display:flex;flex-direction:row;align-items:center;gap:8px;margin:0;font-weight:600"><input id="latestBatchOnly" type="checkbox" checked onchange="loadBatch()">仅显示最新 Batch</label><span id="batchDisplayModeNote" class="muted">默认只显示所选业务年月最新一次执行；取消勾选可查看历史 Batch。</span><span id="batchLatestVersion" class="muted">显示规则：R8</span></div><div id="latestBatchToolbar" style="display:flex;align-items:center;gap:14px;margin:10px 0 14px 0;padding:10px 12px;border:1px solid #d8dee8;border-radius:8px;background:#f7f9fc"><span id="batchDisplayModeNote" class="muted">默认只显示所选业务年月最新一次执行；取消勾选可查看历史 Batch。</span><span id="batchLatestVersion" class="muted">显示规则：R8</span></div>
-<div id="batchQueue">暂无数据。</div>
+<h3>Batch Review Queue 预览</h3><div id="latestBatchToolbar" style="display:flex;align-items:center;gap:14px;margin:10px 0 14px 0;padding:10px 12px;border:1px solid #d8dee8;border-radius:8px;background:#f7f9fc"><label style="display:flex;flex-direction:row;align-items:center;gap:8px;margin:0;font-weight:600"><input id="latestBatchOnly" type="checkbox" checked onchange="loadBatch()">仅显示最新 Batch</label><span id="batchDisplayModeNote" class="muted">默认只显示所选业务年月最新一次执行；取消勾选可查看历史 Batch。</span><span id="batchLatestVersion" class="muted">显示规则：R9</span></div><div id="latestBatchToolbar" style="display:flex;align-items:center;gap:14px;margin:10px 0 14px 0;padding:10px 12px;border:1px solid #d8dee8;border-radius:8px;background:#f7f9fc"><span id="batchDisplayModeNote" class="muted">默认只显示所选业务年月最新一次执行；取消勾选可查看历史 Batch。</span><span id="batchLatestVersion" class="muted">显示规则：R9</span></div>
+<div id="batchPreviewDeleteToolbar" style="display:flex;align-items:center;gap:10px;margin:8px 0 12px 0"><button type="button" onclick="deleteSelectedBatchPreview()">批量删除所选</button><span id="batchPreviewSelectedCount" class="muted">已选择 0 件</span><span class="muted">仅删除系统中的 Batch/Review 测试数据，不删除原始文件。</span></div><div id="batchQueue">暂无数据。</div>
 </section>
 
 <hr class="sep">
@@ -121,29 +121,100 @@ async function loadBatch(){
  const m=$("batchMonth").value.trim();
  if(!monthOk(m)){batchMetrics();return}
  try{
-  const b=await jf(batchApi+"/latest?business_month="+encodeURIComponent(m));
-  activeBatchId=b.id||b.batch_id||activeBatchId;
-  // BUILD037_BATCH_PREVIEW_FILTER_R8
-  if($("latestBatchOnly") && $("latestBatchOnly").checked && activeBatchId){
-    const previewKeys=[
-      "items","rows","review_items","review_rows",
-      "review_preview","preview","queue","queue_items"
-    ];
-    for(const key of previewKeys){
-      if(Array.isArray(b[key])){
-        b[key]=b[key].filter(row=>
-          String(row.batch_id||"")===String(activeBatchId)
-        );
-      }
-    }
-  }
-
+  const b=await jf(
+   batchApi+"/latest?business_month="+encodeURIComponent(m)
+  );
+  activeBatchId=b.id||b.batch_id||"";
   $("batchStatus").textContent=b.status||"无记录";
-  $("batchMsg").innerHTML=`异常文件：${esc(b.exception_report_path||"无")}<br>${esc(b.message||"")}`;
+  $("batchMsg").innerHTML=
+   `异常文件：${esc(b.exception_report_path||"无")}<br>`+
+   `${esc(b.message||"")}`;
   batchMetrics(b||{});
-  const rows=await jf(batchApi+"/review-queue?business_month="+encodeURIComponent(m));
-  $("batchQueue").innerHTML=rows.length?`<table><tr><th>Pair Key</th><th>核对</th><th>原始客户</th><th>系统客户</th><th>异常</th></tr>${rows.map(x=>`<tr><td>${esc(x.pair_key)}</td><td>${esc(x.compare_status)}</td><td>${esc(x.raw_customer_name)}</td><td>${esc(x.system_customer_code)} ${esc(x.system_customer_name)}</td><td>${esc(x.exception_codes)}</td></tr>`).join("")}</table>`:"当前月份无数据。";
- }catch(e){$("batchMsg").textContent="读取失败："+e.message}
+
+  const q=new URLSearchParams({
+   business_month:m,
+   batch_id:activeBatchId,
+   latest_only:String(
+    !$("latestBatchOnly") || $("latestBatchOnly").checked
+   ),
+   limit:"2000"
+  });
+  let rows=await jf(batchApi+"/review-queue?"+q);
+
+  // BUILD037_BATCH_PREVIEW_RENDER_R9
+  const unique=new Map();
+  for(const row of rows){
+   const key=String(row.id||(
+    String(row.batch_id||"")+"|"+
+    String(row.item_id||"")+"|"+
+    String(row.pair_key||"")
+   ));
+   if(!unique.has(key))unique.set(key,row);
+  }
+  rows=[...unique.values()];
+
+  $("batchQueue").innerHTML=rows.length?
+   `<table><tr>`+
+   `<th>No</th>`+
+   `<th><input type="checkbox" id="batchPreviewSelectAll" `+
+   `onchange="toggleBatchPreviewAll(this.checked)"></th>`+
+   `<th>Pair Key</th><th>核对</th><th>原始客户</th>`+
+   `<th>系统客户</th><th>异常</th></tr>`+
+   rows.map((x,index)=>
+    `<tr>`+
+    `<td>${index+1}</td>`+
+    `<td><input type="checkbox" class="batchPreviewSelect" `+
+    `value="${esc(x.id)}" onchange="updateBatchPreviewSelectedCount()">`+
+    `</td>`+
+    `<td>${esc(x.pair_key)}</td>`+
+    `<td>${esc(x.compare_status)}</td>`+
+    `<td>${esc(x.raw_customer_name)}</td>`+
+    `<td>${esc(x.system_customer_code)} ${esc(x.system_customer_name)}</td>`+
+    `<td>${esc(x.exception_codes)}</td>`+
+    `</tr>`
+   ).join("")+
+   `</table>`:
+   "当前月份无数据。";
+  updateBatchPreviewSelectedCount();
+ }catch(e){
+  $("batchMsg").textContent="读取失败："+e.message
+ }
+}
+function selectedBatchPreviewIds(){
+ return [...document.querySelectorAll(".batchPreviewSelect:checked")]
+  .map(x=>x.value).filter(Boolean)
+}
+function updateBatchPreviewSelectedCount(){
+ const el=$("batchPreviewSelectedCount");
+ if(el)el.textContent="已选择 "+selectedBatchPreviewIds().length+" 件"
+}
+function toggleBatchPreviewAll(checked){
+ document.querySelectorAll(".batchPreviewSelect").forEach(
+  x=>x.checked=checked
+ );
+ updateBatchPreviewSelectedCount()
+}
+async function deleteSelectedBatchPreview(){
+ const ids=selectedBatchPreviewIds();
+ if(!ids.length){alert("请先选择要删除的记录");return}
+ const message=
+  `确定删除所选 ${ids.length} 件 Batch Review 数据吗？\n`+
+  "此操作会删除对应 Review Queue 和 Batch Item 数据，"+
+  "但不会删除原始 PDF／Excel 文件。";
+ if(!confirm(message))return;
+ try{
+  const result=await jf(
+   batchApi+"/review-queue/bulk-delete",
+   {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({ids})
+   }
+  );
+  alert("已删除 "+result.deleted_count+" 件");
+  await loadBatch();
+  await loadReviews();
+ }catch(e){alert("删除失败："+e.message)}
 }
 async function loadReviews(){
  const q=new URLSearchParams({
