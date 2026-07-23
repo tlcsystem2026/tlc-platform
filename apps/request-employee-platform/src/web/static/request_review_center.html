@@ -45,7 +45,7 @@ th{background:#edf2f7}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 </section>
 
 <section class="card">
-<h3>Batch Review Queue 预览</h3><div id="latestBatchToolbar" style="display:flex;align-items:center;gap:14px;margin:10px 0 14px 0;padding:10px 12px;border:1px solid #d8dee8;border-radius:8px;background:#f7f9fc"><label style="display:flex;flex-direction:row;align-items:center;gap:8px;margin:0;font-weight:600"><input id="latestBatchOnly" type="checkbox" checked onchange="loadBatch()">仅显示最新 Batch</label><span id="batchDisplayModeNote" class="muted">默认只显示所选业务年月最新一次执行；取消勾选可查看历史 Batch。</span><span id="batchLatestVersion" class="muted">显示规则：R9</span></div><div id="latestBatchToolbar" style="display:flex;align-items:center;gap:14px;margin:10px 0 14px 0;padding:10px 12px;border:1px solid #d8dee8;border-radius:8px;background:#f7f9fc"><span id="batchDisplayModeNote" class="muted">默认只显示所选业务年月最新一次执行；取消勾选可查看历史 Batch。</span><span id="batchLatestVersion" class="muted">显示规则：R9</span></div>
+<h3>Batch Review Queue 预览</h3><div id="latestBatchToolbar" style="display:flex;align-items:center;gap:14px;margin:10px 0 14px 0;padding:10px 12px;border:1px solid #d8dee8;border-radius:8px;background:#f7f9fc"><label style="display:flex;flex-direction:row;align-items:center;gap:8px;margin:0;font-weight:600"><input id="latestBatchOnly" type="checkbox" checked onchange="loadBatch()">仅显示最新 Batch</label><span id="batchDisplayModeNote" class="muted">默认只显示所选业务年月最新一次执行；取消勾选可查看历史 Batch。</span><span id="batchLatestVersion" class="muted">显示规则：R11</span></div><div id="latestBatchToolbar" style="display:flex;align-items:center;gap:14px;margin:10px 0 14px 0;padding:10px 12px;border:1px solid #d8dee8;border-radius:8px;background:#f7f9fc"><span id="batchDisplayModeNote" class="muted">默认只显示所选业务年月最新一次执行；取消勾选可查看历史 Batch。</span><span id="batchLatestVersion" class="muted">显示规则：R11</span></div>
 <div id="batchPreviewDeleteToolbar" style="display:flex;align-items:center;gap:10px;margin:8px 0 12px 0"><button type="button" onclick="deleteSelectedBatchPreview()">批量删除所选</button><span id="batchPreviewSelectedCount" class="muted">已选择 0 件</span><span class="muted">仅删除系统中的 Batch/Review 测试数据，不删除原始文件。</span></div><div id="batchQueue">暂无数据。</div>
 </section>
 
@@ -154,7 +154,7 @@ async function loadBatch(){
   rows=[...unique.values()];
 
   $("batchQueue").innerHTML=rows.length?
-   `<table><tr>`+
+   `<table id="batchPreviewTable"><tr>`+
    `<th>No</th>`+
    `<th><input type="checkbox" id="batchPreviewSelectAll" `+
    `onchange="toggleBatchPreviewAll(this.checked)"></th>`+
@@ -339,7 +339,7 @@ async function decide(s,f){
     no.textContent=String(index);
   }
 
-  function enhance(table){
+  function enhance(table){if(table.id==="batchPreviewTable")return;
     const headers=headerRows(table);
     headers.forEach(addHeader);
     dataRows(table,headers).forEach((row,index)=>addData(row,index+1));
