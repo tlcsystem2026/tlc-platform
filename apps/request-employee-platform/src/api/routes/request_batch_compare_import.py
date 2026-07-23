@@ -56,6 +56,21 @@ def delete_queue_rows(
 
 
 
+@router.post("/review-queue/bulk-delete")
+def delete_queue_rows(
+    payload: dict,
+    db: Session = Depends(get_db),
+):
+    try:
+        return bulk_delete_review_queue(
+            db,
+            payload.get("ids") or [],
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+
 page_router = APIRouter(tags=["request-batch-compare-import-center"])
 
 @page_router.get("/request-batch-compare-import-center", response_class=HTMLResponse)
