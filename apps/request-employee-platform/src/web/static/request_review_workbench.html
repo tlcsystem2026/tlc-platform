@@ -23,6 +23,8 @@ th{background:#eef3f8}
 .grid{display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
 .small{font-size:12px;color:#666}
 .actions{display:flex;gap:6px;flex-wrap:wrap}
+.batch-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:10px 0 14px;padding:12px;background:#f7f9fc;border:1px solid #dce4ec;border-radius:6px}
+.selected-count{font-weight:bold;color:#1f4e78;min-width:88px}
 @media(max-width:900px){.grid{grid-template-columns:1fr}}
 </style>
 </head>
@@ -50,12 +52,23 @@ th{background:#eef3f8}
   <input id="note" placeholder="审核备注">
   <button class="primary" onclick="loadPending()">刷新</button>
 </div>
+<div class="batch-actions">
+  <span id="selectedCount" class="selected-count">已选择 0 件</span>
+  <button class="ok" onclick="resolveSelected('APPROVE','业务审核通过')">批量业务审核通过</button>
+  <button class="danger" onclick="resolveSelected('REJECT','驳回')">批量驳回</button>
+  <button class="warn" onclick="resolveSelected('CANCEL','已取消')">批量标记已取消</button>
+  <button onclick="resolveSelected('MARK_DUPLICATE','重复请求书')">批量标记重复</button>
+  <button onclick="resolveSelected('MARK_CASH_SALE_NO_INVOICE','现收／无需请求书')">批量标记现收／无需请求书</button>
+  <button onclick="resolveSelected('REQUIRE_AMOUNT_CORRECTION','金额需修正')">批量标记金额需修正</button>
+  <button onclick="resolveSelected('REQUIRE_BUSINESS_CORRECTION','业务内容需修正')">批量标记业务内容需修正</button>
+  <button class="warn" onclick="resolveSelected('HOLD','暂缓处理')">批量暂缓处理</button>
+</div>
 <div id="pendingMessage" class="small"></div>
 <div style="overflow:auto">
-<table>
+<table id="pendingReviewTable">
 <thead>
 <tr>
-<th>请求书编号</th><th>客户</th><th>日期</th><th>10%对象</th><th>10%税</th><th>8%对象</th><th>8%税</th><th>非课税</th><th>免税</th><th>请求总额</th><th>状态</th><th>操作</th>
+<th>请求书编号</th><th>客户</th><th>日期</th><th>10%对象</th><th>10%税</th><th>8%对象</th><th>8%税</th><th>非课税</th><th>免税</th><th>请求总额</th><th>状态</th>
 </tr>
 </thead>
 <tbody id="pendingBody"></tbody>
@@ -114,21 +127,9 @@ async function loadPending(){
   body.innerHTML = "";
   rows.forEach(row => {
     const canResolve = row.status === "PENDING_REVIEW";
-    const actions = [];
-    if(canResolve){
-      actions.push(`<button class="ok" onclick="resolveRecord('${esc(row.id)}','APPROVE')">业务审核通过</button>`);
-      actions.push(`<button class="danger" onclick="resolveRecord('${esc(row.id)}','REJECT')">驳回</button>`);
-      actions.push(`<button class="warn" onclick="resolveRecord('${esc(row.id)}','CANCEL')">已取消</button>`);
-      actions.push(`<button onclick="resolveRecord('${esc(row.id)}','MARK_DUPLICATE')">重复请求书</button>`);
-      actions.push(`<button onclick="resolveRecord('${esc(row.id)}','MARK_CASH_SALE_NO_INVOICE')">现收／无需请求书</button>`);
-      actions.push(`<button onclick="resolveRecord('${esc(row.id)}','REQUIRE_AMOUNT_CORRECTION')">金额需修正</button>`);
-      actions.push(`<button onclick="resolveRecord('${esc(row.id)}','REQUIRE_BUSINESS_CORRECTION')">业务内容需修正</button>`);
-      actions.push(`<button class="warn" onclick="resolveRecord('${esc(row.id)}','HOLD')">暂缓处理</button>`);
-    }
-    if(row.sales_ledger_id){
-      actions.push(`<span class="small">已入台账</span>`);
-    }
     const tr = document.createElement("tr");
+    tr.dataset.reviewId = row.id;
+    tr.dataset.canResolve = canResolve ? "true" : "false";
     tr.innerHTML = `
       <td>${esc(row.request_no)}</td>
       <td>${esc(row.customer_id)}<br>${esc(row.customer_name)}</td>
@@ -140,25 +141,69 @@ async function loadPending(){
       <td>${esc(row.non_taxable_amount)}</td>
       <td>${esc(row.tax_exempt_amount)}</td>
       <td>${esc(row.currency)} ${esc(row.total_amount)}</td>
-      <td class="status">${esc(row.status)}</td>
-      <td><div class="actions">${actions.join("")}</div></td>`;
+      <td class="status">${esc(row.status)}${row.sales_ledger_id ? '<br><span class="small">已入台账</span>' : ""}</td>`;
     body.appendChild(tr);
   });
   document.getElementById("pendingMessage").textContent = `${rows.length} records`;
+  setTimeout(configureReviewSelectors, 20);
+  setTimeout(configureReviewSelectors, 100);
 }
 
-async function resolveRecord(id, action){
+function configureReviewSelectors(){
+  document.querySelectorAll("#pendingBody tr[data-review-id]").forEach(row => {
+    const checkbox = row.querySelector("input.tlc-row-select");
+    if(!checkbox) return;
+    checkbox.disabled = row.dataset.canResolve !== "true";
+    if(checkbox.disabled) checkbox.checked = false;
+  });
+  updateSelectedCount();
+}
+
+function selectedReviewIds(){
+  return [...document.querySelectorAll("#pendingBody tr[data-review-id]")]
+    .filter(row => {
+      const checkbox = row.querySelector("input.tlc-row-select");
+      return row.dataset.canResolve === "true" && checkbox && checkbox.checked && !checkbox.disabled;
+    })
+    .map(row => row.dataset.reviewId);
+}
+
+function updateSelectedCount(){
+  document.getElementById("selectedCount").textContent = `已选择 ${selectedReviewIds().length} 件`;
+}
+
+async function resolveSelected(action, label){
+  const ids = selectedReviewIds();
   const reviewed_by = document.getElementById("reviewer").value.trim();
   const note = document.getElementById("note").value.trim();
+  if(!ids.length){ alert("请先勾选需要处理的待业务审核请求书"); return; }
   if(!reviewed_by){ alert("请输入审核人"); return; }
-  try{
-    await api(`/api/requests/pending-review/${id}/resolve`, {
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({action, reviewed_by, note})
-    });
-    await loadPending();
-  }catch(e){ alert(e.message); }
+  if(!confirm(`确定对选中的 ${ids.length} 件执行“${label}”吗？`)) return;
+
+  const buttons = [...document.querySelectorAll(".batch-actions button")];
+  buttons.forEach(button => button.disabled = true);
+  let succeeded = 0;
+  const failures = [];
+  try {
+    for(const id of ids){
+      try{
+        await api(`/api/requests/pending-review/${encodeURIComponent(id)}/resolve`, {
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({action, reviewed_by, note})
+        });
+        succeeded += 1;
+      }catch(e){
+        failures.push(`${id}: ${e.message}`);
+      }
+    }
+    await Promise.all([loadPending(), loadSales()]);
+    const summary = `批量处理完成：成功 ${succeeded} 件，失败 ${failures.length} 件`;
+    document.getElementById("pendingMessage").textContent = summary;
+    if(failures.length) alert(summary + "\n\n" + failures.join("\n"));
+  } finally {
+    buttons.forEach(button => button.disabled = false);
+  }
 }
 
 
@@ -197,6 +242,11 @@ async function loadSales(){
 
 Promise.all([loadPending(), loadSales()]).catch(e => {
   document.getElementById("pendingMessage").textContent = e.message;
+});
+document.getElementById("pendingReviewTable").addEventListener("change", event => {
+  if(event.target.matches("input[type=checkbox]")){
+    setTimeout(configureReviewSelectors, 0);
+  }
 });
 </script>
 <script>
