@@ -5,6 +5,7 @@ from typing import Any
 from uuid import uuid4
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from src.services.tlc_customer_master_service import ensure_customer_master_table
 
 TABLE_NAME = "request_pending_review"
 
@@ -125,13 +126,88 @@ def create_pending_review(db: Session, payload: dict[str, Any], *, commit: bool 
     row=db.execute(text(f"SELECT * FROM {TABLE_NAME} WHERE id=:id"),{"id":p["id"]}).first()
     return {"status":"created","record":_row_to_dict(row)}
 
-def list_pending_reviews(db: Session, *, status: str = "", limit: int = 200) -> list[dict[str, Any]]:
+def list_pending_reviews(
+    db: Session,
+    *,
+    status: str = "",
+    keyword: str = "",
+    customer_id: str = "",
+    customer_name: str = "",
+    limit: int = 200,
+) -> list[dict[str, Any]]:
     ensure_pending_review_table(db)
+    ensure_customer_master_table(db)
     limit = min(max(int(limit), 1), 1000)
+    clauses: list[str] = []
+    params: dict[str, Any] = {"limit": limit}
     if status:
-        rows = db.execute(text(f"SELECT * FROM {TABLE_NAME} WHERE status=:status ORDER BY created_at DESC LIMIT :limit"), {"status": status, "limit": limit}).all()
-    else:
-        rows = db.execute(text(f"SELECT * FROM {TABLE_NAME} ORDER BY created_at DESC LIMIT :limit"), {"limit": limit}).all()
+        clauses.append("p.status=:status")
+        params["status"] = status
+    if customer_id:
+        clauses.append("p.customer_id LIKE :customer_id")
+        params["customer_id"] = f"%{customer_id}%"
+    if customer_name:
+        clauses.append("""(
+          p.customer_name LIKE :customer_name OR
+          c.formal_name LIKE :customer_name OR
+          c.hiragana_name LIKE :customer_name OR
+          c.katakana_name LIKE :customer_name OR
+          c.katakana_name_short LIKE :customer_name OR
+          c.short_name LIKE :customer_name OR
+          c.delivery_name_1 LIKE :customer_name OR
+          c.delivery_name_2 LIKE :customer_name OR
+          c.alias_1 LIKE :customer_name OR c.alias_2 LIKE :customer_name OR
+          c.alias_3 LIKE :customer_name OR c.alias_4 LIKE :customer_name OR
+          c.alias_5 LIKE :customer_name
+        )""")
+        params["customer_name"] = f"%{customer_name}%"
+    if keyword:
+        searchable = [
+            "p.id", "p.request_no", "p.source_request_no", "p.request_date",
+            "p.customer_id", "p.customer_name", "p.currency", "p.subtotal",
+            "p.tax_amount", "p.total_amount", "p.excel_source", "p.pdf_source",
+            "p.compare_summary", "p.request_payload", "p.status",
+            "p.created_at", "p.updated_at", "p.file_review_id", "p.batch_id",
+            "p.batch_item_id", "p.business_month", "p.file_review_status",
+            "p.reviewed_by", "p.review_note", "p.sales_ledger_id",
+            "p.reviewed_at", "p.posted_at",
+            "p.taxable_amount_10", "p.tax_amount_10",
+            "p.tax_inclusive_amount_10", "p.taxable_amount_8",
+            "p.tax_amount_8", "p.tax_inclusive_amount_8",
+            "p.non_taxable_amount", "p.tax_exempt_amount",
+            "c.customer_id", "c.formal_name", "c.hiragana_name",
+            "c.katakana_name", "c.katakana_name_short", "c.short_name",
+            "c.delivery_name_1", "c.delivery_name_2", "c.postal_code",
+            "c.address_1", "c.address_2", "c.phone_number", "c.email_address",
+            "c.jis_municipality_code", "c.shipper_code",
+            "c.alias_1", "c.alias_2", "c.alias_3", "c.alias_4", "c.alias_5",
+            "c.status_code", "c.note", "c.source_system",
+        ]
+        clauses.append("(" + " OR ".join(
+            f"CAST({column} AS TEXT) LIKE :keyword" for column in searchable
+        ) + ")")
+        params["keyword"] = f"%{keyword}%"
+    where = "WHERE " + " AND ".join(clauses) if clauses else ""
+    rows = db.execute(text(f"""
+      SELECT p.*,
+             c.formal_name AS master_formal_name,
+             c.hiragana_name AS master_hiragana_name,
+             c.katakana_name AS master_katakana_name,
+             c.katakana_name_short AS master_katakana_name_short,
+             c.short_name AS master_short_name,
+             c.delivery_name_1 AS master_delivery_name_1,
+             c.delivery_name_2 AS master_delivery_name_2,
+             c.alias_1 AS master_alias_1,
+             c.alias_2 AS master_alias_2,
+             c.alias_3 AS master_alias_3,
+             c.alias_4 AS master_alias_4,
+             c.alias_5 AS master_alias_5
+      FROM {TABLE_NAME} p
+      LEFT JOIN tlc_customer_master c ON c.customer_id=p.customer_id
+      {where}
+      ORDER BY p.created_at DESC
+      LIMIT :limit
+    """), params).all()
     return [_row_to_dict(row) for row in rows]
 
 def get_pending_review(db: Session, record_id: str) -> dict[str, Any] | None:

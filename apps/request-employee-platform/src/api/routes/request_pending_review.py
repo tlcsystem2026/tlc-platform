@@ -13,8 +13,22 @@ def create_record(payload: dict, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 @router.get("")
-def list_records(status: str = "", limit: int = Query(default=200, ge=1, le=1000), db: Session = Depends(get_db)):
-    return list_pending_reviews(db, status=status, limit=limit)
+def list_records(
+    status: str = "",
+    keyword: str = "",
+    customer_id: str = "",
+    customer_name: str = "",
+    limit: int = Query(default=200, ge=1, le=1000),
+    db: Session = Depends(get_db),
+):
+    return list_pending_reviews(
+        db,
+        status=status,
+        keyword=keyword,
+        customer_id=customer_id,
+        customer_name=customer_name,
+        limit=limit,
+    )
 
 @router.get("/{record_id}")
 def get_record(record_id: str, db: Session = Depends(get_db)):

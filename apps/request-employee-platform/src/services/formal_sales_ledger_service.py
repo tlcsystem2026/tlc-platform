@@ -6,6 +6,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from src.services.request_pending_review_resolution_service import ensure_review_audit_table
 from src.services.request_pending_review_service import TABLE_NAME,get_pending_review
+from src.services.tlc_customer_master_service import ensure_customer_master_table
 
 LEDGER_TABLE="formal_sales_request_ledger"
 
@@ -101,14 +102,71 @@ def post_approved_pending_review(db:Session,record_id:str,*,commit:bool=True)->d
     if commit: db.commit()
     row=db.execute(text(f"SELECT * FROM {LEDGER_TABLE} WHERE id=:id"),{"id":lid}).first();return {"status":"posted","ledger":_row(row)}
 
-def list_sales_ledger(db:Session,customer_id:str="",customer_name:str="",request_no:str="",status:str="",limit:int=500):
+def list_sales_ledger(
+    db:Session,
+    customer_id:str="",
+    customer_name:str="",
+    request_no:str="",
+    status:str="",
+    keyword:str="",
+    limit:int=500,
+):
     ensure_sales_ledger_table(db)
+    ensure_customer_master_table(db)
     clauses=[]; p={"limit":min(max(int(limit),1),1000)}
-    for key,val in [("customer_id",customer_id),("customer_name",customer_name),("request_no",request_no)]:
-        if val: clauses.append(f"{key} LIKE :{key}"); p[key]=f"%{val}%"
-    if status: clauses.append("status=:status"); p["status"]=status
+    if customer_id:
+        clauses.append("l.customer_id LIKE :customer_id");p["customer_id"]=f"%{customer_id}%"
+    if customer_name:
+        clauses.append("""(
+          l.customer_name LIKE :customer_name OR
+          c.formal_name LIKE :customer_name OR c.hiragana_name LIKE :customer_name OR
+          c.katakana_name LIKE :customer_name OR c.katakana_name_short LIKE :customer_name OR
+          c.short_name LIKE :customer_name OR c.delivery_name_1 LIKE :customer_name OR
+          c.delivery_name_2 LIKE :customer_name OR c.alias_1 LIKE :customer_name OR
+          c.alias_2 LIKE :customer_name OR c.alias_3 LIKE :customer_name OR
+          c.alias_4 LIKE :customer_name OR c.alias_5 LIKE :customer_name
+        )""");p["customer_name"]=f"%{customer_name}%"
+    if request_no:
+        clauses.append("l.request_no LIKE :request_no");p["request_no"]=f"%{request_no}%"
+    if status: clauses.append("l.status=:status"); p["status"]=status
+    if keyword:
+        searchable=[
+          "l.id","l.pending_review_id","l.request_no","l.request_date",
+          "l.customer_id","l.customer_name","l.currency","l.subtotal",
+          "l.tax_amount","l.total_amount","l.excel_source","l.pdf_source",
+          "l.reviewed_by","l.review_note","l.reviewed_at","l.posted_at","l.status",
+          "l.taxable_amount_10","l.tax_amount_10","l.tax_inclusive_amount_10",
+          "l.taxable_amount_8","l.tax_amount_8","l.tax_inclusive_amount_8",
+          "l.non_taxable_amount","l.tax_exempt_amount",
+          "c.customer_id","c.formal_name","c.hiragana_name","c.katakana_name",
+          "c.katakana_name_short","c.short_name","c.delivery_name_1",
+          "c.delivery_name_2","c.postal_code","c.address_1","c.address_2",
+          "c.phone_number","c.email_address","c.jis_municipality_code",
+          "c.shipper_code","c.alias_1","c.alias_2","c.alias_3","c.alias_4",
+          "c.alias_5","c.status_code","c.note","c.source_system",
+        ]
+        clauses.append("("+" OR ".join(
+          f"CAST({column} AS TEXT) LIKE :keyword" for column in searchable
+        )+")");p["keyword"]=f"%{keyword}%"
     where="WHERE "+" AND ".join(clauses) if clauses else ""
-    rows=db.execute(text(f"SELECT * FROM {LEDGER_TABLE} {where} ORDER BY posted_at DESC LIMIT :limit"),p).all()
+    rows=db.execute(text(f"""
+      SELECT l.*,
+             c.formal_name AS master_formal_name,
+             c.hiragana_name AS master_hiragana_name,
+             c.katakana_name AS master_katakana_name,
+             c.katakana_name_short AS master_katakana_name_short,
+             c.short_name AS master_short_name,
+             c.delivery_name_1 AS master_delivery_name_1,
+             c.delivery_name_2 AS master_delivery_name_2,
+             c.alias_1 AS master_alias_1,c.alias_2 AS master_alias_2,
+             c.alias_3 AS master_alias_3,c.alias_4 AS master_alias_4,
+             c.alias_5 AS master_alias_5
+      FROM {LEDGER_TABLE} l
+      LEFT JOIN tlc_customer_master c ON c.customer_id=l.customer_id
+      {where}
+      ORDER BY l.posted_at DESC
+      LIMIT :limit
+    """),p).all()
     return [_row(r) for r in rows]
 
 def get_sales_ledger_record(db:Session,ledger_id:str):

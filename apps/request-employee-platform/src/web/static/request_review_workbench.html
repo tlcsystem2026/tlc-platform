@@ -48,9 +48,13 @@ th{background:#eef3f8}
     <option value="DUPLICATE">DUPLICATE</option>
     <option value="">全部</option>
   </select>
+  <input id="pendingKeyword" placeholder="全字段关键字">
+  <input id="pendingCustomerId" placeholder="客户 ID">
+  <input id="pendingCustomerName" placeholder="客户名称／别名">
   <input id="reviewer" placeholder="审核人" value="web-reviewer">
   <input id="note" placeholder="审核备注">
-  <button class="primary" onclick="loadPending()">刷新</button>
+  <button class="primary" onclick="loadPending()">检索／刷新</button>
+  <button onclick="clearPendingFilters()">清除检索条件</button>
 </div>
 <div class="batch-actions">
   <span id="selectedCount" class="selected-count">已选择 0 件</span>
@@ -68,7 +72,7 @@ th{background:#eef3f8}
 <table id="pendingReviewTable">
 <thead>
 <tr>
-<th>请求书编号</th><th>客户</th><th>日期</th><th>10%对象</th><th>10%税</th><th>8%对象</th><th>8%税</th><th>非课税</th><th>免税</th><th>请求总额</th><th>状态</th>
+<th>请求书编号</th><th>客户 ID</th><th>请求书客户</th><th>客户正式名称</th><th>正式名カナ／短カナ</th><th>略称／配送名称</th><th>客户别名</th><th>日期</th><th>10%对象</th><th>10%税</th><th>8%对象</th><th>8%税</th><th>非课税</th><th>免税</th><th>请求总额</th><th>状态</th>
 </tr>
 </thead>
 <tbody id="pendingBody"></tbody>
@@ -80,16 +84,22 @@ th{background:#eef3f8}
 <h2>正式销售台账（业务审核通过后自动登记）</h2>
 <div class="toolbar">
   <input id="salesCustomerId" placeholder="Customer ID">
-  <input id="salesCustomerName" placeholder="Customer Name">
-  <input id="salesRequestNo" placeholder="Request No">
+  <input id="salesCustomerName" placeholder="客户名称／别名">
+  <input id="salesRequestNo" placeholder="请求书编号">
+  <input id="salesKeyword" placeholder="全字段关键字">
+  <select id="salesStatus">
+    <option value="">全部状态</option>
+    <option value="ACTIVE">ACTIVE</option>
+  </select>
   <button class="primary" onclick="loadSales()">检索</button>
+  <button onclick="clearSalesFilters()">清除检索条件</button>
 </div>
 <div id="salesMessage" class="small"></div>
 <div style="overflow:auto">
 <table>
 <thead>
 <tr>
-<th>请求书编号</th><th>客户</th><th>日期</th><th>币种</th><th>10%对象</th><th>10%税</th><th>8%对象</th><th>8%税</th><th>非课税</th><th>免税</th><th>总金额</th><th>审核人</th><th>状态</th>
+<th>请求书编号</th><th>客户 ID</th><th>台账客户</th><th>客户正式名称</th><th>正式名カナ／短カナ</th><th>略称／配送名称</th><th>客户别名</th><th>日期</th><th>币种</th><th>10%对象</th><th>10%税</th><th>8%对象</th><th>8%税</th><th>非课税</th><th>免税</th><th>总金额</th><th>审核人</th><th>状态</th>
 </tr>
 </thead>
 <tbody id="salesBody"></tbody>
@@ -117,10 +127,23 @@ function esc(v){
   }[c]));
 }
 
+function customerAliases(row){
+  return [
+    row.master_alias_1,row.master_alias_2,row.master_alias_3,
+    row.master_alias_4,row.master_alias_5
+  ].filter(value => String(value ?? "").trim()).map(esc).join("<br>");
+}
+
 async function loadPending(){
   const status = document.getElementById("reviewStatus").value;
   const qs = new URLSearchParams();
   if(status) qs.set("status", status);
+  const keyword = document.getElementById("pendingKeyword").value.trim();
+  const customerId = document.getElementById("pendingCustomerId").value.trim();
+  const customerName = document.getElementById("pendingCustomerName").value.trim();
+  if(keyword) qs.set("keyword", keyword);
+  if(customerId) qs.set("customer_id", customerId);
+  if(customerName) qs.set("customer_name", customerName);
   qs.set("limit","500");
   const rows = await api("/api/requests/pending-review?"+qs.toString());
   const body = document.getElementById("pendingBody");
@@ -132,7 +155,12 @@ async function loadPending(){
     tr.dataset.canResolve = canResolve ? "true" : "false";
     tr.innerHTML = `
       <td>${esc(row.request_no)}</td>
-      <td>${esc(row.customer_id)}<br>${esc(row.customer_name)}</td>
+      <td>${esc(row.customer_id)}</td>
+      <td>${esc(row.customer_name)}</td>
+      <td>${esc(row.master_formal_name)}</td>
+      <td>${esc(row.master_katakana_name)}<br><span class="small">${esc(row.master_katakana_name_short)}</span></td>
+      <td>${esc(row.master_short_name)}<br>${esc(row.master_delivery_name_1)}<br>${esc(row.master_delivery_name_2)}</td>
+      <td>${customerAliases(row)}</td>
       <td>${esc(row.request_date)}</td>
       <td>${esc(row.taxable_amount_10)}</td>
       <td>${esc(row.tax_amount_10)}</td>
@@ -147,6 +175,16 @@ async function loadPending(){
   document.getElementById("pendingMessage").textContent = `${rows.length} records`;
   setTimeout(configureReviewSelectors, 20);
   setTimeout(configureReviewSelectors, 100);
+}
+
+function clearPendingFilters(){
+  document.getElementById("reviewStatus").value = "PENDING_REVIEW";
+  document.getElementById("pendingKeyword").value = "";
+  document.getElementById("pendingCustomerId").value = "";
+  document.getElementById("pendingCustomerName").value = "";
+  loadPending().catch(error => {
+    document.getElementById("pendingMessage").textContent = error.message;
+  });
 }
 
 function configureReviewSelectors(){
@@ -212,9 +250,13 @@ async function loadSales(){
   const customerId = document.getElementById("salesCustomerId").value.trim();
   const customerName = document.getElementById("salesCustomerName").value.trim();
   const requestNo = document.getElementById("salesRequestNo").value.trim();
+  const keyword = document.getElementById("salesKeyword").value.trim();
+  const status = document.getElementById("salesStatus").value;
   if(customerId) qs.set("customer_id", customerId);
   if(customerName) qs.set("customer_name", customerName);
   if(requestNo) qs.set("request_no", requestNo);
+  if(keyword) qs.set("keyword", keyword);
+  if(status) qs.set("status", status);
   qs.set("limit","500");
   const rows = await api("/api/sales-ledger?"+qs.toString());
   const body = document.getElementById("salesBody");
@@ -223,7 +265,12 @@ async function loadSales(){
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${esc(row.request_no)}</td>
-      <td>${esc(row.customer_id)}<br>${esc(row.customer_name)}</td>
+      <td>${esc(row.customer_id)}</td>
+      <td>${esc(row.customer_name)}</td>
+      <td>${esc(row.master_formal_name)}</td>
+      <td>${esc(row.master_katakana_name)}<br><span class="small">${esc(row.master_katakana_name_short)}</span></td>
+      <td>${esc(row.master_short_name)}<br>${esc(row.master_delivery_name_1)}<br>${esc(row.master_delivery_name_2)}</td>
+      <td>${customerAliases(row)}</td>
       <td>${esc(row.request_date)}</td>
       <td>${esc(row.currency)}</td>
       <td>${esc(row.taxable_amount_10)}</td>
@@ -238,6 +285,17 @@ async function loadSales(){
     body.appendChild(tr);
   });
   document.getElementById("salesMessage").textContent = `${rows.length} records`;
+}
+
+function clearSalesFilters(){
+  document.getElementById("salesCustomerId").value = "";
+  document.getElementById("salesCustomerName").value = "";
+  document.getElementById("salesRequestNo").value = "";
+  document.getElementById("salesKeyword").value = "";
+  document.getElementById("salesStatus").value = "";
+  loadSales().catch(error => {
+    document.getElementById("salesMessage").textContent = error.message;
+  });
 }
 
 Promise.all([loadPending(), loadSales()]).catch(e => {
