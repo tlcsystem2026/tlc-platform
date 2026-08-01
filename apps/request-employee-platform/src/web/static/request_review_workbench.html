@@ -58,6 +58,8 @@ th{background:#eef3f8}
 </div>
 <div class="batch-actions">
   <span id="selectedCount" class="selected-count">已选择 0 件</span>
+  <input id="bulkReviewer" placeholder="批量操作人" value="web-reviewer">
+  <input id="bulkNote" placeholder="批量意见（驳回／取消／重复／现收／修正／暂缓时必填）" style="min-width:360px">
   <button class="ok" onclick="resolveSelected('APPROVE','业务审核通过')">批量业务审核通过</button>
   <button class="danger" onclick="resolveSelected('REJECT','驳回')">批量驳回</button>
   <button class="warn" onclick="resolveSelected('CANCEL','已取消')">批量标记已取消</button>
@@ -212,33 +214,35 @@ function updateSelectedCount(){
 
 async function resolveSelected(action, label){
   const ids = selectedReviewIds();
-  const reviewed_by = document.getElementById("reviewer").value.trim();
-  const note = document.getElementById("note").value.trim();
+  const reviewed_by = document.getElementById("bulkReviewer").value.trim();
+  const note = document.getElementById("bulkNote").value.trim();
+  const noteRequiredActions = new Set([
+    "REJECT","CANCEL","MARK_DUPLICATE","MARK_CASH_SALE_NO_INVOICE",
+    "REQUIRE_AMOUNT_CORRECTION","REQUIRE_BUSINESS_CORRECTION","HOLD"
+  ]);
   if(!ids.length){ alert("请先勾选需要处理的待业务审核请求书"); return; }
   if(!reviewed_by){ alert("请输入审核人"); return; }
+  if(noteRequiredActions.has(action) && !note){
+    alert("该批量操作必须填写批量意见。业务审核通过可不填写。");
+    document.getElementById("bulkNote").focus();
+    return;
+  }
   if(!confirm(`确定对选中的 ${ids.length} 件执行“${label}”吗？`)) return;
 
   const buttons = [...document.querySelectorAll(".batch-actions button")];
   buttons.forEach(button => button.disabled = true);
-  let succeeded = 0;
-  const failures = [];
   try {
-    for(const id of ids){
-      try{
-        await api(`/api/requests/pending-review/${encodeURIComponent(id)}/resolve`, {
-          method:"POST",
-          headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({action, reviewed_by, note})
-        });
-        succeeded += 1;
-      }catch(e){
-        failures.push(`${id}: ${e.message}`);
-      }
-    }
+    const result = await api("/api/requests/pending-review/bulk-resolve", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({record_ids:ids, action, reviewed_by, note})
+    });
     await Promise.all([loadPending(), loadSales()]);
-    const summary = `批量处理完成：成功 ${succeeded} 件，失败 ${failures.length} 件`;
+    const summary = `批量处理完成：成功 ${result.succeeded} 件，失败 ${result.failed} 件`;
     document.getElementById("pendingMessage").textContent = summary;
-    if(failures.length) alert(summary + "\n\n" + failures.join("\n"));
+    if(result.failures.length){
+      alert(summary + "\n\n" + result.failures.map(item=>`${item.record_id}: ${item.detail}`).join("\n"));
+    }
   } finally {
     buttons.forEach(button => button.disabled = false);
   }

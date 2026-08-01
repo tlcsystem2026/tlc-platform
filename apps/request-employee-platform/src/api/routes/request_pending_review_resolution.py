@@ -5,9 +5,21 @@ from src.db.session import get_db
 from src.services.request_pending_review_resolution_service import (
     list_review_history,
     resolve_pending_review,
+    resolve_pending_reviews_bulk,
 )
 
 router = APIRouter(prefix="/api/requests/pending-review", tags=["request-pending-review"])
+
+
+@router.post("/bulk-resolve")
+def resolve_records_bulk(payload: dict, db: Session = Depends(get_db)):
+    try:
+        return resolve_pending_reviews_bulk(
+            db, payload.get("record_ids", []), action=payload.get("action", ""),
+            reviewed_by=payload.get("reviewed_by", ""), note=payload.get("note", ""),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/{record_id}/resolve")

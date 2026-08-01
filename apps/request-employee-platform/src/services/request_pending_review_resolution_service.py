@@ -18,6 +18,23 @@ ALLOWED_ACTIONS={
  "REQUIRE_BUSINESS_CORRECTION":"BUSINESS_CORRECTION_REQUIRED","HOLD":"ON_HOLD",
 }
 TERMINAL_STATUSES = set(ALLOWED_ACTIONS.values())
+NOTE_REQUIRED_ACTIONS = {
+    "REJECT", "CANCEL", "MARK_DUPLICATE", "MARK_CASH_SALE_NO_INVOICE",
+    "REQUIRE_AMOUNT_CORRECTION", "REQUIRE_BUSINESS_CORRECTION", "HOLD",
+}
+
+
+def validate_review_action(*, action: str, reviewed_by: str, note: str = "") -> tuple[str, str, str]:
+    action = str(action or "").strip().upper()
+    reviewed_by = str(reviewed_by or "").strip()
+    note = str(note or "").strip()
+    if action not in ALLOWED_ACTIONS:
+        raise ValueError("Unsupported business review action")
+    if not reviewed_by:
+        raise ValueError("reviewed_by is required")
+    if action in NOTE_REQUIRED_ACTIONS and not note:
+        raise ValueError("Business review note is required")
+    return action, reviewed_by, note
 
 
 def ensure_review_audit_table(db: Session) -> None:
@@ -46,10 +63,8 @@ def ensure_review_audit_table(db: Session) -> None:
 
 
 def resolve_pending_review(db:Session,record_id:str,*,action:str,reviewed_by:str,note:str="")->dict[str,Any]:
-    ensure_review_audit_table(db);action=str(action or "").strip().upper();reviewed_by=str(reviewed_by or "").strip();note=str(note or "").strip()
-    if action not in ALLOWED_ACTIONS: raise ValueError("Unsupported business review action")
-    if not reviewed_by: raise ValueError("reviewed_by is required")
-    if action in {"REJECT","CANCEL","MARK_DUPLICATE","MARK_CASH_SALE_NO_INVOICE","REQUIRE_AMOUNT_CORRECTION","REQUIRE_BUSINESS_CORRECTION","HOLD"} and not note: raise ValueError("Business review note is required")
+    ensure_review_audit_table(db)
+    action, reviewed_by, note = validate_review_action(action=action, reviewed_by=reviewed_by, note=note)
     current=get_pending_review(db,record_id)
     if current is None: raise LookupError("Business review record not found")
     old_status=str(current.get("status","") or "")
@@ -67,6 +82,20 @@ def resolve_pending_review(db:Session,record_id:str,*,action:str,reviewed_by:str
     except Exception:
         db.rollback();raise
     return {"status":"resolved","action":action,"old_status":old_status,"new_status":new_status,"record":get_pending_review(db,record_id),"sales_ledger":ledger}
+
+
+def resolve_pending_reviews_bulk(db: Session, record_ids: list[str], *, action: str, reviewed_by: str, note: str = "") -> dict[str, Any]:
+    ids = [value for value in dict.fromkeys(str(value or "").strip() for value in record_ids) if value]
+    if not ids:
+        raise ValueError("record_ids is required")
+    action, reviewed_by, note = validate_review_action(action=action, reviewed_by=reviewed_by, note=note)
+    results, failures = [], []
+    for record_id in ids:
+        try:
+            results.append(resolve_pending_review(db, record_id, action=action, reviewed_by=reviewed_by, note=note))
+        except (LookupError, ValueError) as exc:
+            failures.append({"record_id": record_id, "detail": str(exc)})
+    return {"action": action, "requested": len(ids), "succeeded": len(results), "failed": len(failures), "results": results, "failures": failures}
 
 def list_review_history(db: Session, record_id: str) -> list[dict[str, Any]]:
     ensure_review_audit_table(db)
