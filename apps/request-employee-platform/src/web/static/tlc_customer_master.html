@@ -37,7 +37,7 @@ async function deleteCurrentCustomer(){
  if(!confirm("确认删除当前客户吗？有关联数据时系统将拒绝删除。"))return;
  try{
   await api("/api/tlc-customers/"+encodeURIComponent(id),{method:"DELETE"});
-  $("message").textContent="客户删除完成";newRecord();await loadRecords();
+  $("msg").textContent="客户删除完成";newRecord();await loadRecords();
  }catch(e){alert(formatDeleteError(e))}
 }
 async function deleteSelectedCustomers(){
@@ -46,7 +46,7 @@ async function deleteSelectedCustomers(){
  if(!confirm(`确认批量删除 ${ids.length} 个客户吗？其中任一客户有关联数据时整批不删除。`))return;
  try{
   await api("/api/tlc-customers/delete-batch",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ids})});
-  $("message").textContent=`批量删除完成：${ids.length} 件`;newRecord();await loadRecords();
+  $("msg").textContent=`批量删除完成：${ids.length} 件`;newRecord();await loadRecords();
  }catch(e){alert(formatDeleteError(e))}
 }
 function clearSearch(){for(const [id] of searches)$(id).value='';$('includeInactive').value='true';loadRecords()}async function importCsv(){const f=$('csvFile').files[0];if(!f)return alert('请选择CSV文件');const d=new FormData();d.append('file',f);try{const r=await api('/api/tlc-customers/import',{method:'POST',body:d});$('msg').textContent=`CSV 导入完成：新增 ${r.inserted}，更新 ${r.updated}，跳过 ${r.skipped}`;await loadRecords()}catch(e){alert(e.message)}}function exportCsv(){location.href='/api/tlc-customers/export.csv?'+qp()}function toggleAll(v){document.querySelectorAll('.ck').forEach(x=>x.checked=v)}loadRecords();
