@@ -23,10 +23,17 @@ function formatDeleteError(error){
  const detail=error.detail||error;
  if(typeof detail==="string")return detail;
  if(detail&&detail.message){
-  const lines=[detail.message];
-  (detail.blocked||[]).forEach(item=>{
-   lines.push(`${item.customer_id||item.id}: `+(item.references||[]).map(r=>`${r.table}.${r.column}=${r.count}`).join(", "));
-  });
+  const blocked=detail.blocked||[];
+  const lines=["无法删除：客户已有业务关联数据。"];
+  if(blocked.length){
+   const item=blocked[0];
+   lines.push(`客户编码：${item.customer_id||item.id||""}`);
+   lines.push(`客户名称：${item.formal_name||"（未维护）"}`);
+   const references=(item.references||[]).map(r=>`${r.table}.${r.column}：${r.count} 件`);
+   if(references.length)lines.push("关联数据："+references.join("；"));
+   if(blocked.length>1)lines.push(`另有 ${blocked.length-1} 个所选客户也无法删除。`);
+  }
+  lines.push("请先删除或解除关联数据后再删除客户。");
   return lines.join("\n");
  }
  return error.message||String(error);
