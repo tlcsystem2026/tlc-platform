@@ -153,3 +153,5 @@ from src.api.routes.tlc_database_maintenance import router as tlc_database_maint
 app.include_router(tlc_database_maintenance_router)
 from src.api.routes.tlc_legal_entity_master import router as tlc_legal_entity_master_router
 app.include_router(tlc_legal_entity_master_router)
+from src.api.routes.tlc_access_control import router as tlc_access_control_router
+app.include_router(tlc_access_control_router)
