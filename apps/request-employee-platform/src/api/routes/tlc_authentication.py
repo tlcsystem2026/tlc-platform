@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session
 from src.db.session import SessionLocal, get_db
 from src.services.tlc_authentication_service import COOKIE_NAME, audit_rows, bootstrap, change_password, current_session, login, logout
 from src.services.tlc_super_admin_service import internal_ip_allowed
-from src.services.tlc_api_permission_service import authorize, dashboard_permission_script, visible_modules  # TLC_BUSINESS_PERMISSION_COVERAGE_R1  # TLC_API_PERMISSION_ENFORCEMENT_R1
+from src.services.tlc_api_permission_service import authorize, dashboard_permission_script, visible_modules  # TLC_BUSINESS_PERMISSION_COVERAGE_R1
+from src.services.tlc_security_ip_control_service import monitor_request  # TLC_SECURITY_IP_CONTROL_R1  # TLC_API_PERMISSION_ENFORCEMENT_R1
 
 
 router = APIRouter(tags=["tlc-authentication"])
@@ -97,7 +98,9 @@ def install_authentication(app) -> None:
             return RedirectResponse("/change-password",status_code=303)
         request.state.auth_user=session
         permission_db=SessionLocal()
-        try:decision=authorize(permission_db,session,request.method,request.url.path)
+        try:
+            monitor_request(permission_db,session,request.method,request.url.path,_ip(request),request.headers.get("x-forwarded-for",""))
+            decision=authorize(permission_db,session,request.method,request.url.path)
         finally:permission_db.close()
         if decision.get("required") and not decision.get("allowed"):
             return JSONResponse({"detail":"Permission denied","module_code":decision["module_code"],"action_code":decision["action_code"]},status_code=403)

@@ -160,3 +160,6 @@ app.include_router(tlc_super_admin_router)
 from src.api.routes.tlc_authentication import install_authentication, router as tlc_authentication_router
 app.include_router(tlc_authentication_router)
 install_authentication(app)
+
+from src.api.routes.tlc_security_ip_control import router as tlc_security_ip_control_router  # TLC_SECURITY_IP_CONTROL_R1
+app.include_router(tlc_security_ip_control_router)

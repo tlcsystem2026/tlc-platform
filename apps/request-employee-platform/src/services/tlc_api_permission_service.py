@@ -17,6 +17,9 @@ class PermissionRequirement:
 
 
 RULES: tuple[tuple[str, str, str, str], ...] = (
+    ("POST", r"/api/security-ip-control(?:/.*)?", "SECURITY_IP_CONTROL", "MAINTAIN"),
+    ("PUT", r"/api/security-ip-control(?:/.*)?", "SECURITY_IP_CONTROL", "MAINTAIN"),
+    ("DELETE", r"/api/security-ip-control(?:/.*)?", "SECURITY_IP_CONTROL", "MAINTAIN"),
     ("*", r"/api/database-maintenance(?:/.*)?", "DATABASE_MAINTENANCE", "MAINTAIN"),
     ("DELETE", r"/api/legal-entities/[^/]+", "LEGAL_ENTITY_MASTER", "DELETE"),
     ("POST", r"/api/tlc-customers/delete-batch", "CUSTOMER_MASTER", "DELETE"),
@@ -42,6 +45,8 @@ RULES: tuple[tuple[str, str, str, str], ...] = (
 
 # TLC_BUSINESS_PERMISSION_COVERAGE_R1
 BUSINESS_RULES: tuple[tuple[str, str, str], ...] = (
+    (r"/security-ip-control-center", "SECURITY_IP_CONTROL", "VIEW"),
+    (r"/api/security-ip-control(?:/.*)?", "SECURITY_IP_CONTROL", "VIEW"),
     (r"/(?:dashboard)?", "DASHBOARD", "VIEW"),
     (r"/api/dashboard(?:/.*)?", "DASHBOARD", "VIEW"),
     (r"/(?:request-review-center|request-batch-compare-import-center)", "REQUEST_BATCH", "VIEW"),
@@ -65,6 +70,7 @@ BUSINESS_RULES: tuple[tuple[str, str, str], ...] = (
 
 NAVIGATION_MODULES: dict[str, str] = {
     "/dashboard": "DASHBOARD",
+    "/security-ip-control-center": "SECURITY_IP_CONTROL",
     "/request-review-center": "REQUEST_BATCH",
     "/request-batch-compare-import-center": "REQUEST_BATCH",
     "/review": "REQUEST_FILE_REVIEW",
@@ -105,6 +111,7 @@ const p=await r.json(),allowed=new Set(p.modules||[]),mapping=p.navigation||{};
 document.querySelectorAll('a[href]').forEach(a=>{const path=new URL(a.href,location.origin).pathname;
 let module='';for(const [prefix,value] of Object.entries(mapping)){if(path===prefix||path.startsWith(prefix+'/')){module=value;break;}}
 if(module&&!allowed.has(module)){const card=a.closest('.navitem,.todo,.metric');(card||a).remove();}});
+if(allowed.has('SECURITY_IP_CONTROL')&&!document.querySelector('a[href="/security-ip-control-center"]')){const area=[...document.querySelectorAll('.card')].find(x=>x.textContent.includes('系统运维'));if(area){const b=document.createElement('button');b.textContent='IP访问控制';b.onclick=()=>location.href='/security-ip-control-center';area.insertBefore(b,area.querySelector('pre'));}}
 }catch(e){console.error('Permission navigation filter failed',e);}})();</script>"""
 
 def requirement_for(method: str, path: str) -> PermissionRequirement | None:
