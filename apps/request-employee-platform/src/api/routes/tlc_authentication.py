@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from src.db.session import SessionLocal, get_db
 from src.services.tlc_authentication_service import COOKIE_NAME, audit_rows, bootstrap, change_password, current_session, login, logout
 from src.services.tlc_super_admin_service import internal_ip_allowed
-from src.services.tlc_api_permission_service import authorize  # TLC_API_PERMISSION_ENFORCEMENT_R1
+from src.services.tlc_api_permission_service import authorize, dashboard_permission_script, visible_modules  # TLC_BUSINESS_PERMISSION_COVERAGE_R1  # TLC_API_PERMISSION_ENFORCEMENT_R1
 
 
 router = APIRouter(tags=["tlc-authentication"])
@@ -76,6 +76,11 @@ def auth_audit(request:Request,limit:int=200,db:Session=Depends(get_db)):
     return audit_rows(db,limit)
 
 
+@router.get("/api/auth/navigation")
+def auth_navigation(request: Request, db: Session = Depends(get_db)):
+    return visible_modules(db, _session(request, db, touch=False))
+
+
 def install_authentication(app) -> None:
     @app.middleware("http")
     async def authentication_middleware(request: Request, call_next):
@@ -97,4 +102,11 @@ def install_authentication(app) -> None:
         if decision.get("required") and not decision.get("allowed"):
             return JSONResponse({"detail":"Permission denied","module_code":decision["module_code"],"action_code":decision["action_code"]},status_code=403)
         request.state.permission_scope=decision.get("data_scope","")
-        return await call_next(request)
+        response=await call_next(request)
+        if request.url.path=="/dashboard" and "text/html" in response.headers.get("content-type",""):
+            body=b"".join([chunk async for chunk in response.body_iterator])
+            html=body.decode("utf-8")
+            html=html.replace("</body>",dashboard_permission_script()+"</body>")
+            headers=dict(response.headers);headers.pop("content-length",None)
+            return Response(content=html,status_code=response.status_code,headers=headers,media_type="text/html")
+        return response

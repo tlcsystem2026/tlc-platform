@@ -38,12 +38,84 @@ RULES: tuple[tuple[str, str, str, str], ...] = (
 )
 
 
+
+
+# TLC_BUSINESS_PERMISSION_COVERAGE_R1
+BUSINESS_RULES: tuple[tuple[str, str, str], ...] = (
+    (r"/(?:dashboard)?", "DASHBOARD", "VIEW"),
+    (r"/api/dashboard(?:/.*)?", "DASHBOARD", "VIEW"),
+    (r"/(?:request-review-center|request-batch-compare-import-center)", "REQUEST_BATCH", "VIEW"),
+    (r"/api/(?:tlc-request-batch-compare-import|tlc-batches|tlc-import-jobs)(?:/.*)?", "REQUEST_BATCH", "AUTO"),
+    (r"/review", "REQUEST_FILE_REVIEW", "VIEW"),
+    (r"/api/(?:request-reviews|tlc-batches/[^/]+/review)(?:/.*)?", "REQUEST_FILE_REVIEW", "AUTO"),
+    (r"/requests/review-workbench", "REQUEST_BUSINESS_REVIEW", "VIEW"),
+    (r"/api/requests/pending-review(?:/.*)?", "REQUEST_BUSINESS_REVIEW", "AUTO"),
+    (r"/sales", "SALES_STATISTICS", "VIEW"),
+    (r"/api/sales-ledger/statistics(?:/.*)?", "SALES_STATISTICS", "VIEW"),
+    (r"/bank-import", "BANK_IMPORT", "VIEW"),
+    (r"/api/(?:multi-bank-import|bank-import|tlc-bank-csv)(?:/.*)?", "BANK_IMPORT", "AUTO"),
+    (r"/(?:customer-payment-reconciliation(?:/confirm)?|customer-reconciliation-workbench|customer-reconciliation-confirmation-center)", "CUSTOMER_RECONCILIATION", "VIEW"),
+    (r"/api/(?:customer-reconciliation|customer-period-reconciliation|tlc-customer-reconciliation)(?:/.*)?", "CUSTOMER_RECONCILIATION", "AUTO"),
+    (r"/operational-exception-dashboard", "OPERATIONAL_EXCEPTION", "VIEW"),
+    (r"/api/tlc-operational-exceptions(?:/.*)?", "OPERATIONAL_EXCEPTION", "AUTO"),
+    (r"/guided-monthly-workflow", "MONTHLY_WORKFLOW", "VIEW"),
+    (r"/api/tlc-guided-monthly-workflow(?:/.*)?", "MONTHLY_WORKFLOW", "AUTO"),
+    (r"/monthly-close-center", "MONTHLY_CLOSE", "VIEW"),
+)
+
+NAVIGATION_MODULES: dict[str, str] = {
+    "/dashboard": "DASHBOARD",
+    "/request-review-center": "REQUEST_BATCH",
+    "/request-batch-compare-import-center": "REQUEST_BATCH",
+    "/review": "REQUEST_FILE_REVIEW",
+    "/requests/review-workbench": "REQUEST_BUSINESS_REVIEW",
+    "/sales": "SALES_STATISTICS",
+    "/bank-import": "BANK_IMPORT",
+    "/customer-payment-reconciliation": "CUSTOMER_RECONCILIATION",
+    "/customer-reconciliation-workbench": "CUSTOMER_RECONCILIATION",
+    "/customer-reconciliation-confirmation-center": "CUSTOMER_RECONCILIATION",
+    "/operational-exception-dashboard": "OPERATIONAL_EXCEPTION",
+    "/guided-monthly-workflow": "MONTHLY_WORKFLOW",
+    "/monthly-close-center": "MONTHLY_CLOSE",
+}
+
+def _business_action(method: str, configured: str) -> str:
+    if configured != "AUTO":
+        return configured
+    return {"GET": "VIEW", "HEAD": "VIEW", "OPTIONS": "VIEW", "DELETE": "DELETE"}.get(method, "EDIT")
+
+def visible_modules(db: Session, session: dict) -> dict:
+    ensure_schema(db)
+    user_id = str(session.get("user_id") or "")
+    roles = {str(row[0]) for row in db.execute(text(
+        "SELECT role_code FROM tlc_user_role WHERE user_id=:user"
+    ), {"user": user_id}).all()}
+    if "SUPER_ADMIN" in roles:
+        modules = sorted({module for module in NAVIGATION_MODULES.values()})
+    else:
+        modules = sorted({str(row[0]) for row in db.execute(text("""SELECT DISTINCT rp.module_code
+          FROM tlc_role_permission rp JOIN tlc_user_role ur ON ur.role_code=rp.role_code
+          WHERE ur.user_id=:user AND rp.action_code='VIEW' AND rp.allowed=1"""), {"user": user_id}).all()})
+    return {"modules": modules, "navigation": NAVIGATION_MODULES}
+
+def dashboard_permission_script() -> str:
+    return r"""<script data-tlc-contract="TLC_BUSINESS_PERMISSION_COVERAGE_R1">
+(async()=>{try{const r=await fetch('/api/auth/navigation',{credentials:'same-origin'});if(!r.ok)return;
+const p=await r.json(),allowed=new Set(p.modules||[]),mapping=p.navigation||{};
+document.querySelectorAll('a[href]').forEach(a=>{const path=new URL(a.href,location.origin).pathname;
+let module='';for(const [prefix,value] of Object.entries(mapping)){if(path===prefix||path.startsWith(prefix+'/')){module=value;break;}}
+if(module&&!allowed.has(module)){const card=a.closest('.navitem,.todo,.metric');(card||a).remove();}});
+}catch(e){console.error('Permission navigation filter failed',e);}})();</script>"""
+
 def requirement_for(method: str, path: str) -> PermissionRequirement | None:
     method = method.upper()
     normalized = path.rstrip("/") or "/"
     for expected, pattern, module, action in RULES:
         if expected in ("*", method) and fullmatch(pattern, normalized):
             return PermissionRequirement(module, action)
+    for pattern, module, configured_action in BUSINESS_RULES:
+        if fullmatch(pattern, normalized):
+            return PermissionRequirement(module, _business_action(method, configured_action))
     return None
 
 
