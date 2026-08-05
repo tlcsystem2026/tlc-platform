@@ -76,6 +76,7 @@ def test_table_backup_clear_and_restore(tmp_path, monkeypatch):
     assert any(item["backup_type"] == "TABLE" for item in list_backups())
     tables = {item["table_name"]: item for item in list_tables(engine)}
     assert tables["customers"]["row_count"] == 1
+    assert tables["customers"]["table_description"]
     assert tables[AUDIT_TABLE]["protected"] is True
 
 
@@ -112,5 +113,6 @@ def test_page_contract():
         "单表数据清除（超级管理员）",
         "RESTORE DATABASE",
         "CLEAR TABLE",
+        "中文说明",
     ):
         assert required in page

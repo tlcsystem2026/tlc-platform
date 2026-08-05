@@ -19,6 +19,68 @@ BACKUP_ID_PATTERN = re.compile(r"^[a-f0-9]{32}$")
 TABLE_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 LOCK = threading.RLock()
 
+TABLE_DESCRIPTIONS = {
+    "legal_entities": "法人主数据",
+    "sales_records": "销售记录",
+    "request_compare_runs": "请求书核对执行记录",
+    "review_tasks": "审核任务",
+    "request_pending_review": "请求书业务审核队列",
+    "formal_sales_request_ledger": "正式销售台账",
+    "formal_sales_ledger_admin_audit": "正式销售台账管理员审计",
+    "tlc_customer_master": "客户主数据",
+    "tlc_bank_account_profile": "银行及账户主数据",
+    "tlc_request_batch_compare": "请求书批量核对批次",
+    "tlc_request_batch_compare_item": "请求书批量核对明细",
+    "tlc_request_review_queue": "请求书文件核对队列",
+    "tlc_batch_review_link": "批次与文件审核关联",
+    "tlc_batch_sales_ledger_link": "批次与销售台账关联",
+    "tlc_batch_bank_import_link": "批次与银行流水关联",
+    "tlc_batch_reconciliation_link": "批次与客户对账关联",
+    "tlc_import_job": "数据导入任务",
+    "tlc_import_job_error": "数据导入错误记录",
+    "tlc_import_error_retry": "导入错误重试记录",
+    "customer_payment_reconciliation_history": "客户销售与入金核对历史",
+    "tlc_customer_reconciliation_case": "客户对账案件",
+    "tlc_customer_reconciliation_audit": "客户对账操作审计",
+    "tlc_customer_auto_match_audit": "客户自动匹配审计",
+    "tlc_monthly_close_checklist": "月结检查清单",
+    "tlc_monthly_close_signoff": "月结签核记录",
+    "tlc_monthly_close_authorization": "月结授权记录",
+    "tlc_monthly_close_audit": "月结操作审计",
+    "tlc_cross_month_carry_forward": "跨月结转记录",
+    "tlc_database_maintenance_audit": "数据库维护操作审计",
+}
+
+
+def table_description(table_name: str) -> str:
+    name = str(table_name or "")
+    if name in TABLE_DESCRIPTIONS:
+        return TABLE_DESCRIPTIONS[name]
+    lower = name.lower()
+    if lower.endswith("_audit") or "audit" in lower:
+        return "系统操作审计记录"
+    if lower.endswith("_error") or "error" in lower or "exception" in lower:
+        return "系统错误与异常记录"
+    if lower.endswith("_history") or "history" in lower:
+        return "业务历史记录"
+    if lower.endswith("_link") or "_link_" in lower:
+        return "业务数据关联记录"
+    if lower.endswith("_master") or "master" in lower:
+        return "系统基础主数据"
+    if "bank" in lower and ("transaction" in lower or "payment" in lower):
+        return "银行流水与入金数据"
+    if "reconciliation" in lower:
+        return "客户对账业务数据"
+    if "request" in lower and "review" in lower:
+        return "请求书审核业务数据"
+    if "request" in lower:
+        return "请求书业务数据"
+    if "sales" in lower or "ledger" in lower:
+        return "销售与台账业务数据"
+    if "monthly_close" in lower or "carry_forward" in lower:
+        return "月结与结转业务数据"
+    return "系统业务数据表（尚未登记详细说明）"
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -155,6 +217,7 @@ def list_tables(engine: Engine) -> list[dict[str, Any]]:
             count = int(connection.execute(text(f"SELECT COUNT(*) FROM {_quote(table)}")).scalar_one())
             result.append({
                 "table_name": table,
+                "table_description": table_description(table),
                 "row_count": count,
                 "protected": table == AUDIT_TABLE,
             })
@@ -247,6 +310,7 @@ def create_table_backup(engine: Engine, table_name: str, operator: str, role: st
             "backup_id": backup_id,
             "backup_type": "TABLE",
             "table_name": table_name,
+            "table_description": table_description(table_name),
             "file_name": file_name,
             "created_at": created_at,
             "operator": operator,
