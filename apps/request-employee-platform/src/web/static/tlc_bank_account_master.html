@@ -172,7 +172,15 @@ async function api(url,options){
  const response=await fetch(url,options);
  const contentType=response.headers.get('content-type')||'';
  const body=contentType.includes('application/json')?await response.json():await response.text();
- if(!response.ok)throw new Error(body.detail||body||response.statusText);
+ if(!response.ok){
+  const detail=body&&typeof body==='object'&&'detail' in body?body.detail:body;
+  const message=typeof detail==='string'?detail:(detail&&detail.message)||response.statusText||`HTTP ${response.status}`;
+  const error=new Error(message);
+  error.detail=detail;
+  error.payload=body;
+  error.status=response.status;
+  throw error;
+ }
  return body;
 }
 function showTab(id){
@@ -192,7 +200,9 @@ function formatDeleteConflict(error){
  if(detail&&detail.message){
   const lines=[detail.message];
   (detail.blocked||[]).forEach(item=>{
-   lines.push(`${item.code||item.account_number||item.id}: `+(item.references||[]).map(r=>`${r.table}.${r.column}=${r.count}`).join(", "));
+   const identity=[item.code||item.account_number||item.id,item.name_zh||item.name_ja||item.account_holder||""].filter(Boolean).join(" / ");
+   const references=(item.references||[]).map(r=>`${r.table}.${r.column}：${r.count}件`).join("，");
+   lines.push(`${identity}：${references||"存在关联数据"}`);
   });
   return lines.join("\n");
  }
