@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from ipaddress import ip_address, ip_network
 from uuid import uuid4
 
@@ -33,7 +33,17 @@ def ensure_schema(db: Session) -> None:
       forwarded_for VARCHAR(1000) NOT NULL DEFAULT '',path VARCHAR(1000) NOT NULL DEFAULT '',
       method VARCHAR(16) NOT NULL DEFAULT '',decision VARCHAR(32) NOT NULL,matched_rule_id VARCHAR(64) NOT NULL DEFAULT '',
       would_block INTEGER NOT NULL DEFAULT 0,detail VARCHAR(1000) NOT NULL DEFAULT '',created_at VARCHAR(64) NOT NULL)"""))
+    db.execute(text("""CREATE TABLE IF NOT EXISTS tlc_ip_enforcement_state(
+      id INTEGER PRIMARY KEY CHECK(id=1),mode VARCHAR(16) NOT NULL DEFAULT 'MONITOR',
+      previous_mode VARCHAR(16) NOT NULL DEFAULT 'MONITOR',test_id VARCHAR(64) NOT NULL DEFAULT '',
+      test_started_at VARCHAR(64) NOT NULL DEFAULT '',test_expires_at VARCHAR(64) NOT NULL DEFAULT '',
+      confirmed_at VARCHAR(64) NOT NULL DEFAULT '',confirmed_by VARCHAR(64) NOT NULL DEFAULT '',
+      updated_at VARCHAR(64) NOT NULL)"""))
+    db.execute(text("""CREATE TABLE IF NOT EXISTS tlc_ip_enforcement_audit(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,event_type VARCHAR(64) NOT NULL,user_id VARCHAR(64) NOT NULL DEFAULT '',
+      direct_ip VARCHAR(128) NOT NULL DEFAULT '',detail VARCHAR(1000) NOT NULL DEFAULT '',created_at VARCHAR(64) NOT NULL)"""))
     stamp = now()
+    db.execute(text("INSERT OR IGNORE INTO tlc_ip_enforcement_state VALUES(1,'MONITOR','MONITOR','','','','','',:stamp)"),{"stamp":stamp})
     db.execute(text("""INSERT OR IGNORE INTO tlc_permission_module
       (id,module_code,name_zh,active,sort_order,created_at,updated_at)
       VALUES(:id,:code,'IP访问控制',1,45,:stamp,:stamp)"""), {"id": uuid4().hex, "code": MODULE_CODE, "stamp": stamp})
@@ -67,7 +77,7 @@ def overview(db: Session, limit: int = 500) -> dict:
     rules = [_row(x) for x in db.execute(text("SELECT * FROM tlc_ip_access_rule ORDER BY enabled DESC,decision DESC,scope_type,name LIMIT :n"), {"n": min(max(limit,1),2000)}).all()]
     proxies = [_row(x) for x in db.execute(text("SELECT * FROM tlc_trusted_proxy ORDER BY enabled DESC,name")).all()]
     audit = [_row(x) for x in db.execute(text("SELECT * FROM tlc_ip_access_audit ORDER BY id DESC LIMIT 200")).all()]
-    return {"mode":"MONITOR","rules":rules,"trusted_proxies":proxies,"audit":audit,"scope_types":sorted(SCOPE_TYPES)}
+    return {"mode":enforcement_status(db)["mode"],"enforcement":enforcement_status(db),"rules":rules,"trusted_proxies":proxies,"audit":audit,"scope_types":sorted(SCOPE_TYPES)}
 
 
 def save_rule(db: Session, payload: dict) -> dict:
@@ -146,3 +156,66 @@ def monitor_request(db: Session, session: dict, method: str, path: str, direct_i
         db.execute(text("""INSERT INTO tlc_ip_access_audit(user_id,direct_ip,effective_ip,forwarded_for,path,method,decision,matched_rule_id,would_block,detail,created_at)
           VALUES(:user,:direct,:effective,:forwarded,:path,:method,:decision,:rule,:block,:detail,:stamp)"""),{"user":str(session.get("user_id")or""),"direct":direct_ip,"effective":effective,"forwarded":forwarded_for[:1000],"path":path[:1000],"method":method,"decision":decision,"rule":str(matched_rule["id"] if matched_rule else ""),"block":1 if would_block else 0,"detail":detail+("; trusted proxy" if trusted else ""),"stamp":now()});db.commit()
     return {"mode":"MONITOR","direct_ip":direct_ip,"effective_ip":effective,"trusted_proxy":trusted,"decision":decision,"would_block":would_block,"blocked":False}
+
+
+# TLC_SECURITY_IP_ENFORCEMENT_R2
+def _parse(value: str) -> datetime | None:
+    try:return datetime.fromisoformat(value) if value else None
+    except ValueError:return None
+
+
+def _state(db: Session) -> dict:
+    ensure_schema(db);return _row(db.execute(text("SELECT * FROM tlc_ip_enforcement_state WHERE id=1")).one())
+
+
+def _enforcement_audit(db: Session,event: str,user: str,direct_ip: str,detail: str="") -> None:
+    db.execute(text("INSERT INTO tlc_ip_enforcement_audit(event_type,user_id,direct_ip,detail,created_at) VALUES(:event,:user,:ip,:detail,:stamp)"),{"event":event,"user":user,"ip":direct_ip,"detail":detail[:1000],"stamp":now()})
+
+
+def _expire_test(db: Session, state: dict) -> dict:
+    expires=_parse(str(state.get("test_expires_at")or""))
+    if state.get("mode")=="TEST" and expires and expires<=datetime.now(timezone.utc):
+        db.execute(text("UPDATE tlc_ip_enforcement_state SET mode='MONITOR',previous_mode='MONITOR',test_id='',test_started_at='',test_expires_at='',updated_at=:stamp WHERE id=1"),{"stamp":now()})
+        _enforcement_audit(db,"TEST_AUTO_ROLLBACK","","","Five-minute confirmation window expired");db.commit();return _state(db)
+    return state
+
+
+def enforcement_status(db: Session) -> dict:
+    state=_expire_test(db,_state(db));expires=_parse(str(state.get("test_expires_at")or""));remaining=max(0,int((expires-datetime.now(timezone.utc)).total_seconds())) if expires else 0
+    return {**state,"remaining_seconds":remaining,"emergency_local_ips":["127.0.0.1","::1"],"default_policy":"DENY when TEST or ENFORCED"}
+
+
+def _evaluate(db: Session,session: dict,direct_ip: str,forwarded_for: str,default_deny: bool) -> dict:
+    effective,trusted=_effective_ip(db,direct_ip,forwarded_for);rules=[_row(x) for x in db.execute(text("SELECT * FROM tlc_ip_access_rule WHERE enabled=1")).all()];applicable=[x for x in rules if _scope_matches(x,session,direct_ip)];matched=[x for x in applicable if _contains(x["network"],effective)];deny=next((x for x in matched if x["decision"]=="DENY"),None);allow=next((x for x in matched if x["decision"]=="ALLOW"),None);blocked=bool(deny or (default_deny and not allow));return {"direct_ip":direct_ip,"effective_ip":effective,"trusted_proxy":trusted,"blocked":blocked,"decision":"DENY_MATCH" if deny else ("ALLOW_MATCH" if allow else ("DEFAULT_DENY" if default_deny else "NO_RESTRICTION")),"matched_rule_id":str((deny or allow or {}).get("id")or"")}
+
+
+def start_enforcement_test(db: Session,session: dict,direct_ip: str,forwarded_for: str,confirmation: str) -> dict:
+    ensure_schema(db)
+    if confirmation!="START 5 MINUTE TEST":raise ValueError("确认文字不正确")
+    if direct_ip not in {"127.0.0.1","::1"}:
+        current=_evaluate(db,session,direct_ip,forwarded_for,True)
+        if current["blocked"]:raise ValueError("当前访问IP不符合ALLOW规则，不能开始阻断测试")
+    stamp=datetime.now(timezone.utc);test_id=uuid4().hex;expires=stamp+timedelta(minutes=5);user=str(session.get("user_id")or"")
+    db.execute(text("UPDATE tlc_ip_enforcement_state SET mode='TEST',previous_mode='MONITOR',test_id=:test,test_started_at=:started,test_expires_at=:expires,confirmed_at='',confirmed_by='',updated_at=:started WHERE id=1"),{"test":test_id,"started":stamp.isoformat(),"expires":expires.isoformat()});_enforcement_audit(db,"TEST_STARTED",user,direct_ip,test_id);db.commit();return enforcement_status(db)
+
+
+def confirm_enforcement(db: Session,session: dict,direct_ip: str,forwarded_for: str,test_id: str,confirmation: str) -> dict:
+    state=_expire_test(db,_state(db))
+    if state["mode"]!="TEST" or not test_id or test_id!=state["test_id"]:raise ValueError("测试期不存在、已过期或测试ID不一致")
+    if confirmation!="CONFIRM PERMANENT ENFORCEMENT":raise ValueError("再次确认文字不正确")
+    if direct_ip not in {"127.0.0.1","::1"} and _evaluate(db,session,direct_ip,forwarded_for,True)["blocked"]:raise ValueError("当前访问IP已不符合ALLOW规则，不能正式启用")
+    stamp=now();user=str(session.get("user_id")or"");db.execute(text("UPDATE tlc_ip_enforcement_state SET mode='ENFORCED',previous_mode='TEST',confirmed_at=:stamp,confirmed_by=:user,updated_at=:stamp WHERE id=1"),{"stamp":stamp,"user":user});_enforcement_audit(db,"ENFORCEMENT_CONFIRMED",user,direct_ip,test_id);db.commit();return enforcement_status(db)
+
+
+def cancel_enforcement(db: Session,session: dict,direct_ip: str,confirmation: str) -> dict:
+    if confirmation!="RETURN TO MONITOR":raise ValueError("取消确认文字不正确")
+    user=str(session.get("user_id")or"");db.execute(text("UPDATE tlc_ip_enforcement_state SET mode='MONITOR',previous_mode=mode,test_id='',test_started_at='',test_expires_at='',confirmed_at='',confirmed_by='',updated_at=:stamp WHERE id=1"),{"stamp":now()});_enforcement_audit(db,"RETURNED_TO_MONITOR",user,direct_ip);db.commit();return enforcement_status(db)
+
+
+def enforce_request(db: Session,session: dict,method: str,path: str,direct_ip: str,forwarded_for: str="") -> dict:
+    state=_expire_test(db,_state(db))
+    if direct_ip in {"127.0.0.1","::1"}:
+        return {"mode":state["mode"],"direct_ip":direct_ip,"effective_ip":direct_ip,"decision":"LOCAL_EMERGENCY_ALLOW","would_block":False,"blocked":False,"emergency":True}
+    if state["mode"]=="MONITOR":return monitor_request(db,session,method,path,direct_ip,forwarded_for)
+    result=_evaluate(db,session,direct_ip,forwarded_for,True);result.update({"mode":state["mode"],"would_block":result["blocked"],"emergency":False})
+    db.execute(text("INSERT INTO tlc_ip_access_audit(user_id,direct_ip,effective_ip,forwarded_for,path,method,decision,matched_rule_id,would_block,detail,created_at) VALUES(:user,:direct,:effective,:forwarded,:path,:method,:decision,:rule,:block,:detail,:stamp)"),{"user":str(session.get("user_id")or""),"direct":direct_ip,"effective":result["effective_ip"],"forwarded":forwarded_for[:1000],"path":path[:1000],"method":method,"decision":result["decision"],"rule":result["matched_rule_id"],"block":1 if result["blocked"] else 0,"detail":state["mode"],"stamp":now()});db.commit();return result

@@ -10,7 +10,7 @@ from src.db.session import SessionLocal, get_db
 from src.services.tlc_authentication_service import COOKIE_NAME, audit_rows, bootstrap, change_password, current_session, login, logout
 from src.services.tlc_super_admin_service import internal_ip_allowed
 from src.services.tlc_api_permission_service import authorize, dashboard_permission_script, visible_modules  # TLC_BUSINESS_PERMISSION_COVERAGE_R1
-from src.services.tlc_security_ip_control_service import monitor_request  # TLC_SECURITY_IP_CONTROL_R1  # TLC_API_PERMISSION_ENFORCEMENT_R1
+from src.services.tlc_security_ip_control_service import enforce_request  # TLC_SECURITY_IP_ENFORCEMENT_R2  # TLC_API_PERMISSION_ENFORCEMENT_R1
 
 
 router = APIRouter(tags=["tlc-authentication"])
@@ -86,7 +86,14 @@ def install_authentication(app) -> None:
     @app.middleware("http")
     async def authentication_middleware(request: Request, call_next):
         if os.getenv("PYTEST_CURRENT_TEST") and os.getenv("TLC_AUTH_TEST_FORCE", "0") != "1":return await call_next(request)
-        if os.getenv("TLC_AUTH_ENFORCEMENT_ENABLED", "1") != "1" or request.url.path in PUBLIC_PATHS:return await call_next(request)
+        if os.getenv("TLC_AUTH_ENFORCEMENT_ENABLED", "1") != "1":return await call_next(request)
+        if request.url.path in PUBLIC_PATHS:
+            public_db=SessionLocal()
+            try:public_access=enforce_request(public_db,{},request.method,request.url.path,_ip(request),request.headers.get("x-forwarded-for",""))
+            finally:public_db.close()
+            if public_access.get("blocked"):
+                return JSONResponse({"detail":"IP access denied","decision":public_access.get("decision")},status_code=403)
+            return await call_next(request)
         db=SessionLocal()
         try:session=current_session(db,request.cookies.get(COOKIE_NAME,""))
         finally:db.close()
@@ -99,9 +106,11 @@ def install_authentication(app) -> None:
         request.state.auth_user=session
         permission_db=SessionLocal()
         try:
-            monitor_request(permission_db,session,request.method,request.url.path,_ip(request),request.headers.get("x-forwarded-for",""))
+            ip_access=enforce_request(permission_db,session,request.method,request.url.path,_ip(request),request.headers.get("x-forwarded-for",""))
             decision=authorize(permission_db,session,request.method,request.url.path)
         finally:permission_db.close()
+        if ip_access.get("blocked"):
+            return JSONResponse({"detail":"IP access denied","decision":ip_access.get("decision")},status_code=403)
         if decision.get("required") and not decision.get("allowed"):
             return JSONResponse({"detail":"Permission denied","module_code":decision["module_code"],"action_code":decision["action_code"]},status_code=403)
         request.state.permission_scope=decision.get("data_scope","")
