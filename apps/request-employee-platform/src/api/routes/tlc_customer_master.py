@@ -8,7 +8,7 @@ router=APIRouter(tags=['tlc-customer-master'])
 
 def _list(db,**kw):return list_customers(db,**kw)
 @router.get('/api/tlc-customers')
-def list_records(query:str='',customer_id:str='',formal_name:str='',katakana_name:str='',katakana_name_short:str='',delivery_name_1:str='',delivery_name_2:str='',phone_number:str='',postal_code:str='',address:str='',status_code:str='',source_system:str='',include_inactive:bool=True,limit:int=Query(500,ge=1,le=2000),db:Session=Depends(get_db)):
+def list_records(query:str='',customer_id:str='',formal_name:str='',katakana_name:str='',katakana_name_short:str='',delivery_name_1:str='',delivery_name_2:str='',phone_number:str='',postal_code:str='',address:str='',status_code:str='',source_system:str='',include_inactive:bool=True,limit:int=Query(0,ge=0),db:Session=Depends(get_db)):
  return _list(db,query=query,customer_id=customer_id,formal_name=formal_name,katakana_name=katakana_name,katakana_name_short=katakana_name_short,delivery_name_1=delivery_name_1,delivery_name_2=delivery_name_2,phone_number=phone_number,postal_code=postal_code,address=address,status_code=status_code,source_system=source_system,include_inactive=include_inactive,limit=limit)
 @router.post('/api/tlc-customers/import')
 async def import_records(request:Request,db:Session=Depends(get_db)):
@@ -28,7 +28,7 @@ async def import_records(request:Request,db:Session=Depends(get_db)):
   raise HTTPException(400,str(e)) from e
 @router.get('/api/tlc-customers/export.csv')
 def export_records(query:str='',customer_id:str='',formal_name:str='',katakana_name:str='',katakana_name_short:str='',delivery_name_1:str='',delivery_name_2:str='',phone_number:str='',postal_code:str='',address:str='',status_code:str='',source_system:str='',include_inactive:bool=True,db:Session=Depends(get_db)):
- data=_list(db,query=query,customer_id=customer_id,formal_name=formal_name,katakana_name=katakana_name,katakana_name_short=katakana_name_short,delivery_name_1=delivery_name_1,delivery_name_2=delivery_name_2,phone_number=phone_number,postal_code=postal_code,address=address,status_code=status_code,source_system=source_system,include_inactive=include_inactive,limit=2000)
+ data=_list(db,query=query,customer_id=customer_id,formal_name=formal_name,katakana_name=katakana_name,katakana_name_short=katakana_name_short,delivery_name_1=delivery_name_1,delivery_name_2=delivery_name_2,phone_number=phone_number,postal_code=postal_code,address=address,status_code=status_code,source_system=source_system,include_inactive=include_inactive,limit=0)
  return Response(export_customers_csv(data),media_type='text/csv; charset=utf-8',headers={'Content-Disposition':'attachment; filename="tlc_customer_master.csv"'})
 
 @router.post('/api/tlc-customers/delete-batch')

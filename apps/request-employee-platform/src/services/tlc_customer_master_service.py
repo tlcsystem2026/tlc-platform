@@ -96,8 +96,8 @@ def ensure_customer_master_table(db:Session)->None:
 def _row(r:Any)->dict[str,Any]:
     x=dict(r._mapping if hasattr(r,'_mapping') else r);x['active']=bool(x.get('active',0));return x
 
-def list_customers(db:Session,query:str='',customer_id:str='',formal_name:str='',katakana_name:str='',katakana_name_short:str='',delivery_name_1:str='',delivery_name_2:str='',phone_number:str='',postal_code:str='',address:str='',status_code:str='',source_system:str='',include_inactive:bool=True,limit:int=500)->list[dict[str,Any]]:
-    ensure_customer_master_table(db);clauses=[];p={'limit':min(max(int(limit),1),2000)}
+def list_customers(db:Session,query:str='',customer_id:str='',formal_name:str='',katakana_name:str='',katakana_name_short:str='',delivery_name_1:str='',delivery_name_2:str='',phone_number:str='',postal_code:str='',address:str='',status_code:str='',source_system:str='',include_inactive:bool=True,limit:int=0)->list[dict[str,Any]]:
+    ensure_customer_master_table(db);clauses=[];p={}
     if query:
         clauses.append("("+" OR ".join(f"{c} LIKE :q" for c in ['customer_id','formal_name','hiragana_name','katakana_name','katakana_name_short','short_name','delivery_name_1','delivery_name_2','postal_code','address_1','address_2','phone_number','email_address','jis_municipality_code','shipper_code','alias_1','alias_2','alias_3','alias_4','alias_5'])+")");p['q']=f'%{query}%'
     for c,v in {'customer_id':customer_id,'formal_name':formal_name,'katakana_name':katakana_name,'katakana_name_short':katakana_name_short,'delivery_name_1':delivery_name_1,'delivery_name_2':delivery_name_2,'phone_number':phone_number,'postal_code':postal_code,'source_system':source_system}.items():
@@ -106,7 +106,10 @@ def list_customers(db:Session,query:str='',customer_id:str='',formal_name:str=''
     if status_code:clauses.append('status_code=:status_code');p['status_code']=status_code
     if not include_inactive:clauses.append('active=1')
     where='WHERE '+' AND '.join(clauses) if clauses else ''
-    return [_row(r) for r in db.execute(text(f"SELECT * FROM {TABLE_NAME} {where} ORDER BY customer_id LIMIT :limit"),p).all()]
+    sql=f"SELECT * FROM {TABLE_NAME} {where} ORDER BY customer_id"
+    if int(limit or 0)>0:
+        p['limit']=int(limit);sql+=' LIMIT :limit'
+    return [_row(r) for r in db.execute(text(sql),p).all()]
 
 def get_customer(db:Session,record_id:str):
     ensure_customer_master_table(db);r=db.execute(text(f"SELECT * FROM {TABLE_NAME} WHERE id=:id"),{'id':record_id}).first();return _row(r) if r else None
