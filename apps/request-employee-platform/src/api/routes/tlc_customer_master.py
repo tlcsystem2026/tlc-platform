@@ -3,7 +3,7 @@ from fastapi import APIRouter,Depends,HTTPException,Query,Request
 from fastapi.responses import HTMLResponse,Response
 from sqlalchemy.orm import Session
 from src.db.session import get_db
-from src.services.tlc_customer_master_service import MasterDeleteConflict,delete_customers,export_customers_csv,get_customer,import_customer_rows,import_todokedl_csv,list_customers,save_customer
+from src.services.tlc_customer_master_service import MasterDeleteConflict,delete_customers,duplicate_formal_name_groups,export_customers_csv,get_customer,import_customer_rows,import_todokedl_csv,list_customers,save_customer
 router=APIRouter(tags=['tlc-customer-master'])
 
 def _list(db,**kw):return list_customers(db,**kw)
@@ -38,6 +38,10 @@ def delete_batch(payload:dict,db:Session=Depends(get_db)):
   raise HTTPException(409,detail={'message':str(e),'blocked':e.references}) from e
  except LookupError as e:raise HTTPException(404,str(e)) from e
  except ValueError as e:raise HTTPException(400,str(e)) from e
+
+@router.get('/api/tlc-customers/duplicate-formal-names')
+def duplicate_formal_names(db:Session=Depends(get_db)):
+ return {'groups':duplicate_formal_name_groups(db)}
 
 @router.delete('/api/tlc-customers/{record_id}')
 def delete_record(record_id:str,db:Session=Depends(get_db)):

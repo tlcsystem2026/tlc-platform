@@ -9,6 +9,7 @@ from src.services.tlc_code_master_service import ensure_tlc_code_tables
 
 TABLE_NAME="tlc_customer_master"
 EXTRA_COLUMNS={
+"formal_name_unique_key":"VARCHAR(1000) NOT NULL DEFAULT ''",
 "katakana_name_short":"VARCHAR(500) NOT NULL DEFAULT ''",
 "delivery_name_1":"VARCHAR(500) NOT NULL DEFAULT ''","delivery_name_2":"VARCHAR(500) NOT NULL DEFAULT ''",
 "postal_code":"VARCHAR(32) NOT NULL DEFAULT ''","address_1":"VARCHAR(1000) NOT NULL DEFAULT ''","address_2":"VARCHAR(1000) NOT NULL DEFAULT ''",
@@ -23,6 +24,52 @@ def normalize_customer_name(v:str)->str:
     for t in ("株式会社","有限会社","合同会社","（株）","(株)","㈱"):s=s.replace(t.casefold(),"")
     return s.strip()
 
+def normalize_formal_name_unique_key(v:str)->str:
+    """Normalize typography without removing legal-entity words."""
+    s=unicodedata.normalize("NFKC",str(v or "")).casefold()
+    return re.sub(r"\s+","",s).strip()
+
+def _backfill_formal_name_unique_keys(db:Session)->None:
+    rows=db.execute(text(
+        f"SELECT id,formal_name,formal_name_unique_key FROM {TABLE_NAME}"
+    )).all()
+    for row in rows:
+        values=row._mapping
+        expected=normalize_formal_name_unique_key(values.get("formal_name",""))
+        if str(values.get("formal_name_unique_key","") or "") != expected:
+            db.execute(text(
+                f"UPDATE {TABLE_NAME} SET formal_name_unique_key=:key WHERE id=:id"
+            ),{"key":expected,"id":values["id"]})
+
+def duplicate_formal_name_groups(db:Session)->list[dict[str,Any]]:
+    ensure_customer_master_table(db)
+    rows=db.execute(text(f'''SELECT formal_name_unique_key,COUNT(*) AS row_count
+      FROM {TABLE_NAME} WHERE formal_name_unique_key<>''
+      GROUP BY formal_name_unique_key HAVING COUNT(*)>1
+      ORDER BY row_count DESC,formal_name_unique_key''')).all()
+    result=[]
+    for row in rows:
+        key=row._mapping["formal_name_unique_key"]
+        customers=[dict(item._mapping) for item in db.execute(text(
+            f"SELECT id,customer_id,formal_name FROM {TABLE_NAME} "
+            "WHERE formal_name_unique_key=:key ORDER BY customer_id"
+        ),{"key":key}).all()]
+        result.append({"formal_name_unique_key":key,"row_count":len(customers),"customers":customers})
+    return result
+
+def _assert_formal_name_unique(db:Session,formal_name:str,exclude_id:str='')->str:
+    key=normalize_formal_name_unique_key(formal_name)
+    row=db.execute(text(f'''SELECT id,customer_id,formal_name FROM {TABLE_NAME}
+      WHERE formal_name_unique_key=:key AND id<>:exclude_id
+      ORDER BY customer_id LIMIT 1'''),{"key":key,"exclude_id":exclude_id}).first()
+    if row:
+        existing=row._mapping
+        raise ValueError(
+            "客户正式名称已存在 / formal_name already exists: "
+            f"{existing['formal_name']} (customer_id={existing['customer_id']})"
+        )
+    return key
+
 def ensure_customer_master_table(db:Session)->None:
     ensure_tlc_code_tables(db)
     db.execute(text(f'''CREATE TABLE IF NOT EXISTS {TABLE_NAME}(
@@ -34,6 +81,16 @@ def ensure_customer_master_table(db:Session)->None:
     existing={r._mapping['name'] for r in db.execute(text(f"PRAGMA table_info({TABLE_NAME})")).all()}
     for c,d in EXTRA_COLUMNS.items():
         if c not in existing:db.execute(text(f"ALTER TABLE {TABLE_NAME} ADD COLUMN {c} {d}"))
+    _backfill_formal_name_unique_keys(db)
+    duplicate_count=db.execute(text(f'''SELECT COUNT(*) FROM (
+      SELECT formal_name_unique_key FROM {TABLE_NAME}
+      WHERE formal_name_unique_key<>'' GROUP BY formal_name_unique_key
+      HAVING COUNT(*)>1)''')).scalar_one()
+    if int(duplicate_count or 0)==0:
+        db.execute(text(f'''CREATE UNIQUE INDEX IF NOT EXISTS
+          ux_tlc_customer_master_formal_name_unique_key
+          ON {TABLE_NAME}(formal_name_unique_key)
+          WHERE formal_name_unique_key<>'' '''))
     db.commit()
 
 def _row(r:Any)->dict[str,Any]:
@@ -59,9 +116,10 @@ def save_customer(db:Session,payload:dict[str,Any]):
     if not cid:raise ValueError('customer_id is required')
     if not formal:raise ValueError('formal_name is required for manual maintenance')
     rid=str(payload.get('id','')).strip();now=datetime.now(timezone.utc).isoformat()
+    formal_name_unique_key=_assert_formal_name_unique(db,formal,rid)
     cols=['customer_id','formal_name','hiragana_name','katakana_name','katakana_name_short','short_name','delivery_name_1','delivery_name_2','postal_code','address_1','address_2','phone_number','email_address','jis_municipality_code','shipping_notice_email_flag','shipper_code','alias_1','alias_2','alias_3','alias_4','alias_5','status_code','note','source_system','source_updated_at']
-    p={c:str(payload.get(c,'') or '').strip() for c in cols};p.update({'customer_id':cid,'formal_name':formal,'normalized_formal_name':normalize_customer_name(formal),'active':1 if payload.get('active',True) else 0,'updated_at':now})
-    allcols=cols+['normalized_formal_name','active','updated_at']
+    p={c:str(payload.get(c,'') or '').strip() for c in cols};p.update({'customer_id':cid,'formal_name':formal,'normalized_formal_name':normalize_customer_name(formal),'formal_name_unique_key':formal_name_unique_key,'active':1 if payload.get('active',True) else 0,'updated_at':now})
+    allcols=cols+['normalized_formal_name','formal_name_unique_key','active','updated_at']
     if rid:
         p['id']=rid;r=db.execute(text(f"UPDATE {TABLE_NAME} SET "+','.join(f'{c}=:{c}' for c in allcols)+" WHERE id=:id"),p)
         if r.rowcount==0:raise LookupError('Customer not found')
@@ -110,6 +168,7 @@ def import_customer_rows(db: Session, rows: list[dict[str, Any]]) -> dict[str, A
 
     prepared: list[dict[str, Any]] = []
     seen: set[str] = set()
+    seen_formal_names: dict[str, str] = {}
 
     # Validate every row before the first write.
     for row_no, raw in enumerate(rows, start=1):
@@ -134,6 +193,20 @@ def import_customer_rows(db: Session, rows: list[dict[str, Any]]) -> dict[str, A
         ).first()
         if existing:
             payload["id"] = existing._mapping["id"]
+
+        formal_key = normalize_formal_name_unique_key(formal_name)
+        previous_customer_id = seen_formal_names.get(formal_key)
+        if previous_customer_id and previous_customer_id != customer_id:
+            raise ValueError(
+                f"row {row_no}: duplicate formal_name in import: {formal_name}"
+            )
+        seen_formal_names[formal_key] = customer_id
+        try:
+            _assert_formal_name_unique(
+                db, formal_name, str(payload.get("id", "") or "")
+            )
+        except ValueError as exc:
+            raise ValueError(f"row {row_no}: {exc}") from exc
 
         payload["customer_id"] = customer_id
         payload["formal_name"] = formal_name
