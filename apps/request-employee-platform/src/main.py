@@ -149,3 +149,5 @@ from src.api.routes.request_review import router as request_review_router
 from src.api.routes.request_review import page_router as request_review_page_router
 app.include_router(request_review_router)
 app.include_router(request_review_page_router)
+from src.api.routes.tlc_database_maintenance import router as tlc_database_maintenance_router
+app.include_router(tlc_database_maintenance_router)

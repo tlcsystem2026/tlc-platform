@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>数据库维护中心</title>
+<style>
+:root{--blue:#1d4ed8;--red:#b91c1c;--ink:#172033;--muted:#667085;--line:#dbe2ea;--bg:#f5f7fb}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:"Microsoft YaHei","Segoe UI",sans-serif}
+header{padding:24px 32px;background:linear-gradient(90deg,#172554,#1d4ed8);color:#fff}header h1{margin:0 0 6px}
+main{max-width:1500px;margin:auto;padding:22px}.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:18px;box-shadow:0 7px 20px #10204010}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}label{display:block;font-size:13px;color:var(--muted)}
+input,select,textarea{width:100%;margin-top:5px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font:inherit}textarea{min-height:72px}
+button{padding:10px 15px;border:0;border-radius:8px;background:var(--blue);color:#fff;font-weight:700;cursor:pointer;margin:4px}.secondary{background:#475467}.danger{background:var(--red)}
+.toolbar{display:flex;gap:8px;align-items:end;flex-wrap:wrap}.toolbar label{min-width:210px;flex:1}.notice{padding:12px;border-radius:9px;background:#fff7ed;color:#9a3412;margin:10px 0}
+.result{white-space:pre-wrap;background:#101828;color:#d1fadf;border-radius:10px;padding:12px;max-height:260px;overflow:auto}
+.table-wrap{overflow:auto;max-height:520px;border:1px solid var(--line)}table{border-collapse:collapse;width:100%;font-size:13px;background:#fff}th,td{border-bottom:1px solid var(--line);padding:9px;text-align:left;white-space:nowrap}th{position:sticky;top:0;background:#eaf1fb;z-index:1}
+.tag{display:inline-block;padding:2px 8px;border-radius:999px;background:#eaf1ff;color:#1d4ed8}.danger-zone{border:2px solid #fecaca}
+</style>
+</head>
+<body>
+<header><h1>数据库维护中心</h1><div>整库与单表备份／恢复・超级管理员数据清理・维护审计</div></header>
+<main>
+<section class="card">
+  <h2>超级管理员确认</h2>
+  <div class="grid">
+    <label>操作人<input id="operator" value="super-admin"></label>
+    <label>角色<input id="role" value="SUPER_ADMIN" readonly></label>
+    <label>维护理由<textarea id="reason" placeholder="必须填写本次维护原因"></textarea></label>
+  </div>
+  <div class="notice">恢复和清空属于高风险操作。系统会先自动备份，但仍须输入页面提示的确认文字。</div>
+  <button class="secondary" onclick="loadOverview()">刷新全部状态</button>
+  <a href="/dashboard">返回 Dashboard</a>
+</section>
+
+<section class="card">
+  <h2>1. 整体备份与恢复</h2>
+  <button onclick="fullBackup()">立即创建整库备份</button>
+  <div class="toolbar">
+    <label>选择整库备份<select id="fullBackupSelect"></select></label>
+    <label>恢复确认文字<input id="fullConfirmation" placeholder="RESTORE DATABASE"></label>
+    <button class="danger" onclick="fullRestore()">恢复整个数据库</button>
+  </div>
+</section>
+
+<section class="card">
+  <h2>2. 单表备份与恢复</h2>
+  <div class="toolbar">
+    <label>选择数据表<select id="tableSelect" onchange="syncTableControls()"></select></label>
+    <button onclick="tableBackup()">备份所选表</button>
+    <label>选择该表备份<select id="tableBackupSelect"></select></label>
+    <label>恢复确认文字<input id="tableRestoreConfirmation"></label>
+    <button class="danger" onclick="tableRestore()">恢复所选表</button>
+  </div>
+</section>
+
+<section class="card danger-zone">
+  <h2>3. 单表数据清除（超级管理员）</h2>
+  <p>只清除表内数据，不删除表结构。执行前自动创建该表备份。数据库维护审计表禁止清空。</p>
+  <div class="toolbar">
+    <label>清空目标表<input id="clearTableName" readonly></label>
+    <label>清空确认文字<input id="tableClearConfirmation"></label>
+    <button class="danger" onclick="tableClear()">清空所选表全部数据</button>
+  </div>
+</section>
+
+<section class="card"><h2>数据表状态</h2><div class="table-wrap"><table><thead><tr><th>表名</th><th>件数</th><th>保护状态</th></tr></thead><tbody id="tableRows"></tbody></table></div></section>
+<section class="card"><h2>备份记录</h2><div class="table-wrap"><table><thead><tr><th>时间</th><th>类型</th><th>表名</th><th>Backup ID</th><th>件数／容量</th><th>操作人</th><th>状态</th></tr></thead><tbody id="backupRows"></tbody></table></div></section>
+<section class="card"><h2>维护审计</h2><div class="table-wrap"><table><thead><tr><th>时间</th><th>操作</th><th>对象</th><th>操作人</th><th>理由</th><th>Backup ID</th></tr></thead><tbody id="auditRows"></tbody></table></div></section>
+<section class="card"><h2>执行结果</h2><pre id="result" class="result">等待操作</pre></section>
+</main>
+<script>
+/* BUILD037_DATABASE_MAINTENANCE_CENTER_R1 */
+let state={tables:[],backups:[],audit:[]};
+const $=id=>document.getElementById(id);
+const esc=v=>String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
+function credentials(extra={}){return {operator:$("operator").value.trim(),role:$("role").value,reason:$("reason").value.trim(),...extra}}
+async function api(url,options={}){const response=await fetch(url,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});let data;try{data=await response.json()}catch{data={detail:await response.text()}}if(!response.ok){let detail=data.detail??data;if(typeof detail==="object")detail=detail.message??JSON.stringify(detail);throw new Error(detail||`HTTP ${response.status}`)}return data}
+function show(value){$("result").textContent=typeof value==="string"?value:JSON.stringify(value,null,2)}
+async function execute(action){try{if(!$("reason").value.trim())throw new Error("请先填写维护理由");show("处理中，请勿关闭页面……");const result=await action();show(result);await loadOverview()}catch(error){show("错误："+error.message);alert(error.message)}}
+async function loadOverview(){try{state=await api("/api/database-maintenance/overview");render()}catch(error){show("读取失败："+error.message)}}
+function render(){
+ $("tableRows").innerHTML=state.tables.map(x=>`<tr><td>${esc(x.table_name)}</td><td>${x.row_count}</td><td>${x.protected?'<span class="tag">禁止清空</span>':''}</td></tr>`).join("");
+ $("backupRows").innerHTML=state.backups.map(x=>`<tr><td>${esc(x.created_at)}</td><td>${esc(x.backup_type)}</td><td>${esc(x.table_name)}</td><td>${esc(x.backup_id)}</td><td>${esc(x.row_count??x.size_bytes)}</td><td>${esc(x.operator)}</td><td>${x.available?"可用":"文件缺失"}</td></tr>`).join("");
+ $("auditRows").innerHTML=state.audit.map(x=>`<tr><td>${esc(x.created_at)}</td><td>${esc(x.action)}</td><td>${esc(x.target_name)}</td><td>${esc(x.operator)}</td><td>${esc(x.reason)}</td><td>${esc(x.backup_id)}</td></tr>`).join("");
+ const current=$("tableSelect").value;$("tableSelect").innerHTML=state.tables.map(x=>`<option value="${esc(x.table_name)}">${esc(x.table_name)} (${x.row_count})</option>`).join("");if(current&&state.tables.some(x=>x.table_name===current))$("tableSelect").value=current;
+ $("fullBackupSelect").innerHTML=state.backups.filter(x=>x.backup_type==="FULL"&&x.available).map(x=>`<option value="${x.backup_id}">${esc(x.created_at)} / ${x.backup_id}</option>`).join("");syncTableControls();
+}
+function syncTableControls(){const table=$("tableSelect").value;$("clearTableName").value=table;$("tableRestoreConfirmation").placeholder=`RESTORE TABLE ${table}`;$("tableClearConfirmation").placeholder=`CLEAR TABLE ${table}`;$("tableBackupSelect").innerHTML=state.backups.filter(x=>x.backup_type==="TABLE"&&x.table_name===table&&x.available).map(x=>`<option value="${x.backup_id}">${esc(x.created_at)} / ${x.row_count} 件</option>`).join("")}
+function fullBackup(){execute(()=>api("/api/database-maintenance/full-backup",{method:"POST",body:JSON.stringify(credentials())}))}
+function fullRestore(){if(!confirm("确定恢复整个数据库吗？当前数据库将被所选备份替换。"))return;execute(()=>api("/api/database-maintenance/full-restore",{method:"POST",body:JSON.stringify(credentials({backup_id:$("fullBackupSelect").value,confirmation:$("fullConfirmation").value}))}))}
+function tableBackup(){const table=$("tableSelect").value;execute(()=>api(`/api/database-maintenance/tables/${encodeURIComponent(table)}/backup`,{method:"POST",body:JSON.stringify(credentials())}))}
+function tableRestore(){const table=$("tableSelect").value;if(!confirm(`确定恢复 ${table} 吗？当前表数据将被替换。`))return;execute(()=>api(`/api/database-maintenance/tables/${encodeURIComponent(table)}/restore`,{method:"POST",body:JSON.stringify(credentials({backup_id:$("tableBackupSelect").value,confirmation:$("tableRestoreConfirmation").value}))}))}
+function tableClear(){const table=$("tableSelect").value;if(!confirm(`确定清空 ${table} 的全部数据吗？`))return;execute(()=>api(`/api/database-maintenance/tables/${encodeURIComponent(table)}/clear`,{method:"POST",body:JSON.stringify(credentials({confirmation:$("tableClearConfirmation").value}))}))}
+loadOverview();
+</script>
+</body></html>
