@@ -17,6 +17,7 @@ class PermissionRequirement:
 
 
 RULES: tuple[tuple[str, str, str, str], ...] = (
+    ("POST", r"/api/security(?:/.*)?", "SECURITY_AUDIT", "MAINTAIN"),
     ("POST", r"/api/security-ip-control(?:/.*)?", "SECURITY_IP_CONTROL", "MAINTAIN"),
     ("PUT", r"/api/security-ip-control(?:/.*)?", "SECURITY_IP_CONTROL", "MAINTAIN"),
     ("DELETE", r"/api/security-ip-control(?:/.*)?", "SECURITY_IP_CONTROL", "MAINTAIN"),
@@ -45,6 +46,8 @@ RULES: tuple[tuple[str, str, str, str], ...] = (
 
 # TLC_BUSINESS_PERMISSION_COVERAGE_R1
 BUSINESS_RULES: tuple[tuple[str, str, str], ...] = (
+    (r"/security-center", "SECURITY_AUDIT", "VIEW"),
+    (r"/api/security(?:/.*)?", "SECURITY_AUDIT", "VIEW"),
     (r"/security-ip-control-center", "SECURITY_IP_CONTROL", "VIEW"),
     (r"/api/security-ip-control(?:/.*)?", "SECURITY_IP_CONTROL", "VIEW"),
     (r"/(?:dashboard)?", "DASHBOARD", "VIEW"),
@@ -69,6 +72,7 @@ BUSINESS_RULES: tuple[tuple[str, str, str], ...] = (
 )
 
 NAVIGATION_MODULES: dict[str, str] = {
+    "/security-center": "SECURITY_AUDIT",
     "/dashboard": "DASHBOARD",
     "/security-ip-control-center": "SECURITY_IP_CONTROL",
     "/request-review-center": "REQUEST_BATCH",
@@ -112,6 +116,7 @@ document.querySelectorAll('a[href]').forEach(a=>{const path=new URL(a.href,locat
 let module='';for(const [prefix,value] of Object.entries(mapping)){if(path===prefix||path.startsWith(prefix+'/')){module=value;break;}}
 if(module&&!allowed.has(module)){const card=a.closest('.navitem,.todo,.metric');(card||a).remove();}});
 if(allowed.has('SECURITY_IP_CONTROL')&&!document.querySelector('a[href="/security-ip-control-center"]')){const area=[...document.querySelectorAll('.card')].find(x=>x.textContent.includes('系统运维'));if(area){const b=document.createElement('button');b.textContent='IP访问控制';b.onclick=()=>location.href='/security-ip-control-center';area.insertBefore(b,area.querySelector('pre'));}}
+if(allowed.has('SECURITY_AUDIT')&&!document.querySelector('a[href="/security-center"]')){const area=[...document.querySelectorAll('.card')].find(x=>x.textContent.includes('邉ｻ扈溯ｿ千ｻｴ'));if(area){const b=document.createElement('button');b.textContent='MFA与安全中心';b.onclick=()=>location.href='/security-center';area.insertBefore(b,area.querySelector('pre'));}}
 }catch(e){console.error('Permission navigation filter failed',e);}})();</script>"""
 
 def requirement_for(method: str, path: str) -> PermissionRequirement | None:

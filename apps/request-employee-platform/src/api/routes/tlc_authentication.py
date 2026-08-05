@@ -11,6 +11,7 @@ from src.services.tlc_authentication_service import COOKIE_NAME, audit_rows, boo
 from src.services.tlc_super_admin_service import internal_ip_allowed
 from src.services.tlc_api_permission_service import authorize, dashboard_permission_script, visible_modules  # TLC_BUSINESS_PERMISSION_COVERAGE_R1
 from src.services.tlc_security_ip_control_service import enforce_request  # TLC_SECURITY_IP_ENFORCEMENT_R2  # TLC_API_PERMISSION_ENFORCEMENT_R1
+from src.services.tlc_mfa_security_service import rate_limit, valid_step_up  # TLC_MFA_SECURITY_AUDIT_R1
 
 
 router = APIRouter(tags=["tlc-authentication"])
@@ -48,7 +49,7 @@ def auth_bootstrap(payload: dict, request: Request, db: Session = Depends(get_db
 
 @router.post("/api/auth/login")
 def auth_login(payload: dict, request: Request, response: Response, db: Session = Depends(get_db)):
-    try:result=login(db,str(payload.get("login_id")or""),str(payload.get("password")or""),_ip(request),request.headers.get("user-agent", ""))
+    try:result=login(db,str(payload.get("login_id")or""),str(payload.get("password")or""),_ip(request),request.headers.get("user-agent", ""),str(payload.get("mfa_code")or""))
     except PermissionError as exc:raise HTTPException(401,str(exc)) from exc
     response.set_cookie(COOKIE_NAME,result.pop("token"),httponly=True,samesite="strict",secure=os.getenv("TLC_SESSION_COOKIE_SECURE","0")=="1",max_age=8*60*60,path="/")
     return result
@@ -56,7 +57,7 @@ def auth_login(payload: dict, request: Request, response: Response, db: Session 
 
 @router.post("/api/auth/logout")
 def auth_logout(request: Request, response: Response, db: Session = Depends(get_db)):
-    logout(db,request.cookies.get(COOKIE_NAME,""),_ip(request));response.delete_cookie(COOKIE_NAME,path="/");return {"logged_out":True}
+    logout(db,request.cookies.get(COOKIE_NAME,""),_ip(request));response.delete_cookie(COOKIE_NAME,path="/");response.delete_cookie("tlc_step_up",path="/");return {"logged_out":True}
 
 
 @router.get("/api/auth/me")
@@ -89,7 +90,10 @@ def install_authentication(app) -> None:
         if os.getenv("TLC_AUTH_ENFORCEMENT_ENABLED", "1") != "1":return await call_next(request)
         if request.url.path in PUBLIC_PATHS:
             public_db=SessionLocal()
-            try:public_access=enforce_request(public_db,{},request.method,request.url.path,_ip(request),request.headers.get("x-forwarded-for",""))
+            try:
+                if request.url.path == "/api/auth/login" and not rate_limit(public_db, "login:"+_ip(request), 10, 60):
+                    return JSONResponse({"detail":"Too many login attempts"},status_code=429)
+                public_access=enforce_request(public_db,{},request.method,request.url.path,_ip(request),request.headers.get("x-forwarded-for",""))
             finally:public_db.close()
             if public_access.get("blocked"):
                 return JSONResponse({"detail":"IP access denied","decision":public_access.get("decision")},status_code=403)
@@ -106,6 +110,15 @@ def install_authentication(app) -> None:
         request.state.auth_user=session
         permission_db=SessionLocal()
         try:
+            if not rate_limit(permission_db, "api:"+str(session.get("user_id"))+":"+_ip(request), 120, 60):
+                return JSONResponse({"detail":"Too many requests"},status_code=429)
+            sensitive = request.method.upper() in {"POST","PUT","DELETE"} and (
+                request.url.path.startswith("/api/database-maintenance/") or
+                request.url.path.startswith("/api/super-admin/") or
+                request.url.path == "/api/security-ip-control/enforcement/confirm" or
+                request.url.path == "/api/sales-ledger/admin/cleanup-test-data")
+            if sensitive and not valid_step_up(permission_db,str(session.get("user_id") or ""),request.cookies.get("tlc_step_up","")):
+                return JSONResponse({"detail":"Sensitive operation requires recent security verification","step_up_required":True},status_code=403)
             ip_access=enforce_request(permission_db,session,request.method,request.url.path,_ip(request),request.headers.get("x-forwarded-for",""))
             decision=authorize(permission_db,session,request.method,request.url.path)
         finally:permission_db.close()

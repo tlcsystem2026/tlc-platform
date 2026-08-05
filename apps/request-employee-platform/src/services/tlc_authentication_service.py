@@ -11,6 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from src.services.tlc_access_control_service import ensure_schema as ensure_access_schema
+from src.services.tlc_mfa_security_service import check_login_mfa, record_login_anomaly  # TLC_MFA_SECURITY_AUDIT_R1
 
 
 COOKIE_NAME = "tlc_session"
@@ -95,7 +96,7 @@ def bootstrap(db: Session, employee_no: str, login_id: str, name_zh: str, passwo
     return {"user_id": user_id, "login_id": login_id, "must_change_password": True}
 
 
-def login(db: Session, login_id: str, password: str, client_ip: str, user_agent: str) -> dict:
+def login(db: Session, login_id: str, password: str, client_ip: str, user_agent: str, mfa_code: str = "") -> dict:
     ensure_schema(db)
     login_id = login_id.strip()
     row = db.execute(text("""SELECT u.*,c.password_hash,c.password_salt,c.password_iterations,c.must_change_password,
@@ -117,9 +118,11 @@ def login(db: Session, login_id: str, password: str, client_ip: str, user_agent:
         db.execute(text("UPDATE tlc_auth_credential SET failed_attempts=:failures,locked_until=:locked,updated_at=:updated WHERE user_id=:user"), {"failures": failures, "locked": lock_value, "updated": iso(), "user": user["id"]})
         _audit(db, "LOGIN_FAILED", user["id"], login_id, client_ip, False, f"BAD_PASSWORD:{failures}");db.commit();raise PermissionError("登录ID或密码不正确")
     db.execute(text("UPDATE tlc_auth_credential SET failed_attempts=0,locked_until='',updated_at=:updated WHERE user_id=:user"), {"updated": iso(), "user": user["id"]})
+    check_login_mfa(db, user["id"], mfa_code, client_ip)
     token = secrets.token_urlsafe(48);session_id = uuid4().hex;expires = current + timedelta(hours=int(os.getenv("TLC_SESSION_HOURS", str(SESSION_HOURS))))
     db.execute(text("INSERT INTO tlc_auth_session VALUES(:id,:hash,:user,:ip,:agent,:created,:seen,:expires,'','')"), {"id": session_id, "hash": _token_hash(token), "user": user["id"], "ip": client_ip, "agent": user_agent[:1000], "created": iso(current), "seen": iso(current), "expires": iso(expires)})
     _audit(db, "LOGIN_SUCCESS", user["id"], login_id, client_ip, True);db.commit()
+    record_login_anomaly(db, user["id"], client_ip)
     return {"token": token, "session_id": session_id, "user_id": user["id"], "must_change_password": bool(user["must_change_password"]), "expires_at": iso(expires)}
 
 
