@@ -155,3 +155,5 @@ from src.api.routes.tlc_legal_entity_master import router as tlc_legal_entity_ma
 app.include_router(tlc_legal_entity_master_router)
 from src.api.routes.tlc_access_control import router as tlc_access_control_router
 app.include_router(tlc_access_control_router)
+from src.api.routes.tlc_super_admin import router as tlc_super_admin_router
+app.include_router(tlc_super_admin_router)

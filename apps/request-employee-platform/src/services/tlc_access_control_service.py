@@ -41,7 +41,9 @@ def save_user(db:Session,p:dict):
  vals={"id":uid,"emp":emp,"en":str(p.get("name_en")or""),"ja":str(p.get("name_ja")or""),"zh":str(p.get("name_zh")or""),"email":str(p.get("email")or""),"mobile":str(p.get("mobile")or""),"login":login,"legal":str(p.get("legal_entity_id")or""),"dept":str(p.get("department_id")or""),"active":1 if p.get("active",True) else 0,"vf":str(p.get("valid_from")or""),"vt":str(p.get("valid_to")or""),"created":created,"updated":stamp}
  db.execute(text("INSERT INTO tlc_user_master VALUES(:id,:emp,:en,:ja,:zh,:email,:mobile,:login,:legal,:dept,:active,:vf,:vt,:created,:updated) ON CONFLICT(employee_no) DO UPDATE SET name_en=:en,name_ja=:ja,name_zh=:zh,email=:email,mobile=:mobile,login_id=:login,legal_entity_id=:legal,department_id=:dept,active=:active,valid_from=:vf,valid_to=:vt,updated_at=:updated"),vals);audit(db,p.get("actor",""),"USER",uid,"SAVE");db.commit();return{"id":uid,"employee_no":emp}
 def assign_roles(db:Session,user_id:str,role_codes:list[str],actor=""):
- ensure_schema(db);db.execute(text("DELETE FROM tlc_user_role WHERE user_id=:u"),{"u":user_id})
+ ensure_schema(db)
+ if "SUPER_ADMIN" in set(role_codes):raise ValueError("超级管理员只能在超级管理员设置页面授予或撤销")
+ db.execute(text("DELETE FROM tlc_user_role WHERE user_id=:u AND role_code<>'SUPER_ADMIN'"),{"u":user_id})
  for role in sorted(set(role_codes)):db.execute(text("INSERT INTO tlc_user_role VALUES(:id,:u,:r,:c,:a)"),{"id":uuid4().hex,"u":user_id,"r":role,"c":now(),"a":actor})
  audit(db,actor,"USER_ROLE",user_id,"REPLACE",",".join(role_codes));db.commit();return{"user_id":user_id,"role_codes":role_codes}
 def save_permissions(db:Session,role_code:str,items:list[dict],actor=""):
