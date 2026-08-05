@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from src.db.session import SessionLocal, get_db
 from src.services.tlc_authentication_service import COOKIE_NAME, audit_rows, bootstrap, change_password, current_session, login, logout
 from src.services.tlc_super_admin_service import internal_ip_allowed
+from src.services.tlc_api_permission_service import authorize  # TLC_API_PERMISSION_ENFORCEMENT_R1
 
 
 router = APIRouter(tags=["tlc-authentication"])
@@ -90,4 +91,10 @@ def install_authentication(app) -> None:
             if request.url.path.startswith("/api/"):return JSONResponse({"detail":"首次登录必须修改密码"},status_code=403)
             return RedirectResponse("/change-password",status_code=303)
         request.state.auth_user=session
+        permission_db=SessionLocal()
+        try:decision=authorize(permission_db,session,request.method,request.url.path)
+        finally:permission_db.close()
+        if decision.get("required") and not decision.get("allowed"):
+            return JSONResponse({"detail":"Permission denied","module_code":decision["module_code"],"action_code":decision["action_code"]},status_code=403)
+        request.state.permission_scope=decision.get("data_scope","")
         return await call_next(request)
