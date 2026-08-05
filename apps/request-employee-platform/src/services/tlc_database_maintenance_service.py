@@ -19,6 +19,58 @@ BACKUP_ID_PATTERN = re.compile(r"^[a-f0-9]{32}$")
 TABLE_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 LOCK = threading.RLock()
 
+TABLE_CATEGORIES = {
+    "SYSTEM_MAINTENANCE": "系统维护用表",
+    "FUNCTION_MASTER": "功能相关基础数据表",
+    "AUDIT_HISTORY": "审计与历史保护表",
+    "BUSINESS_MASTER": "业务相关基础数据表",
+    "BUSINESS_TRANSACTION": "业务表",
+    "UNCLASSIFIED": "未分类表",
+}
+
+EXACT_TABLE_CATEGORIES = {
+    "customers": "BUSINESS_MASTER",
+    "legal_entities": "BUSINESS_MASTER",
+    "tlc_customer_master": "BUSINESS_MASTER",
+    "tlc_bank_account_profile": "BUSINESS_MASTER",
+    "tlc_department_master": "BUSINESS_MASTER",
+    "tlc_user_master": "SYSTEM_MAINTENANCE",
+    "tlc_role_master": "SYSTEM_MAINTENANCE",
+    "tlc_permission_module": "SYSTEM_MAINTENANCE",
+    "tlc_user_role": "SYSTEM_MAINTENANCE",
+    "tlc_role_permission": "SYSTEM_MAINTENANCE",
+    "tlc_permission_audit": "AUDIT_HISTORY",
+    "tlc_database_maintenance_audit": "AUDIT_HISTORY",
+}
+
+
+def table_classification(table_name: str) -> dict[str, Any]:
+    name = str(table_name or "")
+    lower = name.lower()
+    category = EXACT_TABLE_CATEGORIES.get(name)
+    if not category:
+        if lower.endswith("_audit") or "audit" in lower or lower.endswith("_history") or "history" in lower:
+            category = "AUDIT_HISTORY"
+        elif any(token in lower for token in ("permission", "access_control", "security", "session", "credential", "mfa")):
+            category = "SYSTEM_MAINTENANCE"
+        elif lower.endswith("_code") or "code_master" in lower or "parameter" in lower or "setting" in lower:
+            category = "FUNCTION_MASTER"
+        elif lower.endswith("_master") or "customer_master" in lower or "bank_account_profile" in lower:
+            category = "BUSINESS_MASTER"
+        elif any(token in lower for token in ("request", "sales", "ledger", "bank", "payment", "reconciliation", "monthly", "import", "review", "batch")):
+            category = "BUSINESS_TRANSACTION"
+        else:
+            category = "UNCLASSIFIED"
+    policy = {
+        "SYSTEM_MAINTENANCE": ("CRITICAL", True, False, False, "仅允许备份；恢复或清除可能影响系统运行或安全"),
+        "FUNCTION_MASTER": ("HIGH", True, True, False, "允许备份和受控恢复；禁止整表清除"),
+        "AUDIT_HISTORY": ("CRITICAL", True, False, False, "用于审计和安全追溯，只允许备份"),
+        "BUSINESS_MASTER": ("HIGH", True, True, True, "允许超级管理员受控维护，执行前必须自动备份"),
+        "BUSINESS_TRANSACTION": ("HIGH", True, True, True, "允许超级管理员受控维护，可能影响业务完整性"),
+        "UNCLASSIFIED": ("CRITICAL", True, False, False, "尚未明确分类，默认只允许备份"),
+    }[category]
+    return {"category_code": category, "category_name": TABLE_CATEGORIES[category], "risk_level": policy[0], "can_backup": policy[1], "can_restore": policy[2], "can_clear": policy[3], "maintenance_note": policy[4]}
+
 TABLE_DESCRIPTIONS = {
     "legal_entities": "法人主数据",
     "sales_records": "销售记录",
@@ -219,7 +271,8 @@ def list_tables(engine: Engine) -> list[dict[str, Any]]:
                 "table_name": table,
                 "table_description": table_description(table),
                 "row_count": count,
-                "protected": table == AUDIT_TABLE,
+                **table_classification(table),
+                "protected": not table_classification(table)["can_clear"],
             })
     return result
 
@@ -311,6 +364,7 @@ def create_table_backup(engine: Engine, table_name: str, operator: str, role: st
             "backup_type": "TABLE",
             "table_name": table_name,
             "table_description": table_description(table_name),
+            "table_category": table_classification(table_name)["category_code"],
             "file_name": file_name,
             "created_at": created_at,
             "operator": operator,
@@ -345,6 +399,9 @@ def restore_table_backup(engine: Engine, table_name: str, backup_id: str, operat
     reason = _require_reason(reason)
     table_name = str(table_name or "").strip()
     _quote(table_name)
+    classification = table_classification(table_name)
+    if not classification["can_restore"]:
+        raise ValueError(f"Table restore is prohibited by classification policy: {classification['category_code']}")
     if str(confirmation or "").strip() != f"RESTORE TABLE {table_name}":
         raise ValueError(f"Confirmation text must be RESTORE TABLE {table_name}")
     manifest, backup_file = _load_backup(backup_id)
@@ -383,8 +440,9 @@ def clear_table(engine: Engine, table_name: str, operator: str, role: str, reaso
     reason = _require_reason(reason)
     table_name = str(table_name or "").strip()
     _quote(table_name)
-    if table_name == AUDIT_TABLE:
-        raise ValueError("Database maintenance audit table cannot be cleared")
+    classification = table_classification(table_name)
+    if not classification["can_clear"]:
+        raise ValueError(f"Table clear is prohibited by classification policy: {classification['category_code']}")
     if table_name not in inspect(engine).get_table_names():
         raise LookupError("Table not found")
     if str(confirmation or "").strip() != f"CLEAR TABLE {table_name}":
