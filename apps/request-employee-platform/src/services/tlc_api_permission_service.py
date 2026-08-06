@@ -46,6 +46,10 @@ RULES: tuple[tuple[str, str, str, str], ...] = (
 
 # TLC_BUSINESS_PERMISSION_COVERAGE_R1
 BUSINESS_RULES: tuple[tuple[str, str, str], ...] = (
+    (r"/system-parameter-center", "SYSTEM_PARAMETER", "VIEW"),
+    (r"/api/system-parameters(?:/.*)?", "SYSTEM_PARAMETER", "AUTO"),
+    (r"/access-control-center", "USER_PERMISSION", "VIEW"),
+    (r"/super-admin-management", "USER_PERMISSION", "VIEW"),
     (r"/security-center", "SECURITY_AUDIT", "VIEW"),
     (r"/api/security(?:/.*)?", "SECURITY_AUDIT", "VIEW"),
     (r"/security-ip-control-center", "SECURITY_IP_CONTROL", "VIEW"),
@@ -72,6 +76,9 @@ BUSINESS_RULES: tuple[tuple[str, str, str], ...] = (
 )
 
 NAVIGATION_MODULES: dict[str, str] = {
+    "/system-parameter-center": "SYSTEM_PARAMETER",
+    "/access-control-center": "USER_PERMISSION",
+    "/super-admin-management": "USER_PERMISSION",
     "/security-center": "SECURITY_AUDIT",
     "/dashboard": "DASHBOARD",
     "/security-ip-control-center": "SECURITY_IP_CONTROL",
@@ -106,12 +113,13 @@ def visible_modules(db: Session, session: dict) -> dict:
         modules = sorted({str(row[0]) for row in db.execute(text("""SELECT DISTINCT rp.module_code
           FROM tlc_role_permission rp JOIN tlc_user_role ur ON ur.role_code=rp.role_code
           WHERE ur.user_id=:user AND rp.action_code='VIEW' AND rp.allowed=1"""), {"user": user_id}).all()})
-    return {"modules": modules, "navigation": NAVIGATION_MODULES}
+    return {"modules": modules, "navigation": NAVIGATION_MODULES, "roles": sorted(roles)}
 
 def dashboard_permission_script() -> str:
     return r"""<script data-tlc-contract="TLC_BUSINESS_PERMISSION_COVERAGE_R1">
 (async()=>{try{const r=await fetch('/api/auth/navigation',{credentials:'same-origin'});if(!r.ok)return;
 const p=await r.json(),allowed=new Set(p.modules||[]),mapping=p.navigation||{};
+document.querySelectorAll('[data-required-role]').forEach(x=>{if(!(p.roles||[]).includes(x.dataset.requiredRole))x.remove();});
 document.querySelectorAll('a[href]').forEach(a=>{const path=new URL(a.href,location.origin).pathname;
 let module='';for(const [prefix,value] of Object.entries(mapping)){if(path===prefix||path.startsWith(prefix+'/')){module=value;break;}}
 if(module&&!allowed.has(module)){const card=a.closest('.navitem,.todo,.metric');(card||a).remove();}});

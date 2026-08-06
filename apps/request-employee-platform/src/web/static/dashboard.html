@@ -31,12 +31,6 @@ pre{white-space:pre-wrap;background:#101828;color:#d1fadf;padding:14px;border-ra
 <section class="grid kpi" id="kpis"></section>
 <section class="grid layout section"><div class="card"><h2>今日业务TODO</h2><div id="todos"></div></div><div class="card"><h2>重要异常与领导关注</h2><div id="alerts"></div></div></section>
 <section id="digital-employees" class="card section"><h2>数字员工中心
-<a href="/system-parameter-center" style="text-decoration:none;color:inherit">
-  <div class="card">
-    <strong>系统基础配置与核查</strong>
-    <div>系统配置、参数与环境核查。</div>
-  </div>
-</a>
 </h2><div class="grid agent-grid">
 <div class="agent"><div class="name">请求书核对员</div><span class="status running">运行中</span><p class="desc">PDF/Excel解析、金额核对、异常生成。</p></div>
 <div class="agent"><div class="name">销售登记员</div><span class="status waiting">等待任务</span><p class="desc">一致请求书进入销售数据一览。</p></div>
@@ -101,6 +95,18 @@ pre{white-space:pre-wrap;background:#101828;color:#d1fadf;padding:14px;border-ra
   </div>
 </section>
 <section class="card section"><h2>业务入口</h2><div class="grid nav" id="navigator"></div></section>
+
+<section class="card section" id="security-administration-entries" data-tlc-contract="TLC_DASHBOARD_SECURITY_ADMIN_ENTRIES_R2">
+  <h2>人员、权限与安全管理</h2>
+  <div class="grid nav">
+    <a class="navitem" href="/access-control-center"><span class="cat">权限</span><h3>人员、角色与权限</h3><div class="desc">人员账号、部门、角色、功能模块和操作权限维护。</div></a>
+    <a class="navitem" href="/super-admin-management" data-required-role="SUPER_ADMIN"><span class="cat">安全</span><h3>超级管理员设置</h3><div class="desc">仅内部 IP 和超级管理员可访问，设置拥有全部权限的人员。</div></a>
+    <a class="navitem" href="/security-ip-control-center"><span class="cat">安全</span><h3>IP 访问控制</h3><div class="desc">允许／拒绝规则、CIDR 网段、监控及正式阻断管理。</div></a>
+    <a class="navitem" href="/security-center"><span class="cat">安全</span><h3>MFA 与安全审计</h3><div class="desc">多因素认证、在线会话、二次验证、异常登录与安全审计。</div></a>
+    <a class="navitem" href="/system-parameter-center"><span class="cat">系统</span><h3>系统参数维护</h3><div class="desc">系统配置、目录规则、基础参数和运行环境核查。</div></a>
+    <a class="navitem" href="/my-profile"><span class="cat">个人</span><h3>我的资料与密码</h3><div class="desc">查看当前账号资料、修改密码及进入个人安全设置。</div></a>
+  </div>
+</section>
 <div class="desc" id="footer" style="margin-top:20px"></div></main>
 
 
