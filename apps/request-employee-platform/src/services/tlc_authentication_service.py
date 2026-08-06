@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import os
 import secrets
+import unicodedata
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
@@ -55,8 +56,21 @@ def _audit(db: Session, event: str, user_id: str = "", login_id: str = "", clien
 
 
 def _password_policy(password: str) -> None:
-    if len(password) < 12 or not any(x.islower() for x in password) or not any(x.isupper() for x in password) or not any(x.isdigit() for x in password):
-        raise ValueError("密码至少12位，并且必须包含大写字母、小写字母和数字")
+    # TLC_AUTH_BOOTSTRAP_PASSWORD_NORMALIZATION_R1
+    # Validate visually equivalent full-width Latin letters/digits consistently,
+    # while preserving the exact original password for hashing.
+    normalized = unicodedata.normalize("NFKC", str(password or ""))
+    missing = []
+    if len(normalized) < 12:
+        missing.append(f"长度不足12位（当前{len(normalized)}位）")
+    if not any("A" <= char <= "Z" for char in normalized):
+        missing.append("大写英文字母")
+    if not any("a" <= char <= "z" for char in normalized):
+        missing.append("小写英文字母")
+    if not any("0" <= char <= "9" for char in normalized):
+        missing.append("数字")
+    if missing:
+        raise ValueError("密码规则未满足：" + "、".join(missing))
 
 
 def _hash_password(password: str, salt: bytes, iterations: int = PASSWORD_ITERATIONS) -> str:
