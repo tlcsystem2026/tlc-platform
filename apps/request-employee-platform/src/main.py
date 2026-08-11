@@ -168,3 +168,9 @@ app.include_router(tlc_security_ip_control_router)
 
 from src.api.routes.tlc_customer_candidate import router as tlc_customer_candidate_router  # TLC_CUSTOMER_CANDIDATE_EXTRACTION_R1
 app.include_router(tlc_customer_candidate_router)
+
+# TLC_GLOBAL_DASHBOARD_RETURN_LINK_R1
+from src.services.tlc_global_dashboard_navigation_service import install_global_dashboard_navigation
+
+install_global_dashboard_navigation(app)
+
