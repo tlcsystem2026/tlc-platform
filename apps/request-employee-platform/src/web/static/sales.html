@@ -1,109 +1,79 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"/><title>销售数据一览</title><style>body{font-family:"Microsoft YaHei";background:#f6f8fb;margin:0}header{background:#059669;color:white;padding:22px 30px}.card{background:white;margin:18px;padding:18px;border-radius:14px}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #eee;padding:8px;text-align:left}</style></head><body><header><h1>销售数据一览</h1><p>一致请求书进入销售统计｜Build030</p></header><div class="card"><a href="/dashboard">返回仪表盘</a> | <a href="/docs">API文档</a></div><div class="card"><h2>统计</h2><pre id="summary">loading...</pre></div><div class="card"><h2>销售记录</h2><table><thead><tr><th>请求书编号</th><th>客户</th><th>日期</th><th>金额</th><th>状态</th></tr></thead><tbody id="rows"></tbody></table></div><script>async function load(){let s=await (await fetch('/api/sales/summary')).json();summary.textContent=JSON.stringify(s,null,2);let rs=await (await fetch('/api/sales')).json();rows.innerHTML=rs.map(x=>`<tr><td>${x.request_no}</td><td>${x.customer_name}</td><td>${x.sales_date}</td><td>${x.total_amount} ${x.currency}</td><td>${x.status}</td></tr>`).join('')}load()</script><script>
-/* TLC_TABLE_ROW_SELECTOR_V1 */
-(function(){
-  const NUMBER_CLASS="tlc-row-no";
-  const CHECK_CLASS="tlc-row-check";
-  let scheduled=false;
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>销售统计中心</title>
+<style>
+:root{--blue:#1f4e78;--bg:#f5f7fa;--card:#fff;--border:#d9e0e8;--muted:#667085}
+*{box-sizing:border-box}body{margin:0;font-family:"Microsoft YaHei","Segoe UI",sans-serif;background:var(--bg);color:#1f2937}
+header{padding:22px 30px;background:linear-gradient(90deg,#164e63,#0f766e);color:#fff}header h1{margin:0 0 6px}header p{margin:0;opacity:.9}
+main{max-width:1600px;margin:auto;padding:20px}.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:16px;box-shadow:0 5px 18px rgba(15,23,42,.05)}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:end}.toolbar label{font-size:13px;color:var(--muted)}input,select,button{display:block;padding:9px 11px;border:1px solid #b8c2cc;border-radius:7px;background:#fff}button{cursor:pointer;background:var(--blue);color:#fff;font-weight:700}button.secondary{background:#64748b}a{color:var(--blue)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}.kpi{border:1px solid var(--border);border-radius:12px;padding:14px;background:#fff}.kpi .name{font-size:13px;color:var(--muted)}.kpi .value{font-size:25px;font-weight:800;margin-top:6px}.kpi .unit{font-size:12px;color:var(--muted)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}table{border-collapse:collapse;width:100%;font-size:14px}th,td{padding:9px;border-bottom:1px solid #e7ebf0;text-align:left}th{background:#eef4f8;position:sticky;top:0}.scroll{max-height:480px;overflow:auto}.number{text-align:right;font-variant-numeric:tabular-nums}.message{color:var(--muted);font-size:13px;margin-top:10px}
+@media(max-width:900px){.two{grid-template-columns:1fr}main{padding:12px}}
+</style>
+</head>
+<body>
+<header><h1>销售统计中心</h1><p>数据源：请求书业务审核通过后的正式销售台账（formal_sales_request_ledger）</p></header>
+<main>
+<section class="card">
+  <div class="toolbar">
+    <label>请求日期（开始）<input id="dateFrom" type="date"></label>
+    <label>请求日期（结束）<input id="dateTo" type="date"></label>
+    <label>Customer ID<input id="customerId" placeholder="部分一致"></label>
+    <label>客户名称<input id="customerName" placeholder="部分一致"></label>
+    <label>状态<select id="status"><option value="ACTIVE">ACTIVE</option><option value="VOID">VOID</option><option value="">全部</option></select></label>
+    <button onclick="loadStatistics()">统计</button>
+    <button class="secondary" onclick="clearFilters()">清除条件</button>
+    <a href="/requests/review-workbench">返回请求书业务审核</a>
+  </div>
+  <div id="message" class="message"></div>
+</section>
 
-  function headerRows(table){
-    const explicit=[...table.querySelectorAll("thead tr")];
-    if(explicit.length) return explicit;
-    const first=[...table.querySelectorAll("tr")].find(row=>row.querySelector("th"));
-    return first?[first]:[];
-  }
+<section class="card"><div class="kpis">
+  <div class="kpi"><div class="name">销售件数</div><div id="count" class="value">0</div><div class="unit">件</div></div>
+  <div class="kpi"><div class="name">税前金额</div><div id="subtotal" class="value">0</div><div class="unit">JPY</div></div>
+  <div class="kpi"><div class="name">消费税</div><div id="taxAmount" class="value">0</div><div class="unit">JPY</div></div>
+  <div class="kpi"><div class="name">含税销售总额</div><div id="totalAmount" class="value">0</div><div class="unit">JPY</div></div>
+</div></section>
 
-  function dataRows(table,headers){
-    const headerSet=new Set(headers);
-    return [...table.querySelectorAll("tr")].filter(row=>{
-      if(headerSet.has(row)) return false;
-      if(row.querySelector("th") && !row.querySelector("td")) return false;
-      return true;
-    });
-  }
+<section class="card"><h2>税率区分汇总</h2><div class="kpis">
+  <div class="kpi"><div class="name">10% 对象金额</div><div id="taxable10" class="value">0</div></div>
+  <div class="kpi"><div class="name">10% 消费税</div><div id="tax10" class="value">0</div></div>
+  <div class="kpi"><div class="name">8% 对象金额</div><div id="taxable8" class="value">0</div></div>
+  <div class="kpi"><div class="name">8% 消费税</div><div id="tax8" class="value">0</div></div>
+  <div class="kpi"><div class="name">非课税金额</div><div id="nonTaxable" class="value">0</div></div>
+  <div class="kpi"><div class="name">免税金额</div><div id="taxExempt" class="value">0</div></div>
+</div></section>
 
-  function addHeader(row){
-    if(row.querySelector("."+NUMBER_CLASS)) return;
-
-    const checkTh=document.createElement("th");
-    checkTh.className=CHECK_CLASS;
-    checkTh.style.width="38px";
-    checkTh.style.textAlign="center";
-
-    const all=document.createElement("input");
-    all.type="checkbox";
-    all.title="全选/取消全选";
-    all.addEventListener("click",event=>event.stopPropagation());
-    all.addEventListener("change",()=>{
-      const table=row.closest("table");
-      table.querySelectorAll("input.tlc-row-select").forEach(input=>{
-        input.checked=all.checked;
-      });
-    });
-    checkTh.appendChild(all);
-
-    const noTh=document.createElement("th");
-    noTh.className=NUMBER_CLASS;
-    noTh.textContent="No";
-    noTh.style.width="52px";
-    noTh.style.textAlign="center";
-
-    row.insertBefore(checkTh,row.firstChild);
-    row.insertBefore(noTh,row.firstChild);
-  }
-
-  function addData(row,index){
-    let no=row.querySelector(":scope > td."+NUMBER_CLASS);
-    let check=row.querySelector(":scope > td."+CHECK_CLASS);
-
-    if(!check){
-      check=document.createElement("td");
-      check.className=CHECK_CLASS;
-      check.style.textAlign="center";
-      const input=document.createElement("input");
-      input.type="checkbox";
-      input.className="tlc-row-select";
-      input.addEventListener("click",event=>event.stopPropagation());
-      check.appendChild(input);
-      row.insertBefore(check,row.firstChild);
-    }
-
-    if(!no){
-      no=document.createElement("td");
-      no.className=NUMBER_CLASS;
-      no.style.textAlign="center";
-      row.insertBefore(no,row.firstChild);
-    }
-
-    no.textContent=String(index);
-  }
-
-  function enhance(table){
-    const headers=headerRows(table);
-    headers.forEach(addHeader);
-    dataRows(table,headers).forEach((row,index)=>addData(row,index+1));
-  }
-
-  function run(){
-    scheduled=false;
-    document.querySelectorAll("table").forEach(enhance);
-  }
-
-  function schedule(){
-    if(scheduled) return;
-    scheduled=true;
-    setTimeout(run,0);
-  }
-
-  if(document.readyState==="loading"){
-    document.addEventListener("DOMContentLoaded",run,{once:true});
-  }else{
-    run();
-  }
-
-  new MutationObserver(schedule).observe(document.documentElement,{
-    childList:true,
-    subtree:true
-  });
-})();
+<div class="two">
+<section class="card"><h2>月度销售汇总</h2><div class="scroll"><table><thead><tr><th>年月</th><th class="number">件数</th><th class="number">含税销售额</th></tr></thead><tbody id="monthRows"></tbody></table></div></section>
+<section class="card"><h2>客户销售汇总</h2><div class="scroll"><table><thead><tr><th>Customer ID</th><th>客户名称</th><th class="number">件数</th><th class="number">含税销售额</th></tr></thead><tbody id="customerRows"></tbody></table></div></section>
+</div>
+</main>
+<script>
+const byId=id=>document.getElementById(id);
+const esc=value=>String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const money=value=>Number(String(value??0).replace(/,/g,"")||0).toLocaleString("ja-JP",{maximumFractionDigits:2});
+async function loadStatistics(){
+  const q=new URLSearchParams();
+  [["date_from","dateFrom"],["date_to","dateTo"],["customer_id","customerId"],["customer_name","customerName"],["status","status"]].forEach(([key,id])=>{const value=byId(id).value.trim();if(value)q.set(key,value)});
+  byId("message").textContent="加载中...";
+  try{
+    const response=await fetch("/api/sales-ledger/statistics/summary?"+q.toString());
+    const data=await response.json();if(!response.ok)throw new Error(data.detail||response.statusText);
+    const s=data.summary;
+    byId("count").textContent=Number(s.count).toLocaleString("ja-JP");byId("subtotal").textContent=money(s.subtotal);byId("taxAmount").textContent=money(s.tax_amount);byId("totalAmount").textContent=money(s.total_amount);
+    byId("taxable10").textContent=money(s.taxable_amount_10);byId("tax10").textContent=money(s.tax_amount_10);byId("taxable8").textContent=money(s.taxable_amount_8);byId("tax8").textContent=money(s.tax_amount_8);byId("nonTaxable").textContent=money(s.non_taxable_amount);byId("taxExempt").textContent=money(s.tax_exempt_amount);
+    byId("monthRows").innerHTML=data.by_month.map(x=>`<tr><td>${esc(x.business_month)}</td><td class="number">${Number(x.count).toLocaleString("ja-JP")}</td><td class="number">${money(x.total_amount)}</td></tr>`).join("")||'<tr><td colspan="3">没有数据</td></tr>';
+    byId("customerRows").innerHTML=data.by_customer.map(x=>`<tr><td>${esc(x.customer_id)}</td><td>${esc(x.customer_name)}</td><td class="number">${Number(x.count).toLocaleString("ja-JP")}</td><td class="number">${money(x.total_amount)}</td></tr>`).join("")||'<tr><td colspan="4">没有数据</td></tr>';
+    byId("message").textContent=`统计完成：${s.count} 件；状态=${data.filters.status||"全部"}`;
+  }catch(error){byId("message").textContent=error.message;}
+}
+function clearFilters(){["dateFrom","dateTo","customerId","customerName"].forEach(id=>byId(id).value="");byId("status").value="ACTIVE";loadStatistics()}
+loadStatistics();
 </script>
-</body></html>
+</body>
+</html>

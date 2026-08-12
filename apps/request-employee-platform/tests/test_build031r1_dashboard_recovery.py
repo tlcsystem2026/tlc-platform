@@ -25,21 +25,21 @@ def test_dashboard_page_contract_contains_restored_sections():
         "今日业务TODO",
         "重要异常与领导关注",
         "业务入口",
-        "核心业务快捷入口",
-        "请求书审核台",
-        "销售数据一览",
-        "银行到账核对",
-        "AI数字员工",
     ]
     for text in required:
         assert text in html
+    for text in ["核心业务快捷入口", "static-business-entrances"]:
+        assert text not in html
 
 def test_dashboard_summary_contract():
     r = client.get("/api/dashboard/summary")
     assert r.status_code == 200
     data = r.json()
-    assert len(data["navigator"]) >= 10
+    assert len(data["navigator"]) >= 6
     assert len(data["performance"]) >= 6
     assert any(x["title"] == "AI数字员工" for x in data["navigator"])
-    assert any(x["title"] == "销售数据一览" for x in data["navigator"])
-    assert any(x["title"] == "银行到账核对" for x in data["navigator"])
+    removed = {
+        "请求书处理", "请求书审核台", "客户跟踪与分析", "银行维护与流水格式",
+        "销售数据一览", "应收管理", "银行到账核对", "领导审核",
+    }
+    assert not removed.intersection(x["title"] for x in data["navigator"])

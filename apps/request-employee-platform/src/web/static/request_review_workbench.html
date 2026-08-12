@@ -96,9 +96,16 @@ th{background:#eef3f8}
   <button class="primary" onclick="loadSales()">检索</button>
   <button onclick="clearSalesFilters()">清除检索条件</button>
 </div>
+<div class="batch-actions" id="salesLedgerAdminActions">
+  <span id="selectedSalesCount" class="selected-count">&#24050;&#36873;&#25321; 0 &#20214;</span>
+  <input id="salesAdminOperator" placeholder="&#25805;&#20316;&#20154;" value="super-admin">
+  <input id="salesAdminReason" placeholder="&#20316;&#24223;&#25110;&#28165;&#29702;&#21407;&#22240;" style="min-width:300px">
+  <button class="warn" onclick="voidSelectedSales()">&#25209;&#37327;&#20316;&#24223;&#25152;&#36873;</button>
+  <button class="danger" onclick="cleanupSelectedTestSales()">&#28165;&#29702;&#25152;&#36873;&#27979;&#35797;&#25968;&#25454;&#65288;SUPER_ADMIN&#65289;</button>
+</div>
 <div id="salesMessage" class="small"></div>
 <div style="overflow:auto">
-<table>
+<table id="salesLedgerTable">
 <thead>
 <tr>
 <th>请求书编号</th><th>客户 ID</th><th>台账客户</th><th>客户正式名称</th><th>正式名カナ／短カナ</th><th>略称／配送名称</th><th>客户别名</th><th>日期</th><th>币种</th><th>10%对象</th><th>10%税</th><th>8%对象</th><th>8%税</th><th>非课税</th><th>免税</th><th>总金额</th><th>审核人</th><th>状态</th>
@@ -267,6 +274,7 @@ async function loadSales(){
   body.innerHTML = "";
   rows.forEach(row => {
     const tr = document.createElement("tr");
+    tr.dataset.ledgerId = row.id;
     tr.innerHTML = `
       <td>${esc(row.request_no)}</td>
       <td>${esc(row.customer_id)}</td>
@@ -289,6 +297,58 @@ async function loadSales(){
     body.appendChild(tr);
   });
   document.getElementById("salesMessage").textContent = `${rows.length} records`;
+  setTimeout(updateSelectedSalesCount, 30);
+}
+
+function selectedSalesLedgerIds(){
+  return [...document.querySelectorAll("#salesBody tr[data-ledger-id]")]
+    .filter(row => {
+      const checkbox = row.querySelector("input.tlc-row-select");
+      return checkbox && checkbox.checked;
+    })
+    .map(row => row.dataset.ledgerId);
+}
+
+function updateSelectedSalesCount(){
+  const target = document.getElementById("selectedSalesCount");
+  if(target) target.textContent = `\u5df2\u9009\u62e9 ${selectedSalesLedgerIds().length} \u4ef6`;
+}
+
+function salesAdminInput(){
+  const ledger_ids = selectedSalesLedgerIds();
+  const operator = document.getElementById("salesAdminOperator").value.trim();
+  const reason = document.getElementById("salesAdminReason").value.trim();
+  if(!ledger_ids.length) throw new Error("\u8bf7\u5148\u52fe\u9009\u6b63\u5f0f\u9500\u552e\u53f0\u8d26\u6570\u636e");
+  if(!operator) throw new Error("\u8bf7\u8f93\u5165\u64cd\u4f5c\u4eba");
+  if(!reason) throw new Error("\u8bf7\u8f93\u5165\u4f5c\u5e9f\u6216\u6e05\u7406\u539f\u56e0");
+  return {ledger_ids, operator, reason};
+}
+
+async function voidSelectedSales(){
+  try {
+    const payload = salesAdminInput();
+    if(!confirm(`\u786e\u5b9a\u4f5c\u5e9f\u6240\u9009 ${payload.ledger_ids.length} \u4ef6\u6b63\u5f0f\u9500\u552e\u53f0\u8d26\uff1f`)) return;
+    const result = await api("/api/sales-ledger/bulk-void",{
+      method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)
+    });
+    document.getElementById("salesMessage").textContent = `\u5df2\u4f5c\u5e9f ${result.count} \u4ef6`;
+    await loadSales();
+  } catch(error) { alert(error.message); }
+}
+
+async function cleanupSelectedTestSales(){
+  try {
+    const payload = salesAdminInput();
+    const confirmation = prompt("\u8fd9\u4e2a\u64cd\u4f5c\u53ea\u5141\u8bb8\u6e05\u7406\u6d4b\u8bd5\u6570\u636e\u3002\n\u8bf7\u8f93\u5165 DELETE TEST DATA \u786e\u8ba4\uff1a","");
+    if(confirmation === null) return;
+    payload.role = "SUPER_ADMIN";
+    payload.confirmation = confirmation;
+    const result = await api("/api/sales-ledger/admin/cleanup-test-data",{
+      method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)
+    });
+    document.getElementById("salesMessage").textContent = `\u5df2\u6e05\u7406 ${result.deleted} \u4ef6\u6d4b\u8bd5\u6570\u636e`;
+    await loadSales();
+  } catch(error) { alert(error.message || String(error)); }
 }
 
 function clearSalesFilters(){
@@ -309,6 +369,9 @@ document.getElementById("pendingReviewTable").addEventListener("change", event =
   if(event.target.matches("input[type=checkbox]")){
     setTimeout(configureReviewSelectors, 0);
   }
+});
+document.getElementById("salesLedgerTable").addEventListener("change", event => {
+  if(event.target.matches("input[type=checkbox]")) setTimeout(updateSelectedSalesCount,0);
 });
 </script>
 <script>

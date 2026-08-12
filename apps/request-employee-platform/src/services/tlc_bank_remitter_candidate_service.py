@@ -1,0 +1,310 @@
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
+from typing import Any
+from uuid import uuid4
+
+from sqlalchemy import inspect, text
+from sqlalchemy.orm import Session
+
+from src.services.multi_bank_csv_import_service import (
+    detect_bank_csv,
+    ensure_bank_transaction_table,
+    parse_bank_csv,
+)
+from src.services.tlc_customer_alias_matching_service import (
+    match_customer_name,
+    normalize_customer_name,
+)
+from src.services.tlc_customer_master_service import ensure_customer_master_table
+
+
+MARKER = "TLC_BANK_REMITTER_CANDIDATE_BATCH_R1"
+CSV_MARKER = "TLC_BANK_REMITTER_CANDIDATE_FROM_CSV_R1"
+BATCH_TABLE = "tlc_bank_remitter_candidate_batch"
+CANDIDATE_TABLE = "tlc_bank_remitter_candidate"
+AUDIT_TABLE = "tlc_bank_remitter_candidate_audit"
+
+
+def now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def ensure_schema(db: Session) -> None:
+    ensure_bank_transaction_table(db)
+    ensure_customer_master_table(db)
+    db.execute(text(f"""CREATE TABLE IF NOT EXISTS {BATCH_TABLE}(
+      id VARCHAR(64) PRIMARY KEY,business_month VARCHAR(6) NOT NULL,operator VARCHAR(255) NOT NULL DEFAULT '',
+      status VARCHAR(32) NOT NULL,transaction_count INTEGER NOT NULL DEFAULT 0,candidate_count INTEGER NOT NULL DEFAULT 0,
+      matched_count INTEGER NOT NULL DEFAULT 0,review_count INTEGER NOT NULL DEFAULT 0,started_at VARCHAR(64) NOT NULL,
+      completed_at VARCHAR(64) NOT NULL DEFAULT '',message TEXT NOT NULL DEFAULT '',
+      bank_code VARCHAR(64) NOT NULL DEFAULT '',source_name VARCHAR(1000) NOT NULL DEFAULT '')"""))
+    db.execute(text(f"""CREATE TABLE IF NOT EXISTS {CANDIDATE_TABLE}(
+      id VARCHAR(64) PRIMARY KEY,candidate_batch_id VARCHAR(64) NOT NULL,business_month VARCHAR(6) NOT NULL,
+      raw_remitter_name VARCHAR(500) NOT NULL,normalized_remitter_name VARCHAR(500) NOT NULL,
+      transaction_count INTEGER NOT NULL DEFAULT 0,total_amount VARCHAR(64) NOT NULL DEFAULT '0',
+      first_transaction_date VARCHAR(32) NOT NULL DEFAULT '',last_transaction_date VARCHAR(32) NOT NULL DEFAULT '',
+      bank_codes TEXT NOT NULL DEFAULT '',matched_customer_id VARCHAR(255) NOT NULL DEFAULT '',
+      matched_customer_name VARCHAR(500) NOT NULL DEFAULT '',match_status VARCHAR(32) NOT NULL DEFAULT 'WAIT_REVIEW',
+      match_level VARCHAR(64) NOT NULL DEFAULT '',review_status VARCHAR(32) NOT NULL DEFAULT 'WAIT_REVIEW',
+      resolution_action VARCHAR(32) NOT NULL DEFAULT '',alias_field VARCHAR(32) NOT NULL DEFAULT '',
+      reviewer VARCHAR(255) NOT NULL DEFAULT '',review_comment TEXT NOT NULL DEFAULT '',reviewed_at VARCHAR(64) NOT NULL DEFAULT '',
+      created_at VARCHAR(64) NOT NULL,updated_at VARCHAR(64) NOT NULL,
+      UNIQUE(candidate_batch_id,normalized_remitter_name))"""))
+    db.execute(text(f"""CREATE TABLE IF NOT EXISTS {AUDIT_TABLE}(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,candidate_id VARCHAR(64) NOT NULL,actor VARCHAR(255) NOT NULL DEFAULT '',
+      action VARCHAR(64) NOT NULL,detail TEXT NOT NULL DEFAULT '',created_at VARCHAR(64) NOT NULL)"""))
+    columns = {column["name"] for column in inspect(db.bind).get_columns(BATCH_TABLE)}
+    if "bank_code" not in columns:
+        db.execute(text(f"ALTER TABLE {BATCH_TABLE} ADD COLUMN bank_code VARCHAR(64) NOT NULL DEFAULT ''"))
+    if "source_name" not in columns:
+        db.execute(text(f"ALTER TABLE {BATCH_TABLE} ADD COLUMN source_name VARCHAR(1000) NOT NULL DEFAULT ''"))
+    db.commit()
+
+
+def _row(value: Any) -> dict[str, Any]:
+    return dict(value._mapping if hasattr(value, "_mapping") else value)
+
+
+def _month(value: str) -> str:
+    result = "".join(character for character in str(value or "") if character.isdigit())
+    if len(result) != 6:
+        raise ValueError("business_month must be YYYYMM")
+    return result
+
+
+def _decimal(value: Any) -> Decimal:
+    try:
+        return Decimal(str(value or "0").replace(",", ""))
+    except InvalidOperation:
+        return Decimal("0")
+
+
+def run_extraction(db: Session, business_month: str, operator: str = "") -> dict[str, Any]:
+    ensure_schema(db)
+    month = _month(business_month)
+    rows = db.execute(text("""SELECT counterparty,amount,transaction_date,bank_code
+      FROM bank_transaction_import
+      WHERE direction='CREDIT' AND counterparty<>'' AND replace(substr(transaction_date,1,7),'-','')=:month
+      ORDER BY transaction_date,id"""), {"month": month}).all()
+    grouped: dict[str, dict[str, Any]] = {}
+    for source in rows:
+        item = _row(source)
+        raw = str(item.get("counterparty") or "").strip()
+        normalized = normalize_customer_name(raw)
+        if not normalized:
+            continue
+        target = grouped.setdefault(normalized, {
+            "raw": raw, "count": 0, "total": Decimal("0"), "dates": [], "banks": set()
+        })
+        target["count"] += 1
+        target["total"] += _decimal(item.get("amount"))
+        if item.get("transaction_date"):
+            target["dates"].append(str(item["transaction_date"]))
+        if item.get("bank_code"):
+            target["banks"].add(str(item["bank_code"]))
+    batch_id, stamp = uuid4().hex, now()
+    db.execute(text(f"""INSERT INTO {BATCH_TABLE}(id,business_month,operator,status,transaction_count,
+      candidate_count,matched_count,review_count,started_at,completed_at,message)
+      VALUES(:id,:month,:operator,'RUNNING',:transactions,0,0,0,:stamp,'','')"""), {
+        "id": batch_id, "month": month, "operator": str(operator or "").strip(),
+        "transactions": len(rows), "stamp": stamp,
+    })
+    matched = review = 0
+    for normalized, item in grouped.items():
+        match = match_customer_name(db, raw_name=item["raw"], operator=operator, save_result=False)
+        is_matched = match["match_status"] == "MATCHED"
+        matched += int(is_matched)
+        review += int(not is_matched)
+        dates = sorted(item["dates"])
+        db.execute(text(f"""INSERT INTO {CANDIDATE_TABLE}(id,candidate_batch_id,business_month,
+          raw_remitter_name,normalized_remitter_name,transaction_count,total_amount,first_transaction_date,
+          last_transaction_date,bank_codes,matched_customer_id,matched_customer_name,match_status,match_level,
+          review_status,created_at,updated_at)
+          VALUES(:id,:batch,:month,:raw,:normalized,:count,:total,:first,:last,:banks,:customer,:customer_name,
+          :match_status,:level,:review_status,:stamp,:stamp)"""), {
+            "id": uuid4().hex, "batch": batch_id, "month": month, "raw": item["raw"],
+            "normalized": normalized, "count": item["count"], "total": format(item["total"], "f"),
+            "first": dates[0] if dates else "", "last": dates[-1] if dates else "",
+            "banks": ",".join(sorted(item["banks"])), "customer": match.get("customer_id", ""),
+            "customer_name": match.get("customer_name", ""), "match_status": match["match_status"],
+            "level": match.get("match_level", ""), "review_status": "AUTO_MATCHED" if is_matched else "WAIT_REVIEW",
+            "stamp": stamp,
+        })
+    db.execute(text(f"""UPDATE {BATCH_TABLE} SET status='COMPLETED',candidate_count=:c,matched_count=:m,
+      review_count=:r,completed_at=:stamp,message=:message WHERE id=:id"""), {
+        "c": len(grouped), "m": matched, "r": review, "stamp": now(), "id": batch_id,
+        "message": f"transactions={len(rows)}, remitters={len(grouped)}",
+    })
+    db.commit()
+    return get_batch(db, batch_id)
+
+
+def run_extraction_from_csv(
+    db: Session,
+    content: bytes,
+    selected_bank_code: str,
+    source_name: str,
+    operator: str = "",
+) -> dict[str, Any]:
+    """Extract remitter candidates directly from an original bank CSV.
+
+    This deliberately does not write to bank_transaction_import.
+    """
+    ensure_schema(db)
+    selected = str(selected_bank_code or "").strip().upper()
+    if not selected:
+        raise ValueError("selected_bank_code is required")
+    detected = detect_bank_csv(content)
+    if detected != selected:
+        raise ValueError(
+            "Selected bank does not match CSV format: "
+            f"selected={selected}, detected={detected}"
+        )
+    parsed = parse_bank_csv(
+        content,
+        source_file=str(source_name or "bank.csv"),
+        import_batch_id="candidate-preview-" + uuid4().hex,
+    )
+    credits = [row for row in parsed if row.direction == "CREDIT" and row.counterparty.strip()]
+    grouped: dict[str, dict[str, Any]] = {}
+    for transaction in credits:
+        raw = transaction.counterparty.strip()
+        normalized = normalize_customer_name(raw)
+        if not normalized:
+            continue
+        target = grouped.setdefault(normalized, {
+            "raw": raw, "count": 0, "total": Decimal("0"), "dates": [], "banks": set()
+        })
+        target["count"] += 1
+        target["total"] += _decimal(transaction.amount)
+        if transaction.transaction_date:
+            target["dates"].append(transaction.transaction_date)
+        target["banks"].add(detected)
+
+    batch_id, stamp = uuid4().hex, now()
+    db.execute(text(f"""INSERT INTO {BATCH_TABLE}(id,business_month,operator,status,transaction_count,
+      candidate_count,matched_count,review_count,started_at,completed_at,message,bank_code,source_name)
+      VALUES(:id,'',:operator,'RUNNING',:transactions,0,0,0,:stamp,'','',:bank,:source)"""), {
+        "id": batch_id, "operator": str(operator or "").strip(), "transactions": len(credits),
+        "stamp": stamp, "bank": detected, "source": str(source_name or "bank.csv"),
+    })
+    matched = review = 0
+    for normalized, item in grouped.items():
+        match = match_customer_name(db, raw_name=item["raw"], operator=operator, save_result=False)
+        is_matched = match["match_status"] == "MATCHED"
+        matched += int(is_matched); review += int(not is_matched)
+        dates = sorted(item["dates"])
+        db.execute(text(f"""INSERT INTO {CANDIDATE_TABLE}(id,candidate_batch_id,business_month,
+          raw_remitter_name,normalized_remitter_name,transaction_count,total_amount,first_transaction_date,
+          last_transaction_date,bank_codes,matched_customer_id,matched_customer_name,match_status,match_level,
+          review_status,created_at,updated_at)
+          VALUES(:id,:batch,'',:raw,:normalized,:count,:total,:first,:last,:banks,:customer,:customer_name,
+          :match_status,:level,:review_status,:stamp,:stamp)"""), {
+            "id": uuid4().hex, "batch": batch_id, "raw": item["raw"], "normalized": normalized,
+            "count": item["count"], "total": format(item["total"], "f"),
+            "first": dates[0] if dates else "", "last": dates[-1] if dates else "",
+            "banks": detected, "customer": match.get("customer_id", ""),
+            "customer_name": match.get("customer_name", ""), "match_status": match["match_status"],
+            "level": match.get("match_level", ""),
+            "review_status": "AUTO_MATCHED" if is_matched else "WAIT_REVIEW", "stamp": stamp,
+        })
+    db.execute(text(f"""UPDATE {BATCH_TABLE} SET status='COMPLETED',candidate_count=:c,
+      matched_count=:m,review_count=:r,completed_at=:stamp,message=:message WHERE id=:id"""), {
+        "c": len(grouped), "m": matched, "r": review, "stamp": now(), "id": batch_id,
+        "message": f"source_rows={len(parsed)}, credit_rows={len(credits)}, remitters={len(grouped)}",
+    })
+    db.commit()
+    return get_batch(db, batch_id)
+
+
+def get_batch(db: Session, batch_id: str) -> dict[str, Any]:
+    ensure_schema(db)
+    row = db.execute(text(f"SELECT * FROM {BATCH_TABLE} WHERE id=:id"), {"id": batch_id}).first()
+    if not row:
+        raise LookupError("Bank remitter candidate Batch was not found")
+    return _row(row)
+
+
+def latest_batch(db: Session, business_month: str = "", bank_code: str = "") -> dict[str, Any]:
+    ensure_schema(db)
+    where, params = "", {}
+    if business_month:
+        where, params = "WHERE business_month=:month", {"month": _month(business_month)}
+    if bank_code:
+        where = (where + " AND " if where else "WHERE ") + "bank_code=:bank"
+        params["bank"] = str(bank_code).strip().upper()
+    row = db.execute(text(f"SELECT * FROM {BATCH_TABLE} {where} ORDER BY started_at DESC,rowid DESC LIMIT 1"), params).first()
+    return _row(row) if row else {}
+
+
+def list_candidates(db: Session, business_month: str = "", status: str = "", batch_id: str = "", limit: int = 5000) -> list[dict[str, Any]]:
+    ensure_schema(db)
+    clauses, params = [], {"limit": min(max(int(limit), 1), 10000)}
+    if business_month:
+        clauses.append("business_month=:month"); params["month"] = _month(business_month)
+    if status:
+        clauses.append("review_status=:status"); params["status"] = str(status).strip().upper()
+    if batch_id:
+        clauses.append("candidate_batch_id=:batch"); params["batch"] = str(batch_id).strip()
+    where = "WHERE " + " AND ".join(clauses) if clauses else ""
+    return [_row(row) for row in db.execute(text(f"SELECT * FROM {CANDIDATE_TABLE} {where} ORDER BY created_at DESC,id LIMIT :limit"), params).all()]
+
+
+def resolve_candidate(db: Session, candidate_id: str, action: str, reviewer: str, customer_id: str = "", comment: str = "") -> dict[str, Any]:
+    ensure_schema(db)
+    candidate_row = db.execute(text(f"SELECT * FROM {CANDIDATE_TABLE} WHERE id=:id"), {"id": candidate_id}).first()
+    if not candidate_row:
+        raise LookupError("Bank remitter candidate was not found")
+    candidate = _row(candidate_row)
+    action = str(action or "").strip().upper()
+    reviewer = str(reviewer or "").strip()
+    if not reviewer:
+        raise ValueError("reviewer is required")
+    target_code = str(customer_id or candidate.get("matched_customer_id") or "").strip()
+    alias_field = ""
+    if action in {"CONFIRM_MATCH", "ADD_ALIAS"}:
+        customer_row = db.execute(text("SELECT * FROM tlc_customer_master WHERE id=:value OR customer_id=:value LIMIT 1"), {"value": target_code}).first()
+        if not customer_row:
+            raise ValueError("Customer was not found")
+        customer = _row(customer_row)
+        target_code = str(customer["customer_id"])
+        if action == "ADD_ALIAS":
+            remitter = str(candidate["raw_remitter_name"])
+            normalized = normalize_customer_name(remitter)
+            for row in db.execute(text("SELECT id,customer_id,alias_1,alias_2,alias_3,alias_4,alias_5 FROM tlc_customer_master WHERE active=1")).all():
+                existing = _row(row)
+                for field in ("alias_1", "alias_2", "alias_3", "alias_4", "alias_5"):
+                    value = str(existing.get(field) or "")
+                    if value and normalize_customer_name(value) == normalized and existing["id"] != customer["id"]:
+                        raise ValueError(f"Remitter alias is already assigned to customer {existing['customer_id']}")
+            for field in ("alias_1", "alias_2", "alias_3", "alias_4", "alias_5"):
+                value = str(customer.get(field) or "")
+                if value and normalize_customer_name(value) == normalized:
+                    alias_field = field
+                    break
+                if not value and not alias_field:
+                    alias_field = field
+            if not alias_field:
+                raise ValueError("Customer alias_1 through alias_5 are full")
+            if not str(customer.get(alias_field) or ""):
+                db.execute(text(f"UPDATE tlc_customer_master SET {alias_field}=:alias,updated_at=:stamp WHERE id=:id"), {
+                    "alias": remitter, "stamp": now(), "id": customer["id"],
+                })
+    elif action != "IGNORE":
+        raise ValueError("Unsupported resolution action")
+    status = "IGNORED" if action == "IGNORE" else "RESOLVED"
+    stamp = now()
+    db.execute(text(f"""UPDATE {CANDIDATE_TABLE} SET review_status=:status,resolution_action=:action,
+      matched_customer_id=:customer,alias_field=:alias_field,reviewer=:reviewer,review_comment=:comment,
+      reviewed_at=:stamp,updated_at=:stamp WHERE id=:id"""), {
+        "status": status, "action": action, "customer": target_code if action != "IGNORE" else "",
+        "alias_field": alias_field, "reviewer": reviewer, "comment": str(comment or ""), "stamp": stamp, "id": candidate_id,
+    })
+    db.execute(text(f"INSERT INTO {AUDIT_TABLE}(candidate_id,actor,action,detail,created_at) VALUES(:id,:actor,:action,:detail,:stamp)"), {
+        "id": candidate_id, "actor": reviewer, "action": action,
+        "detail": f"customer_id={target_code}; alias_field={alias_field}", "stamp": stamp,
+    })
+    db.commit()
+    return _row(db.execute(text(f"SELECT * FROM {CANDIDATE_TABLE} WHERE id=:id"), {"id": candidate_id}).first())

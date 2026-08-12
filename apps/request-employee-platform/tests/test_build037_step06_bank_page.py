@@ -17,6 +17,14 @@ def test_build037_step06_page_contract():
     assert "银行账户／口座与流水格式关联" in html
     assert "/api/tlc-bank-accounts/import" in html
     assert "/api/tlc-bank-accounts/export.csv" in html
+    assert "tabButtonBanks" in html
+    assert "tabButtonAccounts" in html
+    assert "tab-button active" in html
+    assert 'onchange="handleAccountBankChange()"' in html
+    assert "accounts.filter(row=>row.bank_code===bankCode)" in html
+    assert "SUGAMO_SHINKIN" in html
+    assert "JAPAN_POST_BANK" in html
+    assert "它不是银行流水 CSV 模板" in html
 
 
 def test_build037_step06_bank_master_and_account():

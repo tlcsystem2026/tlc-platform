@@ -27,9 +27,7 @@ def test_build037_step05_dashboard_entry():
     response = client.get("/api/dashboard/summary")
     assert response.status_code == 200
     navigation = response.json()["navigator"]
-    target = [item for item in navigation if item["title"] == "客户跟踪与分析"]
-    assert len(target) == 1
-    assert target[0]["href"] == "/tlc-customer-master"
+    assert not any(item["title"] == "客户跟踪与分析" for item in navigation)
 
 
 def test_build037_step05_customer_import_export_upsert():

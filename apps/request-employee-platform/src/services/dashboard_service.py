@@ -46,12 +46,23 @@ class DashboardService:
 
     def _sales_total(self):
         try:
+            from sqlalchemy import text
             from src.db.session import SessionLocal
-            from src.db.models import SalesRecordORM
             db = SessionLocal()
             try:
-                rows = db.query(SalesRecordORM).all()
-                return len(rows), sum(float(x.total_amount or 0) for x in rows)
+                exists = db.execute(text(
+                    "SELECT name FROM sqlite_master WHERE type='table' "
+                    "AND name='formal_sales_request_ledger'"
+                )).first()
+                if not exists:
+                    return 0, 0
+                row = db.execute(text("""
+                    SELECT COUNT(*) AS record_count,
+                           COALESCE(SUM(CAST(REPLACE(total_amount, ',', '') AS NUMERIC)), 0) AS total
+                    FROM formal_sales_request_ledger
+                    WHERE status='ACTIVE'
+                """)).first()
+                return int(row._mapping["record_count"]), float(row._mapping["total"] or 0)
             finally:
                 db.close()
         except Exception:
@@ -85,17 +96,9 @@ class DashboardService:
                 PerformanceMetric(title="逾期应收", value="11", unit="件", trend="-2", href="/dashboard#ar"),
             ],
             navigator=[
-                NavigatorEntry(title="请求书处理", description="PDF/Excel配对、解析、核对、差异处理", href="/docs#/request-compare", category="业务"),
-                NavigatorEntry(title="请求书审核台", description="查看PDF/Excel核对异常并进行处理", href="/review", category="业务"),
-                NavigatorEntry(title="客户跟踪与分析", description="客户维护、CSV导入导出、别名设置", href="/tlc-customer-master", category="业务"),
-                NavigatorEntry(title="银行维护与流水格式", description="银行、银行账户／口座、流水 Adapter 与文件编码关联", href="/tlc-bank-account-master", category="业务"),
-                NavigatorEntry(title="销售数据一览", description="一致请求书登记销售，查询与统计", href="/sales", category="业务"),
-                NavigatorEntry(title="应收管理", description="到期、逾期、部分到账、催办", href="/dashboard#ar", category="财务"),
-                NavigatorEntry(title="银行到账核对", description="流水导入、候选匹配、人工确认", href="/dashboard#bank", category="财务"),
                 NavigatorEntry(title="原始文件管理", description="请求书、Excel、银行流水、版本与Hash", href="/dashboard#documents", category="文件"),
                 NavigatorEntry(title="AI数字员工", description="自动处理记录、置信度、异常与人工接管", href="/dashboard#digital-employees", category="AI"),
                 NavigatorEntry(title="AI业务支持", description="知识库、Tools、模型服务、业务问答", href="/dashboard#ai-support", category="AI"),
-                NavigatorEntry(title="领导审核", description="高金额、低置信、跨法人、例外审批", href="/review", category="管理"),
                 NavigatorEntry(title="系统健康", description="API、数据库、AI服务、任务状态", href="/health", category="系统"),
                 NavigatorEntry(title="数据库状态", description="检查SQLite/PostgreSQL连接", href="/api/db/status", category="系统"),
                 NavigatorEntry(title="API文档", description="FastAPI OpenAPI文档", href="/docs", category="系统"),

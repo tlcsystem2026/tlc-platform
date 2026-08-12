@@ -18,6 +18,8 @@ main{padding:16px;display:flex;flex-direction:column;gap:14px}
 label{display:flex;flex-direction:column;gap:4px;font-size:13px}
 button,input,select,textarea{padding:8px;border:1px solid #b8c2cc;border-radius:5px;box-sizing:border-box}
 button{cursor:pointer}.primary{background:#153e75;color:#fff}.danger{background:#8b1e1e;color:#fff}
+.tab-button.active{background:#153e75;color:#fff;border-color:#153e75;box-shadow:0 0 0 2px rgba(21,62,117,.18)}
+.rule-box{background:#f0f6ff;border-left:4px solid #2865a7;padding:12px 14px;border-radius:6px;line-height:1.7}
 textarea{min-height:76px}
 .hint{color:#64748b;font-size:13px}.status{margin:8px 0;white-space:pre-wrap}
 .table-wrap{overflow:auto;max-height:58vh;border:1px solid #d8dee6}
@@ -38,8 +40,8 @@ tr{cursor:pointer}tr:hover{background:#f0f5fb}
 </header>
 <main>
 <div class="tabs">
-<button onclick="showTab('banks')">银行 Master</button>
-<button onclick="showTab('accounts')">银行账户与格式</button>
+<button id="tabButtonBanks" class="tab-button active" type="button" aria-selected="true" onclick="showTab(\'banks\')">银行 Master</button>
+<button id="tabButtonAccounts" class="tab-button" type="button" aria-selected="false" onclick="showTab(\'accounts\')">银行账户与格式</button>
 </div>
 
 <section id="banks" class="tab active">
@@ -96,6 +98,13 @@ tr{cursor:pointer}tr:hover{background:#f0f5fb}
 </section>
 
 <section id="accounts" class="tab">
+<div class="panel" data-tlc-contract="TLC_BANK_ACCOUNT_UI_AND_ADAPTER_GUIDANCE_R1">
+<h2>Adapter 与 CSV 规则说明</h2>
+<div class="rule-box">
+<b>Adapter Code：</b>填写与程序中已安装的银行流水解析器一致的代码。当前代码为 <code>SUGAMO_SHINKIN</code>（巣鴨信用金庫）和 <code>JAPAN_POST_BANK</code>（ゆうちょ銀行）。当前流水导入会根据 CSV 表头自动识别 Adapter；账户中的 Adapter Code 是账户与解析器的配置关联字段，不会在页面上创建新的解析规则。<br>
+<b>本页面“CSV模板”：</b>用于批量维护银行账户主数据，列为 bank_code、account_number、adapter_code 等；它不是银行流水 CSV 模板。<br>
+<b>银行流水格式：</b>目前由各银行 Adapter 程序预先定义。银行格式不同，必须新增或修正对应 Adapter 后才能导入；当前页面不能任意重定义流水列映射。
+</div></div>
 <div class="panel">
 <h2>单个银行账户／口座维护</h2>
 <input id="accountId" type="hidden">
@@ -105,13 +114,13 @@ tr{cursor:pointer}tr:hover{background:#f0f5fb}
 <button class="danger" onclick="deleteCurrentAccount()">删除当前账户</button>
 </div>
 <div class="grid">
-<label>银行<select id="accountBank"></select></label>
+<label>银行<select id="accountBank" onchange="handleAccountBankChange()"></select></label>
 <label>分行代码<input id="branchCode"></label>
 <label>分行名称<input id="branchName"></label>
 <label>账户类型<input id="accountType"></label>
 <label>账号<input id="accountNumber"></label>
 <label>账户名义<input id="accountHolder"></label>
-<label>Adapter Code<input id="adapterCode" placeholder="真实格式确认后填写"></label>
+<label>Adapter Code<input id="adapterCode" list="adapterCodeOptions" placeholder="真实格式确认后填写"><datalist id="adapterCodeOptions"><option value="SUGAMO_SHINKIN"></option><option value="JAPAN_POST_BANK"></option></datalist></label>
 <label>文件编码<input id="fileEncoding" value="cp932"></label>
 <label>启用<input id="accountActive" type="checkbox" checked></label>
 <label class="full">备注<textarea id="accountNote"></textarea></label>
@@ -186,6 +195,8 @@ async function api(url,options){
 function showTab(id){
  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
  $(id).classList.add('active');
+ document.querySelectorAll('.tab-button').forEach(button=>{button.classList.remove('active');button.setAttribute('aria-selected','false')});
+ const activeButton=id==='banks'?$('tabButtonBanks'):$('tabButtonAccounts');activeButton.classList.add('active');activeButton.setAttribute('aria-selected','true');
  if(id==='accounts'){loadBankOptions();loadAccounts();}
 }
 function displayName(row){return row.name_ja||row.name_zh||row.name_en||row.code}
@@ -340,14 +351,22 @@ function renderAccounts(){
   <td>${esc(row.account_holder)}</td><td>${esc(row.adapter_code)}</td><td>${esc(row.file_encoding)}</td>
   <td>${esc(row.active)}</td><td>${esc(row.note)}</td><td>${esc(row.created_at)}</td><td>${esc(row.updated_at)}</td></tr>`).join('');
 }
-function selectAccountById(id){const row=accounts.find(x=>x.id===id);if(row)selectAccount(row)}
-function selectAccount(row){
+function selectAccountById(id){const row=accounts.find(x=>x.id===id);if(row)selectAccount(row,true)}
+function selectAccount(row,scrollToForm=false){
  $('accountId').value=row.id||'';$('accountBank').value=row.bank_code||'';
  $('branchCode').value=row.branch_code||'';$('branchName').value=row.branch_name||'';
  $('accountType').value=row.account_type||'';$('accountNumber').value=row.account_number||'';
  $('accountHolder').value=row.account_holder||'';$('adapterCode').value=row.adapter_code||'';
  $('fileEncoding').value=row.file_encoding||'cp932';$('accountActive').checked=!!row.active;
- $('accountNote').value=row.note||'';window.scrollTo({top:0,behavior:'smooth'});
+ $('accountNote').value=row.note||'';if(scrollToForm)window.scrollTo({top:0,behavior:'smooth'});
+}
+function handleAccountBankChange(){
+ const bankCode=$('accountBank').value;
+ $('filterBank').value=bankCode;
+ renderAccounts();
+ const matches=accounts.filter(row=>row.bank_code===bankCode);
+ if(matches.length){selectAccount(matches[0],false);$('accountStatus').textContent=`已显示 ${bankCode} 的账户，共 ${matches.length} 件。`}
+ else{newAccount();$('accountBank').value=bankCode;$('filterBank').value=bankCode;renderAccounts();$('accountStatus').textContent=`${bankCode} 尚无账户，请新增。`}
 }
 function newAccount(){
  ['accountId','branchCode','branchName','accountType','accountNumber','accountHolder','adapterCode','accountNote'].forEach(id=>$(id).value='');

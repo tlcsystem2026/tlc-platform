@@ -99,7 +99,8 @@ def _row(r:Any)->dict[str,Any]:
 def list_customers(db:Session,query:str='',customer_id:str='',formal_name:str='',katakana_name:str='',katakana_name_short:str='',delivery_name_1:str='',delivery_name_2:str='',phone_number:str='',postal_code:str='',address:str='',status_code:str='',source_system:str='',include_inactive:bool=True,limit:int=0)->list[dict[str,Any]]:
     ensure_customer_master_table(db);clauses=[];p={}
     if query:
-        clauses.append("("+" OR ".join(f"{c} LIKE :q" for c in ['customer_id','formal_name','hiragana_name','katakana_name','katakana_name_short','short_name','delivery_name_1','delivery_name_2','postal_code','address_1','address_2','phone_number','email_address','jis_municipality_code','shipper_code','alias_1','alias_2','alias_3','alias_4','alias_5'])+")");p['q']=f'%{query}%'
+        searchable=[c for c in ALL_FIELDS if c not in {'active'}]
+        clauses.append("("+" OR ".join(f"CAST({c} AS TEXT) LIKE :q" for c in searchable)+")");p['q']=f'%{query}%'
     for c,v in {'customer_id':customer_id,'formal_name':formal_name,'katakana_name':katakana_name,'katakana_name_short':katakana_name_short,'delivery_name_1':delivery_name_1,'delivery_name_2':delivery_name_2,'phone_number':phone_number,'postal_code':postal_code,'source_system':source_system}.items():
         if v:clauses.append(f"{c} LIKE :{c}");p[c]=f'%{v}%'
     if address:clauses.append('(address_1 LIKE :address OR address_2 LIKE :address)');p['address']=f'%{address}%'

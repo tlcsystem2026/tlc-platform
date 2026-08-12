@@ -32,10 +32,12 @@ th{background:#eef3f8}
 <section class="card">
 <h2>CSV 导入</h2>
 <div class="toolbar">
-  <input id="bankFile" type="file" accept=".csv,text/csv">
+  <select id="importBankCode" onchange="handleImportBankChange()"><option value="">请先选择银行</option><option value="SUGAMO_SHINKIN">SUGAMO_SHINKIN / 巣鴨信用金庫</option><option value="JAPAN_POST_BANK">JAPAN_POST_BANK / ゆうちょ銀行</option></select>
+  <input id="bankFile" type="file" accept=".csv,text/csv" disabled>
   <button onclick="uploadCsv()">导入</button>
   <span id="uploadMessage" class="small"></span>
 </div>
+<div class="small" data-contract="TLC_BANK_IMPORT_SELECTED_BANK_VALIDATION_R1">必须先选择银行，再选择 CSV。导入前由服务器检测 CSV 格式；与所选银行不一致时整批拒绝，不写入流水。</div>
 </section>
 
 <section class="card">
@@ -92,6 +94,11 @@ async function api(url,options){
   if(!r.ok) throw new Error(b.detail||JSON.stringify(b));
   return b;
 }
+function handleImportBankChange(){
+  const bank=document.getElementById("importBankCode").value;
+  const file=document.getElementById("bankFile");file.disabled=!bank;if(!bank)file.value="";
+  document.getElementById("uploadMessage").textContent=bank?`已选择：${bank}`:"请先选择银行";
+}
 function params(){
   const p=new URLSearchParams();
   const bank=document.getElementById("bankCode").value;
@@ -108,11 +115,14 @@ function params(){
   return p;
 }
 async function uploadCsv(){
+  const selectedBank=document.getElementById("importBankCode").value;
+  if(!selectedBank){alert("请先选择银行");return}
   const file=document.getElementById("bankFile").files[0];
   if(!file){alert("请选择CSV文件");return}
   const buf=await file.arrayBuffer();
   try{
-    const result=await api("/api/bank-import/csv?source_name="+encodeURIComponent(file.name),{
+    const query=new URLSearchParams({source_name:file.name,selected_bank_code:selectedBank});
+    const result=await api("/api/bank-import/csv?"+query.toString(),{
       method:"POST",
       headers:{"Content-Type":"text/csv"},
       body:buf

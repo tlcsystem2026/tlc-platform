@@ -30,3 +30,17 @@ def test_customer_bulk_delete_conflict_identifies_first_customer():
     assert "客户编码：${item.customer_id" in page
     assert "客户名称：${item.formal_name" in page
     assert "另有 ${blocked.length-1} 个所选客户也无法删除" in page
+
+
+def test_customer_checkbox_cell_does_not_trigger_row_scroll():
+    page = Path("src/web/static/tlc_customer_master.html").read_text(encoding="utf-8")
+    assert 'onclick="toggleCustomerRow(event,this)"' in page
+    assert "function toggleCustomerRow(event,cell)" in page
+    assert "event.stopPropagation()" in page
+    assert "checkbox.checked=!checkbox.checked" in page
+
+
+def test_customer_row_selection_does_not_force_page_scroll():
+    page = Path("src/web/static/tlc_customer_master.html").read_text(encoding="utf-8")
+    assert "function select(id)" in page
+    assert "scrollTo({top:0" not in page

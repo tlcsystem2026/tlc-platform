@@ -1,199 +1,23 @@
 <!doctype html>
-<html lang="zh-CN">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Guided Monthly Operation Workflow</title>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>月度业务引导</title>
 <style>
-body{font-family:Arial,"Microsoft YaHei",sans-serif;margin:0;background:#f4f6f8;color:#222}
-header{background:#203b55;color:#fff;padding:20px 26px}
-main{padding:18px}.card{background:#fff;border:1px solid #ddd;border-radius:9px;padding:15px;margin-bottom:14px}
-.toolbar{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
-label{display:flex;flex-direction:column;gap:4px;font-size:13px}
-input,button{padding:8px;border:1px solid #bbb;border-radius:4px}
-button{cursor:pointer}.primary{background:#203b55;color:#fff}
-.progress{height:18px;background:#e4e9ee;border-radius:9px;overflow:hidden}
-.progress>div{height:100%;background:#466d91;width:0}
-.step{display:grid;grid-template-columns:48px 1fr 130px;gap:12px;align-items:center;border:1px solid #d7dee5;border-radius:8px;padding:12px;margin:9px 0}
-.step.done{background:#f1f8f3}.step.pending{background:#fff}.step.recommended{border:2px solid #466d91}
-.no{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#e7edf3;font-weight:bold}
-.done .no{background:#d8efdd}.status{font-weight:bold}.small{font-size:12px;color:#666}
-a.button{display:inline-block;text-decoration:none;color:#222;border:1px solid #bbb;border-radius:4px;padding:8px;text-align:center;background:#fff}
-</style>
-</head>
-<body>
-<header>
-<h1>Guided Monthly Operation Workflow</h1>
-<div>按顺序完成请求书、审核、销售台账、银行、客户对账与月结</div>
-</header>
+:root{--blue:#28527a;--green:#26734d;--amber:#a15c00;--red:#a61b1b;--bg:#f4f6f8;--border:#d7dee5}*{box-sizing:border-box}
+body{font-family:"Microsoft YaHei","Segoe UI",sans-serif;margin:0;background:var(--bg);color:#1f2937}header{background:linear-gradient(90deg,#203b55,#28527a);color:#fff;padding:22px 28px}header h1{margin:0 0 7px}header p{margin:0;opacity:.9}
+main{max-width:1300px;margin:auto;padding:18px}.card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:15px}.toolbar{display:flex;gap:10px;align-items:end;flex-wrap:wrap}label{font-size:13px;color:#667085}input,button{display:block;padding:9px;border:1px solid #b8c2cc;border-radius:6px}button,.button{cursor:pointer;background:var(--blue);color:#fff;text-decoration:none;padding:9px 13px;border-radius:6px;font-weight:700}.button.secondary{background:#64748b}
+.progress{height:20px;background:#e4e9ee;border-radius:10px;overflow:hidden;margin-top:8px}.progress>div{height:100%;background:linear-gradient(90deg,#2b6cb0,#2f855a);width:0;transition:.2s}.step{display:grid;grid-template-columns:48px 1fr 150px;gap:13px;align-items:center;border:1px solid var(--border);border-radius:10px;padding:13px;margin:10px 0}.step.done{background:#effaf3}.step.attention{background:#fff1f0;border-color:#f0a6a6}.step.in_progress{background:#fff8e6}.step.recommended{box-shadow:0 0 0 2px var(--blue)}.no{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#e7edf3;font-weight:800}.done .no{background:#cfead8}.status{font-weight:800}.done .status{color:var(--green)}.attention .status{color:var(--red)}.in_progress .status{color:var(--amber)}.small{font-size:12px;color:#667085;line-height:1.7}.alert{border-left:5px solid var(--amber);padding:9px 12px;margin:7px 0;background:#fff8e6}.alert.high{border-color:var(--red);background:#fff1f0}.legend{display:flex;gap:15px;flex-wrap:wrap;font-size:13px;color:#667085}
+@media(max-width:760px){.step{grid-template-columns:40px 1fr}.step>div:last-child{grid-column:2}.button{display:inline-block}}
+</style></head><body>
+<header><h1>月度业务引导</h1><p>按当前真实业务页面依次确认：主数据 → 文件核对 → 业务审核 → 正式销售 → 银行流水 → 客户匹配 → 对账 → 月结</p></header>
 <main>
-<section class="card">
-<div class="toolbar">
-<label>业务年月
-<input id="businessMonth" type="month">
-</label>
-<button class="primary" onclick="loadWorkflow()">刷新进度</button>
-<a class="button" href="/business-operations-home" target="_blank">业务运营首页</a>
-<a class="button" href="/operational-exception-dashboard" target="_blank">异常看板</a>
-</div>
-</section>
-
-<section class="card">
-<div id="progressText"></div>
-<div class="progress"><div id="progressBar"></div></div>
-</section>
-
-<section class="card">
-<h3>月度业务步骤</h3>
-<div id="steps"></div>
-</section>
-
-<section class="card">
-<h3>当前提醒</h3>
-<div id="alerts"></div>
-</section>
+<section class="card"><div class="toolbar"><label>业务年月<input id="businessMonth" type="month"></label><button onclick="loadWorkflow()">刷新进度</button><a class="button secondary" href="/dashboard">返回 Dashboard</a><a class="button secondary" href="/operational-exception-dashboard" target="_blank">异常中心</a></div></section>
+<section class="card"><div id="progressText">加载中...</div><div class="progress"><div id="progressBar"></div></div><div class="legend"><span>DONE：完成</span><span>PENDING：未开始／未完成</span><span>IN_PROGRESS：处理中</span><span>ATTENTION：存在异常</span></div></section>
+<section class="card"><h2>本月业务步骤</h2><div id="steps"></div></section>
+<section class="card"><h2>当前需要关注</h2><div id="alerts"></div></section>
 </main>
 <script>
-async function api(url){
- const r=await fetch(url);
- let b;try{b=await r.json()}catch(e){b=await r.text()}
- if(!r.ok)throw new Error(b.detail||String(b));
- return b
-}
-function esc(v){
- return String(v??"").replace(/[&<>"']/g,c=>(
-  {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]
- ))
-}
-async function loadWorkflow(){
- const month=businessMonth.value;
- const query=month?`?business_month=${encodeURIComponent(month)}`:"";
- try{
-  const data=await api("/api/tlc-guided-monthly-workflow"+query);
-  if(!businessMonth.value&&data.business_month)businessMonth.value=data.business_month;
-  progressText.innerHTML=`完成 <b>${data.completed_step_count}/${data.total_step_count}</b>（${data.progress_percent}%）`;
-  progressBar.style.width=`${data.progress_percent}%`;
-  steps.innerHTML=data.steps.map(x=>`<div class="step ${x.status.toLowerCase()} ${x.recommended?"recommended":""}">
-   <div class="no">${x.order}</div>
-   <div><b>${esc(x.name)}</b>${x.recommended?' <span class="small">← 建议下一步</span>':''}<br><span class="small">${esc(x.description)}</span><br><span class="small">${esc(x.detail)}</span></div>
-   <div><div class="status">${esc(x.status)}</div><a class="button" href="${x.path}" target="_blank">打开处理画面</a></div>
-  </div>`).join("");
-  alerts.innerHTML=data.alerts.length
-   ?data.alerts.map(x=>`<div><b>${esc(x.severity)} / ${esc(x.code)}</b>：${esc(x.message)}</div>`).join("")
-   :'<span class="small">当前没有提醒</span>';
- }catch(e){alert(e.message)}
-}
-const now=new Date();
-businessMonth.value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
-loadWorkflow();
-</script>
-<script>
-/* TLC_TABLE_ROW_SELECTOR_V1 */
-(function(){
-  const NUMBER_CLASS="tlc-row-no";
-  const CHECK_CLASS="tlc-row-check";
-  let scheduled=false;
-
-  function headerRows(table){
-    const explicit=[...table.querySelectorAll("thead tr")];
-    if(explicit.length) return explicit;
-    const first=[...table.querySelectorAll("tr")].find(row=>row.querySelector("th"));
-    return first?[first]:[];
-  }
-
-  function dataRows(table,headers){
-    const headerSet=new Set(headers);
-    return [...table.querySelectorAll("tr")].filter(row=>{
-      if(headerSet.has(row)) return false;
-      if(row.querySelector("th") && !row.querySelector("td")) return false;
-      return true;
-    });
-  }
-
-  function addHeader(row){
-    if(row.querySelector("."+NUMBER_CLASS)) return;
-
-    const checkTh=document.createElement("th");
-    checkTh.className=CHECK_CLASS;
-    checkTh.style.width="38px";
-    checkTh.style.textAlign="center";
-
-    const all=document.createElement("input");
-    all.type="checkbox";
-    all.title="全选/取消全选";
-    all.addEventListener("click",event=>event.stopPropagation());
-    all.addEventListener("change",()=>{
-      const table=row.closest("table");
-      table.querySelectorAll("input.tlc-row-select").forEach(input=>{
-        input.checked=all.checked;
-      });
-    });
-    checkTh.appendChild(all);
-
-    const noTh=document.createElement("th");
-    noTh.className=NUMBER_CLASS;
-    noTh.textContent="No";
-    noTh.style.width="52px";
-    noTh.style.textAlign="center";
-
-    row.insertBefore(checkTh,row.firstChild);
-    row.insertBefore(noTh,row.firstChild);
-  }
-
-  function addData(row,index){
-    let no=row.querySelector(":scope > td."+NUMBER_CLASS);
-    let check=row.querySelector(":scope > td."+CHECK_CLASS);
-
-    if(!check){
-      check=document.createElement("td");
-      check.className=CHECK_CLASS;
-      check.style.textAlign="center";
-      const input=document.createElement("input");
-      input.type="checkbox";
-      input.className="tlc-row-select";
-      input.addEventListener("click",event=>event.stopPropagation());
-      check.appendChild(input);
-      row.insertBefore(check,row.firstChild);
-    }
-
-    if(!no){
-      no=document.createElement("td");
-      no.className=NUMBER_CLASS;
-      no.style.textAlign="center";
-      row.insertBefore(no,row.firstChild);
-    }
-
-    no.textContent=String(index);
-  }
-
-  function enhance(table){
-    const headers=headerRows(table);
-    headers.forEach(addHeader);
-    dataRows(table,headers).forEach((row,index)=>addData(row,index+1));
-  }
-
-  function run(){
-    scheduled=false;
-    document.querySelectorAll("table").forEach(enhance);
-  }
-
-  function schedule(){
-    if(scheduled) return;
-    scheduled=true;
-    setTimeout(run,0);
-  }
-
-  if(document.readyState==="loading"){
-    document.addEventListener("DOMContentLoaded",run,{once:true});
-  }else{
-    run();
-  }
-
-  new MutationObserver(schedule).observe(document.documentElement,{
-    childList:true,
-    subtree:true
-  });
-})();
-</script>
-</body>
-</html>
+const byId=id=>document.getElementById(id);const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const statusLabel={DONE:"已完成",PENDING:"待处理",IN_PROGRESS:"处理中",ATTENTION:"有异常"};
+async function loadWorkflow(){const month=byId("businessMonth").value;const q=month?`?business_month=${encodeURIComponent(month)}`:"";try{const r=await fetch("/api/tlc-guided-monthly-workflow"+q);const data=await r.json();if(!r.ok)throw new Error(data.detail||r.statusText);if(!byId("businessMonth").value&&data.business_month)byId("businessMonth").value=data.business_month;byId("progressText").innerHTML=`完成 <b>${data.completed_step_count}/${data.total_step_count}</b>（${data.progress_percent}%）${data.all_complete?'，本月流程已全部完成':''}`;byId("progressBar").style.width=`${data.progress_percent}%`;byId("steps").innerHTML=data.steps.map(x=>`<div class="step ${x.status.toLowerCase()} ${x.recommended?'recommended':''}"><div class="no">${x.order}</div><div><b>${esc(x.name)}</b>${x.recommended?' <span class="small">← 建议下一步</span>':''}<br><span class="small">${esc(x.description)}</span><br><span class="small">${esc(x.detail)}</span></div><div><div class="status">${esc(statusLabel[x.status]||x.status)}</div><a class="button" href="${esc(x.path)}" target="_blank">打开业务页面</a></div></div>`).join("");byId("alerts").innerHTML=data.alerts.length?data.alerts.map(x=>`<div class="alert ${String(x.severity).toLowerCase()}"><b>${esc(x.code)}</b>：${esc(x.message)}　<a href="${esc(x.target)}" target="_blank">去处理</a></div>`).join(""):'<span class="small">当前没有需要特别关注的异常。</span>';}catch(error){byId("progressText").textContent=error.message}}
+const now=new Date();byId("businessMonth").value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;loadWorkflow();
+</script></body></html>
