@@ -28,21 +28,6 @@ pre{white-space:pre-wrap;background:#101828;color:#d1fadf;padding:14px;border-ra
 <body>
 <header><h1>TLC Business Navigator</h1><p>今日TODO・经营状态・数字员工・请求书/销售/应收/银行到账・AI业务支持｜Build031R1 Dashboard Recovery</p></header>
 <main>
-<section class="grid kpi" id="kpis"></section>
-<section class="grid layout section"><div class="card"><h2>今日业务TODO</h2><div id="todos"></div></div><div class="card"><h2>重要异常与领导关注</h2><div id="alerts"></div></div></section>
-<section id="digital-employees" class="card section"><h2>数字员工中心
-</h2><div class="grid agent-grid">
-<div class="agent"><div class="name">请求书核对员</div><span class="status running">运行中</span><p class="desc">PDF/Excel解析、金额核对、异常生成。</p></div>
-<div class="agent"><div class="name">销售登记员</div><span class="status waiting">等待任务</span><p class="desc">一致请求书进入销售数据一览。</p></div>
-<div class="agent"><div class="name">应收管理员</div><span class="status waiting">规划中</span><p class="desc">到期、逾期、部分到账提醒。</p></div>
-<div class="agent"><div class="name">银行到账核对员</div><span class="status manual">需人工确认</span><p class="desc">流水导入、候选匹配、低置信复核。</p></div>
-<div class="agent"><div class="name">异常审核助手</div><span class="status running">运行中</span><p class="desc">生成中文/日文可读差异说明。</p></div>
-<div class="agent"><div class="name">知识库助手</div><span class="status waiting">待接入</span><p class="desc">公司制度、客户规则、业务问答。</p></div>
-</div></section>
-<section class="grid two section"><div id="ai-support" class="card"><h2>AI业务支持系统</h2><span class="pill">AI Server: 待接入健康检查</span><span class="pill">Knowledge Base: 规划中</span><span class="pill">Tools: 规划中</span><span class="pill">Model Service: 规划中</span><p class="desc">下一步把 Linux/UT AI Server、知识库、Tools 与数字员工状态接入这里。</p><button class="ai" onclick="loadOps()">查看下一步AI任务</button></div>
-<div class="card"><h2>系统运维</h2><button onclick="location.href='/my-profile'">我的资料</button><button onclick="checkRuntime()">检查当前版本</button><button class="secondary" onclick="checkDb()">检查数据库</button><button class="secondary" onclick="location.href='/access-control-center'">人员与权限</button><button class="secondary" onclick="location.href='/super-admin-management'">超级管理员设置</button><button class="secondary" onclick="location.href='/legal-entity-master'">法人主数据维护</button><button class="secondary" onclick="location.href='/database-maintenance-center'">数据库维护</button><button class="secondary" onclick="location.href='/docs'">API文档</button><pre id="opsOutput" style="display:none"></pre></div></section>
-<section class="card section"><h2>受控部署（TEST）</h2><p class="desc">只允许部署 Y:\TLC-BOS\Downloads 下的 ZIP 包名。不接受路径或任意命令。测试失败不应启动API。</p><label>Package Name<input id="packageName" value="TLC_BUILD031_DASHBOARD_RECOVERY_FULL.zip"/></label><label><input id="runTests" type="checkbox" checked style="width:auto"/> 部署后运行自动测试</label><label><input id="startApi" type="checkbox" style="width:auto"/> 部署后尝试启动API</label><button id="deployBtn" onclick="deployPackage()">部署下载包</button><button class="secondary" onclick="checkRuntime()">检查当前版本</button><pre id="deployOutput" style="display:none"></pre></section>
-
 <section class="card section" id="business-workflow-entrances">
   <!-- BUILD037_DASHBOARD_BUSINESS_WORKFLOW_LINKS_R1 -->
   <h2>业务流程与测试入口</h2>
@@ -86,8 +71,6 @@ pre{white-space:pre-wrap;background:#101828;color:#d1fadf;padding:14px;border-ra
     <a class="navitem" href="/monthly-close-center"><span class="cat">月结</span><h3>月结控制中心</h3><div class="desc">检查清单、签核、未结事项与跨月结转。</div></a>
   </div>
 </section>
-<section class="card section"><h2>业务入口</h2><div class="grid nav" id="navigator"></div></section>
-
 <section class="card section" id="security-administration-entries" data-tlc-contract="TLC_DASHBOARD_SECURITY_ADMIN_ENTRIES_R2">
   <h2>人员、权限与安全管理</h2>
   <div class="grid nav">
@@ -99,6 +82,32 @@ pre{white-space:pre-wrap;background:#101828;color:#d1fadf;padding:14px;border-ra
     <a class="navitem" href="/my-profile"><span class="cat">个人</span><h3>我的资料与密码</h3><div class="desc">查看当前账号资料、修改密码及进入个人安全设置。</div></a>
   </div>
 </section>
+<section class="card section" id="system-operations" data-tlc-contract="TLC_DASHBOARD_PRIMARY_MODULES_ORDER_R1">
+<!-- TLC_DASHBOARD_PRIMARY_MODULES_ORDER_R1 -->
+<h2>系统运维</h2><button onclick="location.href='/my-profile'">我的资料</button><button onclick="checkRuntime()">检查当前版本</button><button class="secondary" onclick="checkDb()">检查数据库</button><button class="secondary" onclick="location.href='/access-control-center'">人员与权限</button><button class="secondary" onclick="location.href='/super-admin-management'">超级管理员设置</button><button class="secondary" onclick="location.href='/legal-entity-master'">法人主数据维护</button><button class="secondary" onclick="location.href='/database-maintenance-center'">数据库维护</button><button class="secondary" onclick="location.href='/docs'">API文档</button><pre id="opsOutput" style="display:none"></pre>
+</section>
+
+<section class="grid kpi" id="kpis"></section>
+<section class="grid layout section"><div class="card"><h2>今日业务TODO</h2><div id="todos"></div></div><div class="card"><h2>重要异常与领导关注</h2><div id="alerts"></div></div></section>
+<section id="digital-employees" class="card section"><h2>数字员工中心
+</h2><div class="grid agent-grid">
+<div class="agent"><div class="name">请求书核对员</div><span class="status running">运行中</span><p class="desc">PDF/Excel解析、金额核对、异常生成。</p></div>
+<div class="agent"><div class="name">销售登记员</div><span class="status waiting">等待任务</span><p class="desc">一致请求书进入销售数据一览。</p></div>
+<div class="agent"><div class="name">应收管理员</div><span class="status waiting">规划中</span><p class="desc">到期、逾期、部分到账提醒。</p></div>
+<div class="agent"><div class="name">银行到账核对员</div><span class="status manual">需人工确认</span><p class="desc">流水导入、候选匹配、低置信复核。</p></div>
+<div class="agent"><div class="name">异常审核助手</div><span class="status running">运行中</span><p class="desc">生成中文/日文可读差异说明。</p></div>
+<div class="agent"><div class="name">知识库助手</div><span class="status waiting">待接入</span><p class="desc">公司制度、客户规则、业务问答。</p></div>
+</div></section>
+
+<section id="ai-support" class="card section">
+<h2>AI业务支持系统</h2><span class="pill">AI Server: 待接入健康检查</span><span class="pill">Knowledge Base: 规划中</span><span class="pill">Tools: 规划中</span><span class="pill">Model Service: 规划中</span><p class="desc">下一步把 Linux/UT AI Server、知识库、Tools 与数字员工状态接入这里。</p><button class="ai" onclick="loadOps()">查看下一步AI任务</button>
+</section>
+<section class="card section"><h2>受控部署（TEST）</h2><p class="desc">只允许部署 Y:\TLC-BOS\Downloads 下的 ZIP 包名。不接受路径或任意命令。测试失败不应启动API。</p><label>Package Name<input id="packageName" value="TLC_BUILD031_DASHBOARD_RECOVERY_FULL.zip"/></label><label><input id="runTests" type="checkbox" checked style="width:auto"/> 部署后运行自动测试</label><label><input id="startApi" type="checkbox" style="width:auto"/> 部署后尝试启动API</label><button id="deployBtn" onclick="deployPackage()">部署下载包</button><button class="secondary" onclick="checkRuntime()">检查当前版本</button><pre id="deployOutput" style="display:none"></pre></section>
+
+
+<section class="card section"><h2>业务入口</h2><div class="grid nav" id="navigator"></div></section>
+
+
 <div class="desc" id="footer" style="margin-top:20px"></div></main>
 
 
