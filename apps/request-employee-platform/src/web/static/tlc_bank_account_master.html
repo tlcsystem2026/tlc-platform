@@ -412,6 +412,98 @@ Promise.all([loadBanks(),loadAccounts()]).catch(error=>{
  $('bankStatus').textContent=error.message;$('accountStatus').textContent=error.message;
 });
 </script>
+<script data-contract="TLC_BANK_ACCOUNT_TAB_SWITCH_R2">
+(function () {
+  "use strict";
+
+  function setBankMaintenanceTab(tabId) {
+    var target = document.getElementById(tabId);
+
+    if (!target) {
+      throw new Error(
+        "Bank maintenance tab was not found: " + tabId
+      );
+    }
+
+    document.querySelectorAll("section.tab").forEach(
+      function (section) {
+        section.classList.toggle(
+          "active",
+          section.id === tabId
+        );
+      }
+    );
+
+    var buttons = {
+      banks: document.getElementById("tabButtonBanks"),
+      accounts: document.getElementById("tabButtonAccounts")
+    };
+
+    Object.keys(buttons).forEach(function (key) {
+      var button = buttons[key];
+
+      if (!button) {
+        return;
+      }
+
+      var selected = key === tabId;
+
+      button.classList.toggle("active", selected);
+      button.setAttribute(
+        "aria-selected",
+        String(selected)
+      );
+    });
+
+    if (tabId === "accounts") {
+      Promise.resolve()
+        .then(function () {
+          if (typeof window.loadBankOptions === "function") {
+            return window.loadBankOptions();
+          }
+        })
+        .then(function () {
+          if (typeof window.loadAccounts === "function") {
+            return window.loadAccounts();
+          }
+        })
+        .catch(function (error) {
+          var status =
+            document.getElementById("accountStatus");
+
+          if (status) {
+            status.textContent =
+              error && error.message
+                ? error.message
+                : String(error);
+          }
+        });
+    }
+  }
+
+  window.showTab = setBankMaintenanceTab;
+
+  var bankButton =
+    document.getElementById("tabButtonBanks");
+
+  var accountButton =
+    document.getElementById("tabButtonAccounts");
+
+  if (bankButton) {
+    bankButton.onclick = function (event) {
+      event.preventDefault();
+      setBankMaintenanceTab("banks");
+    };
+  }
+
+  if (accountButton) {
+    accountButton.onclick = function (event) {
+      event.preventDefault();
+      setBankMaintenanceTab("accounts");
+    };
+  }
+})();
+</script>
 <div id="build037-step06-contract" style="display:none">
 BUILD037_STEP06_BANK_PAGE
 银行 Master
