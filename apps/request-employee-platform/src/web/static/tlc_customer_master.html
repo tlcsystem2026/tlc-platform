@@ -63,4 +63,106 @@ async function deleteSelectedCustomers(){
  }catch(e){alert(formatDeleteError(e))}
 }
 function clearSearch(){for(const [id] of searches)$(id).value='';$('includeInactive').value='true';loadRecords()}async function importCsv(){const f=$('csvFile').files[0];if(!f)return alert('请选择CSV文件');const d=new FormData();d.append('file',f);try{const r=await api('/api/tlc-customers/import',{method:'POST',body:d});$('msg').textContent=`CSV 导入完成：新增 ${r.inserted}，更新 ${r.updated}，跳过 ${r.skipped}`;await loadRecords()}catch(e){alert(e.message)}}async function importTodokedlCsv(){const f=$('todokedlCsvFile').files[0];if(!f)return alert('请选择お届け先CSV文件');const d=new FormData();d.append('file',f);try{const r=await api('/api/tlc-customers/import-todokedl',{method:'POST',body:d});$('msg').textContent=`お届け先 CSV 导入完成：新增 ${r.inserted}，更新 ${r.updated}，跳过 ${r.skipped}`;await loadRecords()}catch(e){alert(e.message)}}function exportCsv(){location.href='/api/tlc-customers/export.csv?'+qp()}function toggleAll(v){document.querySelectorAll('.ck').forEach(x=>x.checked=v)}loadRecords();
-</script></body></html>
+</script>
+<style data-contract="TLC_CUSTOMER_LIST_INTERACTION_R1">
+#customerListPager{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0}
+#customerListPager button:disabled{opacity:.45;cursor:not-allowed}
+#customerListPager .page-info{min-width:170px;text-align:center}
+#head th.customer-sortable{cursor:pointer;user-select:none;padding-right:22px;position:sticky}
+#head th.customer-sortable:hover{background:#d8e8f8}
+#head th.customer-sort-active{background:#c7ddf4;color:#123f69}
+#rows tr{cursor:pointer}
+#rows tr.customer-row-active>td{background:#fff1a8!important;box-shadow:inset 0 1px #e1b900,inset 0 -1px #e1b900}
+</style>
+<script data-contract="TLC_CUSTOMER_LIST_INTERACTION_R1">
+/* Customer list interaction baseline: highlight, sortable headings and pagination. */
+let customerListPage=1;
+const customerListPageSize=100;
+let customerListSortKey="customer_id";
+let customerListSortDirection="asc";
+let customerListActiveId="";
+const customerSortableKeys=new Set([
+ "customer_id","formal_name","katakana_name","katakana_name_short","short_name",
+ "delivery_name_1","delivery_name_2","postal_code","status_code","source_system","updated_at"
+]);
+
+function customerCompare(a,b,key){
+ const av=a?.[key]??"",bv=b?.[key]??"";
+ return String(av).localeCompare(String(bv),"zh-CN",{numeric:true,sensitivity:"base"});
+}
+function customerSortedRecords(){
+ const direction=customerListSortDirection==="asc"?1:-1;
+ return [...records].sort((a,b)=>customerCompare(a,b,customerListSortKey)*direction);
+}
+function updateCustomerSortHeaders(){
+ document.querySelectorAll("#head th[data-sort-key]").forEach(th=>{
+  const active=th.dataset.sortKey===customerListSortKey;
+  th.classList.toggle("customer-sort-active",active);
+  th.setAttribute("aria-sort",active?(customerListSortDirection==="asc"?"ascending":"descending"):"none");
+  const base=th.dataset.baseTitle||th.textContent.replace(/[↑↓]\s*$/,"").trim();
+  th.dataset.baseTitle=base;
+  th.textContent=base+(active?(customerListSortDirection==="asc"?" ↑":" ↓"):"");
+ });
+}
+function sortCustomerList(key){
+ if(!customerSortableKeys.has(key))return;
+ if(customerListSortKey===key)customerListSortDirection=customerListSortDirection==="asc"?"desc":"asc";
+ else{customerListSortKey=key;customerListSortDirection="asc"}
+ customerListPage=1;renderCustomerList();
+}
+function ensureCustomerPager(){
+ if(document.getElementById("customerListPager"))return;
+ const wrap=document.querySelector(".table-wrap");
+ const pager=document.createElement("div");
+ pager.id="customerListPager";
+ pager.innerHTML='<button id="customerPrevPage" type="button">上一页</button><span class="page-info" id="customerPageInfo"></span><button id="customerNextPage" type="button">下一页</button><label>每页 <strong>100</strong> 件</label>';
+ wrap.parentNode.insertBefore(pager,wrap);
+ document.getElementById("customerPrevPage").onclick=()=>{if(customerListPage>1){customerListPage--;renderCustomerList()}};
+ document.getElementById("customerNextPage").onclick=()=>{const pages=Math.max(1,Math.ceil(records.length/customerListPageSize));if(customerListPage<pages){customerListPage++;renderCustomerList()}};
+}
+function prepareCustomerHeaders(){
+ document.querySelectorAll("#head th").forEach((th,index)=>{
+  if(index<2)return;
+  const key=all[index-2];
+  if(!customerSortableKeys.has(key))return;
+  th.dataset.sortKey=key;th.classList.add("customer-sortable");th.tabIndex=0;
+  th.onclick=()=>sortCustomerList(key);
+  th.onkeydown=event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();sortCustomerList(key)}};
+ });
+ updateCustomerSortHeaders();
+}
+function renderCustomerList(){
+ ensureCustomerPager();prepareCustomerHeaders();
+ const sorted=customerSortedRecords();
+ const pages=Math.max(1,Math.ceil(sorted.length/customerListPageSize));
+ customerListPage=Math.min(Math.max(1,customerListPage),pages);
+ const start=(customerListPage-1)*customerListPageSize;
+ const pageRows=sorted.slice(start,start+customerListPageSize);
+ $("rows").innerHTML=pageRows.map((r,i)=>`<tr data-customer-row-id="${esc(r.id)}" class="${r.id===customerListActiveId?'customer-row-active':''}" onclick="selectCustomerListRow('${esc(r.id)}',this)"><td class="tlc-row-no">${start+i+1}</td><td class="tlc-row-check"><input class="ck customer-row-check" type="checkbox" value="${esc(r.id)}" aria-label="选择客户 ${esc(r.customer_id)}" onclick="event.stopPropagation()"></td>${all.map(k=>`<td title="${esc(r[k])}">${esc(r[k])}</td>`).join("")}</tr>`).join("");
+ $("count").textContent=records.length+" 件（全部）";
+ $("customerPageInfo").textContent=`第 ${customerListPage} / ${pages} 页，共 ${records.length} 件`;
+ $("customerPrevPage").disabled=customerListPage<=1;
+ $("customerNextPage").disabled=customerListPage>=pages;
+ updateCustomerSortHeaders();
+}
+function selectCustomerListRow(id,row){
+ customerListActiveId=id;
+ document.querySelectorAll("#rows tr.customer-row-active").forEach(x=>x.classList.remove("customer-row-active"));
+ if(row)row.classList.add("customer-row-active");
+ const r=records.find(x=>x.id===id);if(!r)return;
+ $("recordId").value=r.id;
+ for(const [fieldId,key] of formFields)$(fieldId).value=r[key]??"";
+ $("statusCode").value=r.status_code||"ACTIVE";$("active").checked=!!r.active;$("note").value=r.note||"";
+ $("normalizedFormalName").value=r.normalized_formal_name||"";$("createdAt").value=r.created_at||"";$("updatedAt").value=r.updated_at||"";
+}
+loadRecords=async function(){
+ try{
+  records=await api("/api/tlc-customers?"+qp());customerListPage=1;
+  if(customerListActiveId&&!records.some(r=>r.id===customerListActiveId))customerListActiveId="";
+  renderCustomerList();$("msg").textContent=`查询完成：共 ${records.length} 件（无最大件数限制）`;
+ }catch(e){$("msg").textContent=e.message}
+};
+select=function(id){selectCustomerListRow(id,document.querySelector(`#rows tr[data-customer-row-id="${CSS.escape(id)}"]`))};
+loadRecords();
+</script>
+</body></html>

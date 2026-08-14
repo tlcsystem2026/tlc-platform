@@ -229,9 +229,14 @@ def latest_batch(db: Session, business_month: str = "") -> dict[str, Any]:
     return _row(row) if row else {}
 
 
-def list_candidates(db: Session, business_month: str = "", status: str = "", batch_id: str = "", limit: int = 1000) -> list[dict[str, Any]]:
+def list_candidates(db: Session, business_month: str = "", status: str = "", batch_id: str = "", limit: int = 0) -> list[dict[str, Any]]:
     ensure_schema(db)
-    clauses, params = [], {"limit": min(max(int(limit), 1), 5000)}
+    clauses, params = [], {}
+    requested_limit = int(limit or 0)
+    limit_sql = ""
+    if requested_limit > 0:
+        params["limit"] = requested_limit
+        limit_sql = " LIMIT :limit"
     if business_month:
         clauses.append("business_month=:month"); params["month"] = re.sub(r"\D", "", business_month)
     if status:
@@ -239,7 +244,7 @@ def list_candidates(db: Session, business_month: str = "", status: str = "", bat
     if batch_id:
         clauses.append("candidate_batch_id=:batch"); params["batch"] = batch_id.strip()
     where = "WHERE " + " AND ".join(clauses) if clauses else ""
-    return [_row(row) for row in db.execute(text(f"SELECT * FROM {CANDIDATE_TABLE} {where} ORDER BY created_at DESC,id LIMIT :limit"), params).all()]
+    return [_row(row) for row in db.execute(text(f"SELECT * FROM {CANDIDATE_TABLE} {where} ORDER BY created_at DESC,id{limit_sql}"), params).all()]
 
 
 def resolve_candidate(db: Session, candidate_id: str, action: str, reviewer: str, comment: str = "", customer_id: str = "", formal_name: str = "") -> dict[str, Any]:

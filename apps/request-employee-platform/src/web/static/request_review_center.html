@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
@@ -366,6 +366,21 @@ async function decide(s,f){
     childList:true,
     subtree:true
   });
+})();
+</script>
+
+<style data-contract="TLC_REQUEST_REVIEW_LIST_INTERACTION_R1">
+.review-list-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}.review-list-tools input,.review-list-tools select{padding:7px}.review-list-active>td{background:#fff1a8!important}.review-list-sortable{cursor:pointer;user-select:none}.review-list-sort-active{background:#c7ddf4!important;color:#123f69}.review-list-page-hidden{display:none}.review-list-info{min-width:190px;text-align:center}
+</style>
+<script data-contract="TLC_REQUEST_REVIEW_LIST_INTERACTION_R1">
+(function(){
+ const SIZE=100,state=new WeakMap();
+ function rows(table){return [...table.querySelectorAll("tr")].filter(r=>r.querySelector("td"))}
+ function headers(table){return [...(table.querySelector("tr")?.querySelectorAll("th")||[])]}
+ function apply(table){const s=state.get(table);if(!s)return;let rr=rows(table);const q=s.input.value.trim().toLowerCase(),col=Number(s.field.value);rr.forEach(r=>r.classList.remove("review-list-page-hidden"));rr=rr.filter(r=>{const cells=[...r.cells],text=col>=0?(cells[col]?.innerText||""):(r.innerText||"");return !q||text.toLowerCase().includes(q)});if(s.key>=0)rr.sort((a,b)=>{const x=a.cells[s.key]?.innerText||"",y=b.cells[s.key]?.innerText||"";return x.localeCompare(y,"zh-CN",{numeric:true,sensitivity:"base"})*(s.dir==="asc"?1:-1)}).forEach(r=>r.parentNode.appendChild(r));const pages=Math.max(1,Math.ceil(rr.length/SIZE));s.page=Math.min(Math.max(1,s.page),pages);const visible=new Set(rr.slice((s.page-1)*SIZE,s.page*SIZE));rows(table).forEach(r=>{if(!visible.has(r))r.classList.add("review-list-page-hidden")});s.info.textContent=`第 ${s.page} / ${pages} 页，共 ${rr.length} 件`;s.prev.disabled=s.page<=1;s.next.disabled=s.page>=pages;headers(table).forEach((h,i)=>{const active=i===s.key;h.classList.toggle("review-list-sort-active",active);h.setAttribute("aria-sort",active?(s.dir==="asc"?"ascending":"descending"):"none");const base=h.dataset.baseTitle||h.textContent.replace(/[↑↓]$/,'').trim();h.dataset.baseTitle=base;h.textContent=base+(active?(s.dir==="asc"?" ↑":" ↓"):"")})}
+ function setup(container,type){const table=container.querySelector("table");if(!table||table.dataset.reviewListEnhanced)return;table.dataset.reviewListEnhanced="1";const hs=headers(table),tool=document.createElement("div");tool.className="review-list-tools";tool.innerHTML=`<label>一览综合／字段检索 <input type="search" placeholder="部分匹配"></label><label>指定字段 <select><option value="-1">全部关键字段</option>${hs.map((h,i)=>i<2?'':`<option value="${i}">${h.textContent.trim()}</option>`).join('')}</select></label><button type="button" data-prev>上一页</button><span class="review-list-info"></span><button type="button" data-next>下一页</button><span>每页 100 件</span>`;container.insertBefore(tool,table);const s={page:1,key:-1,dir:"asc",input:tool.querySelector("input"),field:tool.querySelector("select"),prev:tool.querySelector("[data-prev]"),next:tool.querySelector("[data-next]"),info:tool.querySelector(".review-list-info")};state.set(table,s);s.input.oninput=()=>{s.page=1;apply(table)};s.field.onchange=()=>{s.page=1;apply(table)};s.prev.onclick=()=>{s.page--;apply(table)};s.next.onclick=()=>{s.page++;apply(table)};hs.forEach((h,i)=>{if(i<2)return;h.classList.add("review-list-sortable");h.tabIndex=0;h.onclick=()=>{if(s.key===i)s.dir=s.dir==="asc"?"desc":"asc";else{s.key=i;s.dir="asc"}s.page=1;apply(table)}});table.addEventListener("click",e=>{if(e.target.closest("input,button,a,select"))return;const r=e.target.closest("tr");if(!r||!r.querySelector("td"))return;rows(table).forEach(x=>x.classList.remove("review-list-active"));r.classList.add("review-list-active")});apply(table)}
+ function run(){setup(document.getElementById("batchQueue"),"batch");setup(document.getElementById("reviewRows"),"review")}
+ new MutationObserver(()=>setTimeout(run,0)).observe(document.body,{childList:true,subtree:true});run();
 })();
 </script>
 </body>

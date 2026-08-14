@@ -153,7 +153,7 @@ async function loadPending(){
   if(keyword) qs.set("keyword", keyword);
   if(customerId) qs.set("customer_id", customerId);
   if(customerName) qs.set("customer_name", customerName);
-  qs.set("limit","500");
+  qs.set("limit","0");
   const rows = await api("/api/requests/pending-review?"+qs.toString());
   const body = document.getElementById("pendingBody");
   body.innerHTML = "";
@@ -268,7 +268,7 @@ async function loadSales(){
   if(requestNo) qs.set("request_no", requestNo);
   if(keyword) qs.set("keyword", keyword);
   if(status) qs.set("status", status);
-  qs.set("limit","500");
+  qs.set("limit","0");
   const rows = await api("/api/sales-ledger?"+qs.toString());
   const body = document.getElementById("salesBody");
   body.innerHTML = "";
@@ -481,6 +481,12 @@ document.getElementById("salesLedgerTable").addEventListener("change", event => 
     subtree:true
   });
 })();
+</script>
+
+<style data-contract="TLC_BUSINESS_REVIEW_SALES_LIST_INTERACTION_R1">
+.workbench-list-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}.workbench-list-active>td{background:#fff1a8!important}.workbench-sortable{cursor:pointer;user-select:none}.workbench-sort-active{background:#c7ddf4!important;color:#123f69}.workbench-page-hidden{display:none}.workbench-page-info{min-width:190px;text-align:center}
+</style><script data-contract="TLC_BUSINESS_REVIEW_SALES_LIST_INTERACTION_R1">
+(function(){const SIZE=100,states=new WeakMap();function dataRows(t){return [...t.tBodies[0].rows]}function apply(t){const s=states.get(t);if(!s)return;let rows=dataRows(t),q=s.input.value.trim().toLowerCase(),col=Number(s.field.value);rows.forEach(r=>r.classList.remove("workbench-page-hidden"));rows=rows.filter(r=>!q||String(col>=0?(r.cells[col]?.innerText||""):r.innerText).toLowerCase().includes(q));if(s.key>=0)rows.sort((a,b)=>(a.cells[s.key]?.innerText||"").localeCompare(b.cells[s.key]?.innerText||"","zh-CN",{numeric:true,sensitivity:"base"})*(s.dir==="asc"?1:-1)).forEach(r=>r.parentNode.appendChild(r));const pages=Math.max(1,Math.ceil(rows.length/SIZE));s.page=Math.min(Math.max(1,s.page),pages);const visible=new Set(rows.slice((s.page-1)*SIZE,s.page*SIZE));dataRows(t).forEach(r=>r.classList.toggle("workbench-page-hidden",!visible.has(r)));s.info.textContent=`第 ${s.page} / ${pages} 页，共 ${rows.length} 件`;s.prev.disabled=s.page<=1;s.next.disabled=s.page>=pages;[...t.tHead.rows[0].cells].forEach((h,i)=>{const active=i===s.key,base=h.dataset.baseTitle||h.textContent.replace(/[↑↓]$/,'').trim();h.dataset.baseTitle=base;h.classList.toggle("workbench-sort-active",active);h.setAttribute("aria-sort",active?(s.dir==="asc"?"ascending":"descending"):"none");h.textContent=base+(active?(s.dir==="asc"?" ↑":" ↓"):"")})}function setup(bodyId){const body=document.getElementById(bodyId),t=body?.closest("table");if(!t||t.dataset.workbenchEnhanced)return;t.dataset.workbenchEnhanced="1";const hs=[...t.tHead.rows[0].cells],tool=document.createElement("div");tool.className="workbench-list-tools";tool.innerHTML=`<label>一览综合／字段检索 <input type="search" placeholder="部分匹配"></label><label>指定字段 <select><option value="-1">全部关键字段</option>${hs.map((h,i)=>`<option value="${i}">${h.textContent}</option>`).join('')}</select></label><button data-prev type="button">上一页</button><span class="workbench-page-info"></span><button data-next type="button">下一页</button><span>每页 100 件</span>`;t.parentNode.insertBefore(tool,t);const s={page:1,key:-1,dir:"asc",input:tool.querySelector("input"),field:tool.querySelector("select"),prev:tool.querySelector("[data-prev]"),next:tool.querySelector("[data-next]"),info:tool.querySelector(".workbench-page-info")};states.set(t,s);s.input.oninput=()=>{s.page=1;apply(t)};s.field.onchange=()=>{s.page=1;apply(t)};s.prev.onclick=()=>{s.page--;apply(t)};s.next.onclick=()=>{s.page++;apply(t)};hs.forEach((h,i)=>{h.classList.add("workbench-sortable");h.tabIndex=0;h.onclick=()=>{if(s.key===i)s.dir=s.dir==="asc"?"desc":"asc";else{s.key=i;s.dir="asc"}s.page=1;apply(t)}});t.addEventListener("click",e=>{if(e.target.closest("input,button,a,select"))return;const r=e.target.closest("tbody tr");if(!r)return;dataRows(t).forEach(x=>x.classList.remove("workbench-list-active"));r.classList.add("workbench-list-active")});new MutationObserver(()=>{s.page=1;setTimeout(()=>apply(t),0)}).observe(body,{childList:true});apply(t)}function run(){setup("pendingBody");setup("salesBody")}document.readyState==="loading"?document.addEventListener("DOMContentLoaded",run):run();})();
 </script>
 </body>
 </html>

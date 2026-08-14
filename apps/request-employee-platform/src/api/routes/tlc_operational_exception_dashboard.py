@@ -17,7 +17,7 @@ router = APIRouter(tags=["tlc-operational-exception-dashboard"])
 @router.get("/api/tlc-operational-exceptions")
 def exceptions(
     business_month: str = "",
-    limit: int = Query(default=500, ge=1, le=2000),
+    limit: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
     return operational_exception_dashboard(

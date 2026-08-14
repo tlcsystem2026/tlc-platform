@@ -20,12 +20,12 @@ def list_bank_transactions(
     transaction_date_from: str = "",
     transaction_date_to: str = "",
     counterparty: str = "",
-    limit: int = 500,
+    limit: int = 0,
 ) -> list[dict[str, Any]]:
     ensure_bank_transaction_table(db)
 
     clauses = []
-    params: dict[str, Any] = {"limit": min(max(int(limit), 1), 1000)}
+    params: dict[str, Any] = {}
 
     if bank_code:
         clauses.append("bank_code = :bank_code")
@@ -47,13 +47,18 @@ def list_bank_transactions(
         params["counterparty"] = f"%{counterparty}%"
 
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    requested_limit = int(limit or 0)
+    limit_sql = ""
+    if requested_limit > 0:
+        params["limit"] = requested_limit
+        limit_sql = "LIMIT :limit"
     rows = db.execute(
         text(
             f"""
             SELECT * FROM {BANK_TABLE}
             {where}
             ORDER BY transaction_date DESC, imported_at DESC
-            LIMIT :limit
+            {limit_sql}
             """
         ),
         params,

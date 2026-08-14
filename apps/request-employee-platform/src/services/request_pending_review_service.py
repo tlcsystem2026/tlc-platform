@@ -133,13 +133,17 @@ def list_pending_reviews(
     keyword: str = "",
     customer_id: str = "",
     customer_name: str = "",
-    limit: int = 200,
+    limit: int = 0,
 ) -> list[dict[str, Any]]:
     ensure_pending_review_table(db)
     ensure_customer_master_table(db)
-    limit = min(max(int(limit), 1), 1000)
+    requested_limit = int(limit or 0)
     clauses: list[str] = []
-    params: dict[str, Any] = {"limit": limit}
+    params: dict[str, Any] = {}
+    limit_sql = ""
+    if requested_limit > 0:
+        params["limit"] = requested_limit
+        limit_sql = " LIMIT :limit"
     if status:
         clauses.append("p.status=:status")
         params["status"] = status
@@ -206,7 +210,7 @@ def list_pending_reviews(
       LEFT JOIN tlc_customer_master c ON c.customer_id=p.customer_id
       {where}
       ORDER BY p.created_at DESC
-      LIMIT :limit
+      {limit_sql}
     """), params).all()
     return [_row_to_dict(row) for row in rows]
 

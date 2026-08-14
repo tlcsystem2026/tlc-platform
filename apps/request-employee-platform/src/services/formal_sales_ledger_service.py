@@ -132,11 +132,16 @@ def list_sales_ledger(
     request_no:str="",
     status:str="",
     keyword:str="",
-    limit:int=500,
+    limit:int=0,
 ):
     ensure_sales_ledger_table(db)
     ensure_customer_master_table(db)
-    clauses=[]; p={"limit":min(max(int(limit),1),1000)}
+    clauses=[]; p={}
+    requested_limit=int(limit or 0)
+    limit_sql=""
+    if requested_limit>0:
+        p["limit"]=requested_limit
+        limit_sql=" LIMIT :limit"
     if customer_id:
         clauses.append("l.customer_id LIKE :customer_id");p["customer_id"]=f"%{customer_id}%"
     if customer_name:
@@ -188,7 +193,7 @@ def list_sales_ledger(
       LEFT JOIN tlc_customer_master c ON c.customer_id=l.customer_id
       {where}
       ORDER BY l.posted_at DESC
-      LIMIT :limit
+      {limit_sql}
     """),p).all()
     return [_row(r) for r in rows]
 

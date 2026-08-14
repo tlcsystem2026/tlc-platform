@@ -18,7 +18,7 @@ def list_records(
     keyword: str = "",
     customer_id: str = "",
     customer_name: str = "",
-    limit: int = Query(default=200, ge=1, le=1000),
+    limit: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
     return list_pending_reviews(

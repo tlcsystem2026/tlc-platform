@@ -11,7 +11,7 @@ def post_record(record_id:str,db:Session=Depends(get_db)):
     except ValueError as exc: raise HTTPException(status_code=400,detail=str(exc)) from exc
 
 @router.get("")
-def list_records(customer_id:str="",customer_name:str="",request_no:str="",status:str="",keyword:str="",limit:int=Query(500,ge=1,le=1000),db:Session=Depends(get_db)):
+def list_records(customer_id:str="",customer_name:str="",request_no:str="",status:str="",keyword:str="",limit:int=Query(0,ge=0),db:Session=Depends(get_db)):
     return list_sales_ledger(db,customer_id,customer_name,request_no,status,keyword,limit)
 
 @router.post("/bulk-void")

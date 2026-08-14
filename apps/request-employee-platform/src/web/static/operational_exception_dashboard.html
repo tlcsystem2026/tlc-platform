@@ -20,6 +20,11 @@ table{width:100%;border-collapse:collapse;font-size:13px}
 th,td{border:1px solid #ddd;padding:7px;text-align:left;vertical-align:top}
 th{background:#edf2f6}.small{font-size:12px;color:#666}
 @media(max-width:900px){.stats{grid-template-columns:1fr 1fr}}
+/* TLC_OPERATIONAL_EXCEPTION_LIST_INTERACTION_R1 */
+.exception-tools{display:grid;grid-template-columns:2fr 1fr 1fr auto auto;gap:8px;align-items:center;margin:9px 0}.exception-tools input{width:100%;box-sizing:border-box}
+#exceptionTable tbody tr{cursor:pointer}#exceptionTable tbody tr:hover{background:#fff4cc}#exceptionTable tbody tr.exception-active{background:#ffe08a!important}
+#exceptionTable th[data-sort-key]{cursor:pointer;user-select:none;white-space:nowrap}#exceptionTable th[data-sort-key]::after{content:' ↕';color:#8290a3;font-size:11px}#exceptionTable th[data-sort-key][aria-sort='ascending']::after{content:' ↑';color:#213f5b}#exceptionTable th[data-sort-key][aria-sort='descending']::after{content:' ↓';color:#213f5b}
+@media(max-width:900px){.exception-tools{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -57,7 +62,7 @@ th{background:#edf2f6}.small{font-size:12px;color:#666}
 
 <section class="card">
 <h3>异常明细</h3>
-<div id="exceptionRows"></div>
+<div class="exception-tools" data-contract="TLC_OPERATIONAL_EXCEPTION_LIST_INTERACTION_R1"><input id="exceptionKeyword" placeholder="综合检索：标题、说明、Batch、分类" oninput="renderRows(true)"><input id="exceptionStatus" placeholder="状态（部分匹配）" oninput="renderRows(true)"><input id="exceptionTitle" placeholder="标题（部分匹配）" oninput="renderRows(true)"><button id="exceptionPrev" type="button" onclick="changeExceptionPage(-1)">上一页</button><button id="exceptionNext" type="button" onclick="changeExceptionPage(1)">下一页</button></div><div id="exceptionListInfo" class="small"></div><div id="exceptionRows"></div>
 </section>
 </main>
 <script>
@@ -73,29 +78,26 @@ function esc(v){
   {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]
  ))
 }
-function renderRows(){
- const severity=severityFilter.value;
- const category=categoryFilter.value;
- const rows=dashboardData.exceptions.filter(x=>
-  (!severity||x.severity===severity)&&(!category||x.category===category)
- );
- exceptionRows.innerHTML='<table><tr><th>严重度</th><th>年月</th><th>Batch</th><th>分类</th><th>状态</th><th>标题</th><th>说明</th><th>发生时间</th></tr>'+
- rows.map(x=>`<tr>
-  <td class="${String(x.severity).toLowerCase()}">${esc(x.severity)}</td>
-  <td>${esc(x.business_month)}</td>
-  <td>${esc(x.batch_no||x.batch_title||x.batch_id)}</td>
-  <td>${esc(x.category)}<br><span class="small">${esc(x.subcategory)}</span></td>
-  <td>${esc(x.status)}</td>
-  <td>${esc(x.title)}</td>
-  <td>${esc(x.detail)}</td>
-  <td>${esc(x.occurred_at)}</td>
- </tr>`).join("")+'</table>';
+let exceptionPage=1,exceptionSortKey="occurred_at",exceptionSortDirection="desc";
+const EXCEPTION_PAGE_SIZE=100;
+function exceptionText(v){return String(v??"").toLocaleLowerCase()}
+function renderRows(resetPage=false){
+ if(resetPage)exceptionPage=1;
+ const severity=severityFilter.value,category=categoryFilter.value,keyword=exceptionText(exceptionKeyword.value.trim()),status=exceptionText(exceptionStatus.value.trim()),title=exceptionText(exceptionTitle.value.trim());
+ let rows=dashboardData.exceptions.filter(x=>(!severity||x.severity===severity)&&(!category||x.category===category)&&(!status||exceptionText(x.status).includes(status))&&(!title||exceptionText(x.title).includes(title))&&(!keyword||[x.severity,x.business_month,x.batch_no,x.batch_title,x.batch_id,x.category,x.subcategory,x.status,x.title,x.detail,x.occurred_at].map(exceptionText).join(" ").includes(keyword)));
+ rows.sort((a,b)=>{const av=exceptionText(a[exceptionSortKey]),bv=exceptionText(b[exceptionSortKey]),result=av<bv?-1:av>bv?1:0;return exceptionSortDirection==="asc"?result:-result});
+ const pages=Math.max(1,Math.ceil(rows.length/EXCEPTION_PAGE_SIZE));exceptionPage=Math.max(1,Math.min(exceptionPage,pages));const visible=rows.slice((exceptionPage-1)*EXCEPTION_PAGE_SIZE,exceptionPage*EXCEPTION_PAGE_SIZE);
+ exceptionRows.innerHTML='<table id="exceptionTable"><thead><tr><th data-sort-key="severity">严重度</th><th data-sort-key="business_month">年月</th><th data-sort-key="batch_no">Batch</th><th data-sort-key="category">分类</th><th data-sort-key="status">状态</th><th data-sort-key="title">标题</th><th data-sort-key="detail">说明</th><th data-sort-key="occurred_at">发生时间</th></tr></thead><tbody>'+visible.map(x=>`<tr><td class="${String(x.severity).toLowerCase()}">${esc(x.severity)}</td><td>${esc(x.business_month)}</td><td>${esc(x.batch_no||x.batch_title||x.batch_id)}</td><td>${esc(x.category)}<br><span class="small">${esc(x.subcategory)}</span></td><td>${esc(x.status)}</td><td>${esc(x.title)}</td><td>${esc(x.detail)}</td><td>${esc(x.occurred_at)}</td></tr>`).join("")+'</tbody></table>';
+ exceptionListInfo.textContent=`检索结果 ${rows.length} 件（全体 ${dashboardData.exceptions.length} 件）｜第 ${exceptionPage} / ${pages} 页`;exceptionPrev.disabled=exceptionPage<=1;exceptionNext.disabled=exceptionPage>=pages;
+ document.querySelectorAll("#exceptionTable th[data-sort-key]").forEach(th=>{if(th.dataset.sortKey===exceptionSortKey)th.setAttribute("aria-sort",exceptionSortDirection==="asc"?"ascending":"descending");th.addEventListener("click",()=>{const key=th.dataset.sortKey;exceptionSortDirection=exceptionSortKey===key&&exceptionSortDirection==="asc"?"desc":"asc";exceptionSortKey=key;renderRows(true)})});
+ document.querySelector("#exceptionTable tbody")?.addEventListener("click",event=>{if(event.target.closest("input,button,a,select"))return;const row=event.target.closest("tr");if(!row)return;document.querySelectorAll("#exceptionTable tr.exception-active").forEach(x=>x.classList.remove("exception-active"));row.classList.add("exception-active")});
 }
+function changeExceptionPage(delta){exceptionPage+=delta;renderRows(false);document.getElementById("exceptionTable")?.scrollIntoView({block:"start"})}
 async function loadDashboard(){
  const month=businessMonth.value;
- const query=month?`?business_month=${encodeURIComponent(month)}`:"";
+ const query=new URLSearchParams({limit:"0"});if(month)query.set("business_month",month);
  try{
-  dashboardData=await api("/api/tlc-operational-exceptions"+query);
+  dashboardData=await api("/api/tlc-operational-exceptions?"+query.toString());
   stats.innerHTML=[
    ["异常总数",dashboardData.exception_count],
    ["HIGH",dashboardData.high_count],

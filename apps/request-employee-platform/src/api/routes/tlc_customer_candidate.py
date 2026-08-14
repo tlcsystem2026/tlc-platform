@@ -41,7 +41,7 @@ def latest(business_month: str = "", db: Session = Depends(get_db)):
 
 @router.get("/api/customer-candidates")
 def candidates(business_month: str = "", status: str = "", batch_id: str = "",
-               limit: int = Query(1000, ge=1, le=5000), db: Session = Depends(get_db)):
+               limit: int = Query(0, ge=0), db: Session = Depends(get_db)):
     return list_candidates(db, business_month, status, batch_id, limit)
 
 
@@ -75,7 +75,7 @@ def bulk_resolve(payload: dict, db: Session = Depends(get_db)):
 @router.get("/api/customer-candidates/export.csv")
 def export(business_month: str = "", status: str = "", batch_id: str = "",
            db: Session = Depends(get_db)):
-    data = export_csv(list_candidates(db, business_month, status, batch_id, 5000))
+    data = export_csv(list_candidates(db, business_month, status, batch_id, 0))
     return Response(data, media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": "attachment; filename=customer_candidates.csv"})
 

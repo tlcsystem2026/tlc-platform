@@ -21,6 +21,16 @@ th{background:#eef3f8}
 .metric{background:#eef3f8;border-radius:6px;padding:12px}
 .small{font-size:12px;color:#666}
 @media(max-width:900px){.summary{grid-template-columns:1fr 1fr}}
+
+/* TLC_BANK_TRANSACTION_LIST_INTERACTION_R1 */
+.tx-search-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin:10px 0}
+.tx-search-grid input{width:100%;box-sizing:border-box}
+#txTable tbody tr{cursor:pointer}#txTable tbody tr:hover{background:#fff4cc}#txTable tbody tr.is-active{background:#ffe08a!important}
+#txTable th[data-sort-key]{cursor:pointer;user-select:none;white-space:nowrap}
+#txTable th[data-sort-key]::after{content:' ↕';color:#8290a3;font-size:12px}
+#txTable th[data-sort-key][aria-sort='ascending']::after{content:' ↑';color:#1f4e78}
+#txTable th[data-sort-key][aria-sort='descending']::after{content:' ↓';color:#1f4e78}
+.tx-pager{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:10px}.tx-pager button:disabled{opacity:.45;cursor:not-allowed}
 </style>
 </head>
 <body>
@@ -74,15 +84,22 @@ th{background:#eef3f8}
 <h2>银行流水一览</h2>
 <div id="listMessage" class="small"></div>
 <div style="overflow:auto">
-<table>
+<div class="tx-search-grid" data-contract="TLC_BANK_TRANSACTION_LIST_INTERACTION_R1">
+  <input id="txKeyword" placeholder="综合检索：银行、对方、摘要、流水ID" oninput="applyTxView(true)">
+  <input id="txAccountSearch" placeholder="口座号码（部分匹配）" oninput="applyTxView(true)">
+  <input id="txDescriptionSearch" placeholder="摘要（部分匹配）" oninput="applyTxView(true)">
+  <input id="txAmountSearch" placeholder="金额（部分匹配）" oninput="applyTxView(true)">
+</div>
+<table id="txTable">
 <thead>
 <tr>
-<th>银行</th><th>日期</th><th>方向</th><th>金额</th><th>对方</th><th>摘要</th><th>余额</th><th>流水ID</th>
+<th data-sort-key="bank_name">银行</th><th data-sort-key="transaction_date">日期</th><th data-sort-key="direction">方向</th><th data-sort-key="amount" data-sort-type="number">金额</th><th data-sort-key="counterparty">对方</th><th data-sort-key="description">摘要</th><th data-sort-key="balance" data-sort-type="number">余额</th><th data-sort-key="transaction_id">流水ID</th>
 </tr>
 </thead>
 <tbody id="txBody"></tbody>
 </table>
 </div>
+<div class="tx-pager"><button id="txPrev" type="button" onclick="changeTxPage(-1)">上一页</button><span id="txPageInfo"></span><button id="txNext" type="button" onclick="changeTxPage(1)">下一页</button></div>
 </section>
 </main>
 
@@ -111,7 +128,7 @@ function params(){
   if(from)p.set("transaction_date_from",from);
   if(to)p.set("transaction_date_to",to);
   if(cp)p.set("counterparty",cp);
-  p.set("limit","1000");
+  p.set("limit","0");
   return p;
 }
 async function uploadCsv(){
@@ -132,31 +149,41 @@ async function uploadCsv(){
     await loadAll();
   }catch(e){alert(e.message)}
 }
+let txSourceRows=[];
+let txPage=1;
+const TX_PAGE_SIZE=100;
+let txSortKey="transaction_date";
+let txSortDirection="desc";
+function txText(v){return String(v??"").toLocaleLowerCase()}
+function txNumber(v){const n=Number(String(v??"").replace(/,/g,""));return Number.isFinite(n)?n:0}
+function applyTxView(resetPage=false){
+  if(resetPage)txPage=1;
+  const keyword=txText(document.getElementById("txKeyword")?.value.trim());
+  const account=txText(document.getElementById("txAccountSearch")?.value.trim());
+  const description=txText(document.getElementById("txDescriptionSearch")?.value.trim());
+  const amount=txText(document.getElementById("txAmountSearch")?.value.trim());
+  let rows=txSourceRows.filter(row=>{
+    const all=[row.bank_code,row.bank_name,row.account_number,row.transaction_date,row.direction,row.amount,row.counterparty,row.description,row.balance,row.transaction_id].map(txText).join(" ");
+    return (!keyword||all.includes(keyword))&&(!account||txText(row.account_number).includes(account))&&(!description||txText(row.description).includes(description))&&(!amount||txText(row.amount).includes(amount));
+  });
+  rows.sort((a,b)=>{const numeric=document.querySelector(`#txTable th[data-sort-key="${txSortKey}"]`)?.dataset.sortType==="number";const av=numeric?txNumber(a[txSortKey]):txText(a[txSortKey]);const bv=numeric?txNumber(b[txSortKey]):txText(b[txSortKey]);const result=av<bv?-1:av>bv?1:0;return txSortDirection==="asc"?result:-result});
+  const pages=Math.max(1,Math.ceil(rows.length/TX_PAGE_SIZE));txPage=Math.min(txPage,pages);
+  const visible=rows.slice((txPage-1)*TX_PAGE_SIZE,txPage*TX_PAGE_SIZE);
+  const body=document.getElementById("txBody");body.innerHTML="";
+  visible.forEach(row=>{const tr=document.createElement("tr");tr.innerHTML=`<td>${esc(row.bank_name)}</td><td>${esc(row.transaction_date)}</td><td class="${row.direction==='CREDIT'?'credit':'debit'}">${esc(row.direction)}</td><td>${esc(row.amount)}</td><td>${esc(row.counterparty)}</td><td>${esc(row.description)}</td><td>${esc(row.balance)}</td><td>${esc(row.transaction_id)}</td>`;tr.addEventListener("click",event=>{if(event.target.closest("input,button,a,select"))return;body.querySelectorAll("tr.is-active").forEach(x=>x.classList.remove("is-active"));tr.classList.add("is-active")});body.appendChild(tr)});
+  document.getElementById("listMessage").textContent=`检索结果：${rows.length} 件（全体 ${txSourceRows.length} 件）`;
+  document.getElementById("txPageInfo").textContent=`第 ${txPage} / ${pages} 页`;
+  document.getElementById("txPrev").disabled=txPage<=1;document.getElementById("txNext").disabled=txPage>=pages;
+}
+function changeTxPage(delta){txPage+=delta;applyTxView(false);document.getElementById("txTable").scrollIntoView({block:"start"})}
+document.querySelectorAll("#txTable th[data-sort-key]").forEach(th=>th.addEventListener("click",()=>{const key=th.dataset.sortKey;if(txSortKey===key)txSortDirection=txSortDirection==="asc"?"desc":"asc";else{txSortKey=key;txSortDirection="asc"}document.querySelectorAll("#txTable th[data-sort-key]").forEach(x=>x.removeAttribute("aria-sort"));th.setAttribute("aria-sort",txSortDirection==="asc"?"ascending":"descending");applyTxView(true)}));
 async function loadAll(){
   const p=params();
   const summaryParams=new URLSearchParams();
-  for(const k of ["bank_code","transaction_date_from","transaction_date_to"]){
-    if(p.has(k))summaryParams.set(k,p.get(k));
-  }
-  const [rows,summary]=await Promise.all([
-    api("/api/bank-import/transactions?"+p.toString()),
-    api("/api/bank-import/summary?"+summaryParams.toString())
-  ]);
-  document.getElementById("txCount").textContent=summary.transaction_count;
-  document.getElementById("creditCount").textContent=summary.credit_count;
-  document.getElementById("creditTotal").textContent=summary.credit_total;
-  document.getElementById("debitCount").textContent=summary.debit_count;
-  document.getElementById("debitTotal").textContent=summary.debit_total;
-  const body=document.getElementById("txBody");body.innerHTML="";
-  rows.forEach(row=>{
-    const tr=document.createElement("tr");
-    tr.innerHTML=`<td>${esc(row.bank_name)}</td><td>${esc(row.transaction_date)}</td>
-      <td class="${row.direction==='CREDIT'?'credit':'debit'}">${esc(row.direction)}</td>
-      <td>${esc(row.amount)}</td><td>${esc(row.counterparty)}</td><td>${esc(row.description)}</td>
-      <td>${esc(row.balance)}</td><td>${esc(row.transaction_id)}</td>`;
-    body.appendChild(tr);
-  });
-  document.getElementById("listMessage").textContent=`${rows.length} records`;
+  for(const k of ["bank_code","transaction_date_from","transaction_date_to"]){if(p.has(k))summaryParams.set(k,p.get(k));}
+  const [rows,summary]=await Promise.all([api("/api/bank-import/transactions?"+p.toString()),api("/api/bank-import/summary?"+summaryParams.toString())]);
+  document.getElementById("txCount").textContent=summary.transaction_count;document.getElementById("creditCount").textContent=summary.credit_count;document.getElementById("creditTotal").textContent=summary.credit_total;document.getElementById("debitCount").textContent=summary.debit_count;document.getElementById("debitTotal").textContent=summary.debit_total;
+  txSourceRows=Array.isArray(rows)?rows:[];applyTxView(true);
 }
 loadAll().catch(e=>document.getElementById("listMessage").textContent=e.message);
 </script>

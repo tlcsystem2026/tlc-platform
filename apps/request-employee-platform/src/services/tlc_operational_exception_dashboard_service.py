@@ -59,13 +59,14 @@ def operational_exception_dashboard(
     db: Session,
     *,
     business_month: str = "",
-    limit: int = 500,
+    limit: int = 0,
 ) -> dict[str, Any]:
     ensure_batch_tables(db)
 
-    limit = min(max(int(limit), 1), 2000)
+    requested_limit = int(limit or 0)
+    query_limit = requested_limit if requested_limit > 0 else -1
     month_clause = ""
-    month_params: dict[str, Any] = {"limit": limit}
+    month_params: dict[str, Any] = {"limit": query_limit}
 
     if business_month:
         month_clause = "AND b.business_month=:business_month"
@@ -213,7 +214,7 @@ def operational_exception_dashboard(
         exceptions.extend(rows)
 
     if _table_exists(db, "tlc_monthly_close_carry_forward"):
-        carry_params = {"limit": limit}
+        carry_params = {"limit": query_limit}
         carry_month_clause = ""
         if business_month:
             carry_month_clause = (
@@ -249,7 +250,7 @@ def operational_exception_dashboard(
         exceptions.extend(rows)
 
     if _table_exists(db, "tlc_monthly_close_authorization"):
-        auth_params = {"limit": limit}
+        auth_params = {"limit": query_limit}
         auth_month_clause = ""
         if business_month:
             auth_month_clause = "AND business_month=:business_month"
@@ -281,7 +282,7 @@ def operational_exception_dashboard(
         )
         exceptions.extend(rows)
 
-    batch_params = {"limit": limit}
+    batch_params = {"limit": query_limit}
     batch_month_clause = ""
     if business_month:
         batch_month_clause = "AND business_month=:business_month"
@@ -320,7 +321,8 @@ def operational_exception_dashboard(
             str(item.get("occurred_at", "")),
         )
     )
-    exceptions = exceptions[:limit]
+    if requested_limit > 0:
+        exceptions = exceptions[:requested_limit]
 
     by_category: dict[str, int] = {}
     by_severity: dict[str, int] = {"HIGH": 0, "MEDIUM": 0, "LOW": 0}
