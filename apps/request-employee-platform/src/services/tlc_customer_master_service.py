@@ -1,5 +1,5 @@
 from __future__ import annotations
-import csv, io, re, unicodedata
+import base64, csv, io, re, unicodedata
 from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
@@ -132,7 +132,7 @@ def save_customer(db:Session,payload:dict[str,Any]):
     db.commit();return get_customer(db,rid)
 
 def _decode(raw:bytes)->str:
-    for enc in ('cp932','shift_jis','utf-8-sig','utf-8'):
+    for enc in ('utf-8-sig','utf-8','cp932','shift_jis'):
         try:return raw.decode(enc)
         except UnicodeDecodeError:pass
     raise ValueError('CSV encoding is not supported')
@@ -156,6 +156,31 @@ def import_todokedl_csv(db:Session,raw:bytes)->dict[str,Any]:
             p={f:'' for f in ALL_FIELDS if f not in ('active',)};p.update(vals);p.update({'id':uuid4().hex,'customer_id':cid,'status_code':'ACTIVE','active':1,'note':'正式名称待维护','created_at':now,'updated_at':now})
             cols=[c for c in ALL_FIELDS if c in p];db.execute(text(f"INSERT INTO {TABLE_NAME} ({','.join(cols)}) VALUES ({','.join(':'+c for c in cols)})"),p);inserted+=1
     db.commit();return {'inserted':inserted,'updated':updated,'skipped':skipped,'errors':errors,'source_system':'TODOKEDL'}
+
+
+def import_todokedl_csv_base64(db:Session,encoded_csv:str)->dict[str,int]:
+    """Backward-compatible, atomic wrapper for the original JSON contract."""
+    try:
+        raw=base64.b64decode(str(encoded_csv or ''),validate=True)
+    except Exception as exc:
+        raise ValueError('CSV base64 is invalid') from exc
+    decoded=_decode(raw)
+    reader=csv.DictReader(io.StringIO(decoded))
+    missing=[x for x in TODOKEDL if x not in (reader.fieldnames or [])]
+    if missing:raise ValueError('CSV required columns are missing: '+','.join(missing))
+    customer_id_header=next(iter(TODOKEDL))
+    rows=list(reader)
+    for row_no,row in enumerate(rows,2):
+        if not str(row.get(customer_id_header,'') or '').strip():
+            raise ValueError(f'row {row_no}: customer_id is empty')
+    normalized_raw=decoded.encode('utf-8-sig')
+    result=import_todokedl_csv(db,normalized_raw)
+    return {
+        'imported':int(result.get('inserted',0))+int(result.get('updated',0)),
+        'created':int(result.get('inserted',0)),
+        'updated':int(result.get('updated',0)),
+        'skipped':int(result.get('skipped',0)),
+    }
 
 def export_customers_csv(records:list[dict[str,Any]])->bytes:
     out=io.StringIO();w=csv.DictWriter(out,fieldnames=ALL_FIELDS,extrasaction='ignore');w.writeheader()

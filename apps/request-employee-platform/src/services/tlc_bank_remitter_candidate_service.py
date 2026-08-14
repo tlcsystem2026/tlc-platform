@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import io
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -22,6 +24,7 @@ from src.services.tlc_customer_master_service import ensure_customer_master_tabl
 
 MARKER = "TLC_BANK_REMITTER_CANDIDATE_BATCH_R1"
 CSV_MARKER = "TLC_BANK_REMITTER_CANDIDATE_FROM_CSV_R1"
+CSV_REVIEW_MARKER = "TLC_BANK_REMITTER_CANDIDATE_CSV_REVIEW_R1"
 BATCH_TABLE = "tlc_bank_remitter_candidate_batch"
 CANDIDATE_TABLE = "tlc_bank_remitter_candidate"
 AUDIT_TABLE = "tlc_bank_remitter_candidate_audit"
@@ -241,7 +244,8 @@ def latest_batch(db: Session, business_month: str = "", bank_code: str = "") -> 
 
 def list_candidates(db: Session, business_month: str = "", status: str = "", batch_id: str = "", limit: int = 5000) -> list[dict[str, Any]]:
     ensure_schema(db)
-    clauses, params = [], {"limit": min(max(int(limit), 1), 10000)}
+    requested_limit = int(limit)
+    clauses, params = [], {}
     if business_month:
         clauses.append("business_month=:month"); params["month"] = _month(business_month)
     if status:
@@ -249,7 +253,142 @@ def list_candidates(db: Session, business_month: str = "", status: str = "", bat
     if batch_id:
         clauses.append("candidate_batch_id=:batch"); params["batch"] = str(batch_id).strip()
     where = "WHERE " + " AND ".join(clauses) if clauses else ""
-    return [_row(row) for row in db.execute(text(f"SELECT * FROM {CANDIDATE_TABLE} {where} ORDER BY created_at DESC,id LIMIT :limit"), params).all()]
+    limit_sql = ""
+    if requested_limit > 0:
+        params["limit"] = min(requested_limit, 10000)
+        limit_sql = " LIMIT :limit"
+    return [_row(row) for row in db.execute(text(f"SELECT * FROM {CANDIDATE_TABLE} {where} ORDER BY created_at DESC,id{limit_sql}"), params).all()]
+
+
+def export_review_csv(records: list[dict[str, Any]]) -> bytes:
+    """Export candidates with the editable offline-review columns.
+
+    Identity and source columns are included for validation on import.  Only
+    matched_customer_id, resolution_action and review_comment are writable.
+    """
+    fields = [
+        "id", "candidate_batch_id", "bank_codes", "raw_remitter_name",
+        "normalized_remitter_name", "transaction_count", "total_amount",
+        "first_transaction_date", "last_transaction_date", "match_status",
+        "matched_customer_id", "matched_customer_name", "review_status",
+        "resolution_action", "review_comment",
+    ]
+    output = io.StringIO(newline="")
+    writer = csv.DictWriter(output, fieldnames=fields, extrasaction="ignore")
+    writer.writeheader()
+    writer.writerows(records)
+    return output.getvalue().encode("utf-8-sig")
+
+
+def import_review_csv(db: Session, raw: bytes, actor: str) -> dict[str, Any]:
+    """Validate the entire review CSV, then atomically store review drafts."""
+    ensure_schema(db)
+    reviewer = str(actor or "").strip()
+    if not reviewer:
+        raise ValueError("operator is required")
+    content = raw.decode("utf-8-sig")
+    reader = csv.DictReader(io.StringIO(content))
+    required = {"id", "candidate_batch_id", "bank_codes", "matched_customer_id", "resolution_action", "review_comment"}
+    headers = set(reader.fieldnames or [])
+    missing = sorted(required - headers)
+    if missing:
+        raise ValueError("Missing CSV columns: " + ", ".join(missing))
+
+    allowed_actions = {"", "CONFIRM_MATCH", "ADD_ALIAS", "IGNORE"}
+    prepared: list[dict[str, str]] = []
+    seen: set[str] = set()
+    errors: list[str] = []
+    for row_no, row in enumerate(reader, 2):
+        candidate_id = str(row.get("id") or "").strip()
+        if not candidate_id:
+            errors.append(f"row {row_no}: id is required")
+            continue
+        if candidate_id in seen:
+            errors.append(f"row {row_no}: duplicate candidate id {candidate_id}")
+            continue
+        seen.add(candidate_id)
+        candidate_row = db.execute(
+            text(f"SELECT * FROM {CANDIDATE_TABLE} WHERE id=:id"),
+            {"id": candidate_id},
+        ).first()
+        if not candidate_row:
+            errors.append(f"row {row_no}: candidate not found: {candidate_id}")
+            continue
+        candidate = _row(candidate_row)
+        batch_id = str(row.get("candidate_batch_id") or "").strip()
+        bank_codes = str(row.get("bank_codes") or "").strip()
+        if batch_id != str(candidate.get("candidate_batch_id") or ""):
+            errors.append(f"row {row_no}: candidate_batch_id does not match")
+        if bank_codes != str(candidate.get("bank_codes") or ""):
+            errors.append(f"row {row_no}: bank_codes does not match")
+        action = str(row.get("resolution_action") or "").strip().upper()
+        if action not in allowed_actions:
+            errors.append(f"row {row_no}: unsupported resolution_action {action}")
+        customer_value = str(row.get("matched_customer_id") or "").strip()
+        customer_id = customer_name = ""
+        if action in {"CONFIRM_MATCH", "ADD_ALIAS"}:
+            if not customer_value:
+                errors.append(f"row {row_no}: matched_customer_id is required for {action}")
+            else:
+                customer_row = db.execute(
+                    text("SELECT id,customer_id,formal_name FROM tlc_customer_master "
+                         "WHERE id=:value OR customer_id=:value LIMIT 1"),
+                    {"value": customer_value},
+                ).first()
+                if not customer_row:
+                    errors.append(f"row {row_no}: customer not found: {customer_value}")
+                else:
+                    customer = _row(customer_row)
+                    customer_id = str(customer.get("customer_id") or "")
+                    customer_name = str(customer.get("formal_name") or "")
+        elif action == "IGNORE":
+            customer_id = customer_name = ""
+        elif customer_value:
+            customer_row = db.execute(
+                text("SELECT customer_id,formal_name FROM tlc_customer_master "
+                     "WHERE id=:value OR customer_id=:value LIMIT 1"),
+                {"value": customer_value},
+            ).first()
+            if not customer_row:
+                errors.append(f"row {row_no}: customer not found: {customer_value}")
+            else:
+                customer = _row(customer_row)
+                customer_id = str(customer.get("customer_id") or "")
+                customer_name = str(customer.get("formal_name") or "")
+        prepared.append({
+            "id": candidate_id,
+            "action": action,
+            "customer": customer_id,
+            "customer_name": customer_name,
+            "comment": str(row.get("review_comment") or "").strip(),
+        })
+
+    if errors:
+        raise ValueError("CSV validation failed: " + " | ".join(errors[:20]))
+    if not prepared:
+        raise ValueError("CSV contains no candidate rows")
+
+    stamp = now()
+    try:
+        for item in prepared:
+            db.execute(text(f"""UPDATE {CANDIDATE_TABLE}
+              SET matched_customer_id=:customer,matched_customer_name=:customer_name,
+                  resolution_action=:action,review_comment=:comment,reviewer=:reviewer,
+                  updated_at=:stamp WHERE id=:id"""), {
+                **item, "reviewer": reviewer, "stamp": stamp,
+            })
+            db.execute(text(f"""INSERT INTO {AUDIT_TABLE}
+              (candidate_id,actor,action,detail,created_at)
+              VALUES(:id,:actor,'IMPORT_REVIEW_CSV',:detail,:stamp)"""), {
+                "id": item["id"], "actor": reviewer,
+                "detail": f"action={item['action']}; customer_id={item['customer']}",
+                "stamp": stamp,
+            })
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return {"updated": len(prepared), "errors": []}
 
 
 def resolve_candidate(db: Session, candidate_id: str, action: str, reviewer: str, customer_id: str = "", comment: str = "") -> dict[str, Any]:

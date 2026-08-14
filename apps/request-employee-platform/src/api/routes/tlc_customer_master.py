@@ -26,6 +26,14 @@ async def import_records(request:Request,db:Session=Depends(get_db)):
  except ValueError as e:
   db.rollback()
   raise HTTPException(400,str(e)) from e
+@router.post('/api/tlc-customers/import-todokedl')
+async def import_todokedl_records(request:Request,db:Session=Depends(get_db)):
+ try:
+  form=await request.form();upload=form.get('file')
+  if upload is None or not hasattr(upload,'read'):raise ValueError('file is required')
+  return import_todokedl_csv(db,await upload.read())
+ except ValueError as e:
+  db.rollback();raise HTTPException(400,str(e)) from e
 @router.get('/api/tlc-customers/export.csv')
 def export_records(query:str='',customer_id:str='',formal_name:str='',katakana_name:str='',katakana_name_short:str='',delivery_name_1:str='',delivery_name_2:str='',phone_number:str='',postal_code:str='',address:str='',status_code:str='',source_system:str='',include_inactive:bool=True,db:Session=Depends(get_db)):
  data=_list(db,query=query,customer_id=customer_id,formal_name=formal_name,katakana_name=katakana_name,katakana_name_short=katakana_name_short,delivery_name_1=delivery_name_1,delivery_name_2=delivery_name_2,phone_number=phone_number,postal_code=postal_code,address=address,status_code=status_code,source_system=source_system,include_inactive=include_inactive,limit=0)

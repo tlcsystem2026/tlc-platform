@@ -1,12 +1,13 @@
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from sqlalchemy.orm import Session
 
 from src.db.session import get_db
 from src.services.tlc_bank_remitter_candidate_service import (
-    latest_batch, list_candidates, resolve_candidate, run_extraction_from_csv,
+    export_review_csv, import_review_csv, latest_batch, list_candidates,
+    resolve_candidate, run_extraction_from_csv,
 )
 
 router = APIRouter(tags=["tlc-bank-remitter-candidate"])
@@ -37,10 +38,28 @@ def latest(bank_code: str = "", db: Session = Depends(get_db)):
 
 @router.get("/api/bank-remitter-candidates")
 def candidates(business_month: str = "", status: str = "", batch_id: str = "",
-               limit: int = Query(5000, ge=1, le=10000), db: Session = Depends(get_db)):
+               limit: int = Query(5000, ge=0, le=10000), db: Session = Depends(get_db)):
     try:
         return list_candidates(db, business_month, status, batch_id, limit)
     except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@router.get("/api/bank-remitter-candidates/export.csv")
+def export_candidates(status: str = "", batch_id: str = "", db: Session = Depends(get_db)):
+    data = export_review_csv(list_candidates(db, status=status, batch_id=batch_id, limit=0))
+    return Response(
+        data,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": "attachment; filename=bank_remitter_candidates.csv"},
+    )
+
+
+@router.post("/api/bank-remitter-candidates/import.csv")
+async def import_candidates(request: Request, actor: str = "", db: Session = Depends(get_db)):
+    try:
+        return import_review_csv(db, await request.body(), actor)
+    except (UnicodeDecodeError, ValueError) as exc:
         raise HTTPException(400, str(exc)) from exc
 
 
