@@ -133,17 +133,13 @@ def list_pending_reviews(
     keyword: str = "",
     customer_id: str = "",
     customer_name: str = "",
-    limit: int = 0,
+    limit: int = 200,
 ) -> list[dict[str, Any]]:
     ensure_pending_review_table(db)
     ensure_customer_master_table(db)
-    requested_limit = int(limit or 0)
+    limit = min(max(int(limit), 1), 1000)
     clauses: list[str] = []
-    params: dict[str, Any] = {}
-    limit_sql = ""
-    if requested_limit > 0:
-        params["limit"] = requested_limit
-        limit_sql = " LIMIT :limit"
+    params: dict[str, Any] = {"limit": limit}
     if status:
         clauses.append("p.status=:status")
         params["status"] = status
@@ -159,10 +155,10 @@ def list_pending_reviews(
           c.katakana_name_short LIKE :customer_name OR
           c.short_name LIKE :customer_name OR
           c.delivery_name_1 LIKE :customer_name OR
-          c.delivery_name_2 LIKE :customer_name OR
-          c.alias_1 LIKE :customer_name OR c.alias_2 LIKE :customer_name OR
-          c.alias_3 LIKE :customer_name OR c.alias_4 LIKE :customer_name OR
-          c.alias_5 LIKE :customer_name
+          c.delivery_name_2 LIKE :customer_name OR EXISTS (
+            SELECT 1 FROM tlc_customer_name_identity ni
+            WHERE ni.customer_record_id=c.id AND ni.active=1
+              AND ni.name_value LIKE :customer_name)
         )""")
         params["customer_name"] = f"%{customer_name}%"
     if keyword:
@@ -184,12 +180,12 @@ def list_pending_reviews(
             "c.delivery_name_1", "c.delivery_name_2", "c.postal_code",
             "c.address_1", "c.address_2", "c.phone_number", "c.email_address",
             "c.jis_municipality_code", "c.shipper_code",
-            "c.alias_1", "c.alias_2", "c.alias_3", "c.alias_4", "c.alias_5",
             "c.status_code", "c.note", "c.source_system",
         ]
+        identity_names = "EXISTS (SELECT 1 FROM tlc_customer_name_identity ni WHERE ni.customer_record_id=c.id AND ni.active=1 AND ni.name_value LIKE :keyword)"
         clauses.append("(" + " OR ".join(
             f"CAST({column} AS TEXT) LIKE :keyword" for column in searchable
-        ) + ")")
+        ) + " OR " + identity_names + ")")
         params["keyword"] = f"%{keyword}%"
     where = "WHERE " + " AND ".join(clauses) if clauses else ""
     rows = db.execute(text(f"""
@@ -201,16 +197,14 @@ def list_pending_reviews(
              c.short_name AS master_short_name,
              c.delivery_name_1 AS master_delivery_name_1,
              c.delivery_name_2 AS master_delivery_name_2,
-             c.alias_1 AS master_alias_1,
-             c.alias_2 AS master_alias_2,
-             c.alias_3 AS master_alias_3,
-             c.alias_4 AS master_alias_4,
-             c.alias_5 AS master_alias_5
+             (SELECT GROUP_CONCAT(ni.name_value,' / ') FROM tlc_customer_name_identity ni
+               WHERE ni.customer_record_id=c.id AND ni.active=1 AND ni.name_type<>'FORMAL') AS master_alias_1,
+             '' AS master_alias_2,'' AS master_alias_3,'' AS master_alias_4,'' AS master_alias_5
       FROM {TABLE_NAME} p
       LEFT JOIN tlc_customer_master c ON c.customer_id=p.customer_id
       {where}
       ORDER BY p.created_at DESC
-      {limit_sql}
+      LIMIT :limit
     """), params).all()
     return [_row_to_dict(row) for row in rows]
 

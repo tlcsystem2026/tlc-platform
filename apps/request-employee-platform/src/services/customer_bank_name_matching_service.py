@@ -19,11 +19,6 @@ MATCH_FIELDS = (
     "hiragana_name",
     "katakana_name",
     "short_name",
-    "alias_1",
-    "alias_2",
-    "alias_3",
-    "alias_4",
-    "alias_5",
 )
 
 CORPORATE_TOKENS = (
@@ -116,6 +111,26 @@ def match_customer_by_bank_counterparty(
             status="UNMATCHED",
             counterparty=str(counterparty or ""),
             normalized_counterparty="",
+        )
+
+    # The identity table is authoritative. Legacy Alias1..Alias5 are only a
+    # compatibility fallback until their database columns can be removed.
+    from src.services.tlc_customer_name_identity_service import match_name
+    identity = match_name(db, counterparty)
+    if identity.get("match_status") == "MATCHED":
+        candidate = {
+            "customer_id": identity["customer_id"],
+            "customer_record_id": identity["customer_record_id"],
+            "matched_field": "NAME_IDENTITY_" + identity["name_type"],
+            "matched_value": identity["matched_value"],
+        }
+        return CustomerNameMatch(
+            status="MATCHED", counterparty=str(counterparty or ""),
+            normalized_counterparty=normalized_counterparty,
+            customer_id=candidate["customer_id"],
+            customer_record_id=candidate["customer_record_id"],
+            matched_field=candidate["matched_field"],
+            matched_value=candidate["matched_value"], candidates=[candidate],
         )
 
     matches: list[dict[str, str]] = []

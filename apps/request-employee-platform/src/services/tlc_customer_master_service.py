@@ -17,7 +17,8 @@ EXTRA_COLUMNS={
 "jis_municipality_code":"VARCHAR(64) NOT NULL DEFAULT ''","shipping_notice_email_flag":"VARCHAR(64) NOT NULL DEFAULT ''",
 "shipper_code":"VARCHAR(128) NOT NULL DEFAULT ''","source_system":"VARCHAR(128) NOT NULL DEFAULT ''","source_updated_at":"VARCHAR(64) NOT NULL DEFAULT ''"}
 TODOKEDL={"お届け先コード":"customer_id","郵便番号":"postal_code","お届け先名称１":"delivery_name_1","お届け先名称２":"delivery_name_2","お届け先住所１":"address_1","お届け先住所２":"address_2","お届け先電話番号":"phone_number","カナ名称":"katakana_name_short","お届け先Eメールアドレス":"email_address","JIS市町村コード":"jis_municipality_code","出荷通知メール希望区分":"shipping_notice_email_flag","荷送人コード":"shipper_code"}
-ALL_FIELDS=["id","customer_id","formal_name","hiragana_name","katakana_name","katakana_name_short","short_name","delivery_name_1","delivery_name_2","postal_code","address_1","address_2","phone_number","email_address","jis_municipality_code","shipping_notice_email_flag","shipper_code","alias_1","alias_2","alias_3","alias_4","alias_5","normalized_formal_name","status_code","active","note","source_system","source_updated_at","created_at","updated_at"]
+LEGACY_ALIAS_FIELDS=("alias_1","alias_2","alias_3","alias_4","alias_5")
+ALL_FIELDS=["id","customer_id","formal_name","hiragana_name","katakana_name","katakana_name_short","short_name","delivery_name_1","delivery_name_2","postal_code","address_1","address_2","phone_number","email_address","jis_municipality_code","shipping_notice_email_flag","shipper_code","normalized_formal_name","status_code","active","note","source_system","source_updated_at","created_at","updated_at"]
 
 def normalize_customer_name(v:str)->str:
     s=unicodedata.normalize("NFKC",str(v or "")).casefold();s=re.sub(r"\s+","",s)
@@ -75,7 +76,6 @@ def ensure_customer_master_table(db:Session)->None:
     db.execute(text(f'''CREATE TABLE IF NOT EXISTS {TABLE_NAME}(
       id VARCHAR(64) PRIMARY KEY,customer_id VARCHAR(128) NOT NULL UNIQUE,formal_name VARCHAR(500) NOT NULL DEFAULT '',
       hiragana_name VARCHAR(500) NOT NULL DEFAULT '',katakana_name VARCHAR(500) NOT NULL DEFAULT '',short_name VARCHAR(500) NOT NULL DEFAULT '',
-      alias_1 VARCHAR(500) NOT NULL DEFAULT '',alias_2 VARCHAR(500) NOT NULL DEFAULT '',alias_3 VARCHAR(500) NOT NULL DEFAULT '',alias_4 VARCHAR(500) NOT NULL DEFAULT '',alias_5 VARCHAR(500) NOT NULL DEFAULT '',
       normalized_formal_name VARCHAR(500) NOT NULL DEFAULT '',status_code VARCHAR(128) NOT NULL DEFAULT 'ACTIVE',active INTEGER NOT NULL DEFAULT 1,
       note TEXT NOT NULL DEFAULT '',created_at VARCHAR(64) NOT NULL,updated_at VARCHAR(64) NOT NULL)'''))
     existing={r._mapping['name'] for r in db.execute(text(f"PRAGMA table_info({TABLE_NAME})")).all()}
@@ -97,23 +97,42 @@ def _row(r:Any)->dict[str,Any]:
     x=dict(r._mapping if hasattr(r,'_mapping') else r);x['active']=bool(x.get('active',0));return x
 
 def list_customers(db:Session,query:str='',customer_id:str='',formal_name:str='',katakana_name:str='',katakana_name_short:str='',delivery_name_1:str='',delivery_name_2:str='',phone_number:str='',postal_code:str='',address:str='',status_code:str='',source_system:str='',include_inactive:bool=True,limit:int=0)->list[dict[str,Any]]:
-    ensure_customer_master_table(db);clauses=[];p={}
+    ensure_customer_master_table(db)
+    from src.services.tlc_customer_name_identity_service import ensure_schema as ensure_name_identity_schema
+    ensure_name_identity_schema(db);clauses=[];p={}
     if query:
         searchable=[c for c in ALL_FIELDS if c not in {'active'}]
-        clauses.append("("+" OR ".join(f"CAST({c} AS TEXT) LIKE :q" for c in searchable)+")");p['q']=f'%{query}%'
+        legacy=" OR ".join(f"CAST({c} AS TEXT) LIKE :q" for c in searchable)
+        identity=("EXISTS (SELECT 1 FROM tlc_customer_name_identity ni "
+                  f"WHERE ni.customer_record_id={TABLE_NAME}.id AND ni.active=1 "
+                  "AND ni.name_value LIKE :q)")
+        clauses.append("("+legacy+" OR "+identity+")");p['q']=f'%{query}%'
     for c,v in {'customer_id':customer_id,'formal_name':formal_name,'katakana_name':katakana_name,'katakana_name_short':katakana_name_short,'delivery_name_1':delivery_name_1,'delivery_name_2':delivery_name_2,'phone_number':phone_number,'postal_code':postal_code,'source_system':source_system}.items():
         if v:clauses.append(f"{c} LIKE :{c}");p[c]=f'%{v}%'
     if address:clauses.append('(address_1 LIKE :address OR address_2 LIKE :address)');p['address']=f'%{address}%'
     if status_code:clauses.append('status_code=:status_code');p['status_code']=status_code
     if not include_inactive:clauses.append('active=1')
     where='WHERE '+' AND '.join(clauses) if clauses else ''
-    sql=f"SELECT * FROM {TABLE_NAME} {where} ORDER BY customer_id"
+    sql=f"""SELECT {TABLE_NAME}.*,
+      COALESCE((SELECT GROUP_CONCAT(ni.name_value,' / ')
+        FROM tlc_customer_name_identity ni
+        WHERE ni.customer_record_id={TABLE_NAME}.id AND ni.active=1
+          AND ni.name_type<>'FORMAL'),'') AS registered_names
+      FROM {TABLE_NAME} {where} ORDER BY customer_id"""
     if int(limit or 0)>0:
         p['limit']=int(limit);sql+=' LIMIT :limit'
     return [_row(r) for r in db.execute(text(sql),p).all()]
 
 def get_customer(db:Session,record_id:str):
-    ensure_customer_master_table(db);r=db.execute(text(f"SELECT * FROM {TABLE_NAME} WHERE id=:id"),{'id':record_id}).first();return _row(r) if r else None
+    ensure_customer_master_table(db)
+    from src.services.tlc_customer_name_identity_service import ensure_schema as ensure_name_identity_schema
+    ensure_name_identity_schema(db)
+    r=db.execute(text(f"""SELECT {TABLE_NAME}.*,
+      COALESCE((SELECT GROUP_CONCAT(ni.name_value,' / ')
+        FROM tlc_customer_name_identity ni
+        WHERE ni.customer_record_id={TABLE_NAME}.id AND ni.active=1
+          AND ni.name_type<>'FORMAL'),'') AS registered_names
+      FROM {TABLE_NAME} WHERE id=:id"""),{'id':record_id}).first();return _row(r) if r else None
 
 def save_customer(db:Session,payload:dict[str,Any]):
     ensure_customer_master_table(db);cid=str(payload.get('customer_id','')).strip();formal=str(payload.get('formal_name','')).strip()
@@ -121,7 +140,9 @@ def save_customer(db:Session,payload:dict[str,Any]):
     if not formal:raise ValueError('formal_name is required for manual maintenance')
     rid=str(payload.get('id','')).strip();now=datetime.now(timezone.utc).isoformat()
     formal_name_unique_key=_assert_formal_name_unique(db,formal,rid)
-    cols=['customer_id','formal_name','hiragana_name','katakana_name','katakana_name_short','short_name','delivery_name_1','delivery_name_2','postal_code','address_1','address_2','phone_number','email_address','jis_municipality_code','shipping_notice_email_flag','shipper_code','alias_1','alias_2','alias_3','alias_4','alias_5','status_code','note','source_system','source_updated_at']
+    legacy_alias_supplied=any(c in payload for c in LEGACY_ALIAS_FIELDS)
+    legacy_aliases=[str(payload.get(c,'') or '').strip() for c in LEGACY_ALIAS_FIELDS]
+    cols=['customer_id','formal_name','hiragana_name','katakana_name','katakana_name_short','short_name','delivery_name_1','delivery_name_2','postal_code','address_1','address_2','phone_number','email_address','jis_municipality_code','shipping_notice_email_flag','shipper_code','status_code','note','source_system','source_updated_at']
     p={c:str(payload.get(c,'') or '').strip() for c in cols};p.update({'customer_id':cid,'formal_name':formal,'normalized_formal_name':normalize_customer_name(formal),'formal_name_unique_key':formal_name_unique_key,'active':1 if payload.get('active',True) else 0,'updated_at':now})
     allcols=cols+['normalized_formal_name','formal_name_unique_key','active','updated_at']
     if rid:
@@ -129,7 +150,22 @@ def save_customer(db:Session,payload:dict[str,Any]):
         if r.rowcount==0:raise LookupError('Customer not found')
     else:
         rid=uuid4().hex;p.update({'id':rid,'created_at':now});ins=['id']+allcols+['created_at'];db.execute(text(f"INSERT INTO {TABLE_NAME} ({','.join(ins)}) VALUES ({','.join(':'+c for c in ins)})"),p)
-    db.commit();return get_customer(db,rid)
+    db.commit()
+    result=get_customer(db,rid)
+    from src.services.tlc_customer_name_identity_service import synchronize_customer
+    synchronize_customer(db,result,actor=str(payload.get('updated_by','SYSTEM') or 'SYSTEM'))
+    if legacy_alias_supplied:
+        from src.services.tlc_customer_name_identity_service import register_name
+        db.execute(text("""UPDATE tlc_customer_name_identity SET active=0,updated_at=:stamp
+          WHERE customer_record_id=:record AND source_system='LEGACY_API_COMPAT' AND active=1"""),
+                   {'stamp':now,'record':result['id']})
+        db.commit()
+        for alias in legacy_aliases:
+            if alias:
+                register_name(db,customer_record_id=result['id'],customer_id=result['customer_id'],
+                              name_value=alias,name_type='HISTORICAL',source_system='LEGACY_API_COMPAT',
+                              actor=str(payload.get('updated_by','SYSTEM') or 'SYSTEM'))
+    return result
 
 def _decode(raw:bytes)->str:
     for enc in ('utf-8-sig','utf-8','cp932','shift_jis'):
@@ -156,7 +192,6 @@ def import_todokedl_csv(db:Session,raw:bytes)->dict[str,Any]:
             p={f:'' for f in ALL_FIELDS if f not in ('active',)};p.update(vals);p.update({'id':uuid4().hex,'customer_id':cid,'status_code':'ACTIVE','active':1,'note':'正式名称待维护','created_at':now,'updated_at':now})
             cols=[c for c in ALL_FIELDS if c in p];db.execute(text(f"INSERT INTO {TABLE_NAME} ({','.join(cols)}) VALUES ({','.join(':'+c for c in cols)})"),p);inserted+=1
     db.commit();return {'inserted':inserted,'updated':updated,'skipped':skipped,'errors':errors,'source_system':'TODOKEDL'}
-
 
 def import_todokedl_csv_base64(db:Session,encoded_csv:str)->dict[str,int]:
     """Backward-compatible, atomic wrapper for the original JSON contract."""

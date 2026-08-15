@@ -388,6 +388,10 @@ def _match_customer(db: Session, raw_name: str) -> tuple[str, str, str]:
         return "", "", "UNMATCHED"
 
     normalized_raw = _normalize(raw_name)
+    from src.services.tlc_customer_name_identity_service import match_name
+    identity = match_name(db, raw_name)
+    if identity.get("match_status") == "MATCHED":
+        return identity["customer_id"], identity["customer_name"], "MATCHED"
 
     for table_name in (
         "tlc_customer",
@@ -424,11 +428,6 @@ def _match_customer(db: Session, raw_name: str) -> tuple[str, str, str]:
                         "short_name",
                         "delivery_name_1",
                         "delivery_name_2",
-                        "alias_1",
-                        "alias_2",
-                        "alias_3",
-                        "alias_4",
-                        "alias_5",
                     )
                     if column in columns
                 ]

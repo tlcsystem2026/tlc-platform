@@ -176,4 +176,9 @@ app.include_router(tlc_customer_candidate_router)
 from src.services.tlc_global_dashboard_navigation_service import install_global_dashboard_navigation
 
 install_global_dashboard_navigation(app)
+from src.api.routes.tlc_customer_name_identity import router as tlc_customer_name_identity_router  # TLC_CUSTOMER_NAME_IDENTITY_CENTER_R1
+app.include_router(tlc_customer_name_identity_router)
 
+
+from src.api.routes.tlc_customer_identity_audit import router as tlc_customer_identity_audit_router  # TLC_CUSTOMER_IDENTITY_AUDIT_CONFLICT_CENTER_R1
+app.include_router(tlc_customer_identity_audit_router)

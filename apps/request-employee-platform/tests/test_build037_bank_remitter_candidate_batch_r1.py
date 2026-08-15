@@ -38,7 +38,11 @@ def test_extracts_credit_remitters_by_month_and_adds_alias(tmp_path):
     result = resolve_candidate(db, rows[0]["id"], "ADD_ALIAS", "tester", customer["customer_id"])
     assert result["review_status"] == "RESOLVED"
     alias = db.execute(text("SELECT alias_1 FROM tlc_customer_master WHERE id=:id"), {"id": customer["id"]}).scalar_one()
-    assert alias == "EXAMPLE PAY"
+    assert alias == ""
+    identity = db.execute(text("""SELECT name_value,name_type FROM tlc_customer_name_identity
+      WHERE customer_record_id=:id AND active=1 AND name_type='BANK_REMITTER'"""), {"id": customer["id"]}).one()
+    assert identity.name_value == "EXAMPLE PAY"
+    assert identity.name_type == "BANK_REMITTER"
 
 
 def test_page_routes_permissions_and_dashboard_contracts():

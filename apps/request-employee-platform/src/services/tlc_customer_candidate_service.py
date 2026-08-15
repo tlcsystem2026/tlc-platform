@@ -29,6 +29,11 @@ from src.services.tlc_customer_master_service import (
     normalize_formal_name_unique_key,
     save_customer,
 )
+from src.services.tlc_customer_name_identity_service import (
+    backfill_customer_names,
+    match_name,
+    register_name,
+)
 
 BATCH_TABLE = "tlc_customer_candidate_batch"
 CANDIDATE_TABLE = "tlc_customer_import_candidate"
@@ -104,13 +109,22 @@ def _match_customer(name: str, customers: list[dict[str, Any]]) -> dict[str, Any
     for customer in customers:
         if normalize_formal_name_unique_key(customer.get("formal_name", "")) == exact_key:
             return {"customer": customer, "type": "FORMAL_NAME_EXACT", "score": 100}
-    fields = ("delivery_name_1", "delivery_name_2", "alias_1", "alias_2", "alias_3", "alias_4", "alias_5")
+    fields = ("delivery_name_1", "delivery_name_2")
     for customer in customers:
         for field in fields:
             value = str(customer.get(field, "") or "")
             if value and normalize_customer_name(value) == loose_key:
                 return {"customer": customer, "type": field.upper(), "score": 95}
     return {"customer": {}, "type": "", "score": 0}
+
+
+def _match_customer_identity(db: Session, name: str, customers: list[dict[str, Any]]) -> dict[str, Any]:
+    backfill_customer_names(db)
+    identity = match_name(db, name)
+    if identity.get("match_status") == "MATCHED":
+        customer = next((row for row in customers if row.get("id") == identity["customer_record_id"]), {})
+        return {"customer": customer, "type": "NAME_IDENTITY_" + identity["name_type"], "score": 100}
+    return _match_customer(name, customers)
 
 
 def _incoming_directory(business_month: str) -> Path:
@@ -180,7 +194,7 @@ def run_extraction(db: Session, business_month: str, source_batch_id: str = "", 
        "directory": str(incoming),
        "rows": scanned_pairs, "stamp": stamp})
     for key, item in grouped.items():
-        match = _match_customer(item["formal"], customers)
+        match = _match_customer_identity(db, item["formal"], customers)
         customer = match["customer"]
         status = "MATCHED" if customer else "WAIT_REVIEW"
         matched += 1 if customer else 0
@@ -229,14 +243,9 @@ def latest_batch(db: Session, business_month: str = "") -> dict[str, Any]:
     return _row(row) if row else {}
 
 
-def list_candidates(db: Session, business_month: str = "", status: str = "", batch_id: str = "", limit: int = 0) -> list[dict[str, Any]]:
+def list_candidates(db: Session, business_month: str = "", status: str = "", batch_id: str = "", limit: int = 1000) -> list[dict[str, Any]]:
     ensure_schema(db)
-    clauses, params = [], {}
-    requested_limit = int(limit or 0)
-    limit_sql = ""
-    if requested_limit > 0:
-        params["limit"] = requested_limit
-        limit_sql = " LIMIT :limit"
+    clauses, params = [], {"limit": min(max(int(limit), 1), 5000)}
     if business_month:
         clauses.append("business_month=:month"); params["month"] = re.sub(r"\D", "", business_month)
     if status:
@@ -244,7 +253,7 @@ def list_candidates(db: Session, business_month: str = "", status: str = "", bat
     if batch_id:
         clauses.append("candidate_batch_id=:batch"); params["batch"] = batch_id.strip()
     where = "WHERE " + " AND ".join(clauses) if clauses else ""
-    return [_row(row) for row in db.execute(text(f"SELECT * FROM {CANDIDATE_TABLE} {where} ORDER BY created_at DESC,id{limit_sql}"), params).all()]
+    return [_row(row) for row in db.execute(text(f"SELECT * FROM {CANDIDATE_TABLE} {where} ORDER BY created_at DESC,id LIMIT :limit"), params).all()]
 
 
 def resolve_candidate(db: Session, candidate_id: str, action: str, reviewer: str, comment: str = "", customer_id: str = "", formal_name: str = "") -> dict[str, Any]:
@@ -265,15 +274,24 @@ def resolve_candidate(db: Session, candidate_id: str, action: str, reviewer: str
         matched_id, matched_code, matched_name = target
         status = "IMPORTED"
         imported_id = str(matched_id)
+        register_name(db, customer_record_id=str(matched_id), customer_id=str(matched_code),
+                      name_value=candidate["raw_customer_name"], name_type="REQUEST_NAME",
+                      source_system="REQUEST_CUSTOMER_CANDIDATE", actor=reviewer)
     elif action == "CREATE_NEW":
         code = customer_id.strip() or ("CUST-CAND-" + uuid4().hex[:10].upper())
         name = formal_name.strip() or candidate["suggested_formal_name"]
         created = save_customer(db, {"customer_id": code, "formal_name": name,
-                                    "alias_1": candidate["raw_customer_name"],
                                     "source_system": "REQUEST_CUSTOMER_CANDIDATE",
                                     "note": "Created from request customer candidate"})
         imported_id, matched_id = created["id"], created["id"]
         matched_code, matched_name = created["customer_id"], created["formal_name"]
+        register_name(db, customer_record_id=created["id"], customer_id=created["customer_id"],
+                      name_value=created["formal_name"], name_type="FORMAL",
+                      source_system="REQUEST_CUSTOMER_CANDIDATE", actor=reviewer)
+        if normalize_identity_name := candidate.get("raw_customer_name"):
+            register_name(db, customer_record_id=created["id"], customer_id=created["customer_id"],
+                          name_value=normalize_identity_name, name_type="REQUEST_NAME",
+                          source_system="REQUEST_CUSTOMER_CANDIDATE", actor=reviewer)
         status = "IMPORTED"
     elif action == "REJECT":
         status = "REJECTED"

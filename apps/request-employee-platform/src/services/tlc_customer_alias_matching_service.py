@@ -24,11 +24,6 @@ FIELD_CANDIDATES = {
     "hiragana_name": ("hiragana_name", "hiragana"),
     "katakana_name": ("katakana_name", "katakana"),
     "short_name": ("short_name", "abbreviation", "abbr_name"),
-    "alias_1": ("alias_1", "alias1"),
-    "alias_2": ("alias_2", "alias2"),
-    "alias_3": ("alias_3", "alias3"),
-    "alias_4": ("alias_4", "alias4"),
-    "alias_5": ("alias_5", "alias5"),
     "active": ("active", "is_active"),
     "status_code": ("status_code", "status"),
 }
@@ -163,11 +158,6 @@ def _build_index(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
     index: dict[str, list[dict[str, Any]]] = {}
     ordered_fields = [
         ("formal_name", "EXACT", 100),
-        ("alias_1", "ALIAS", 98),
-        ("alias_2", "ALIAS", 98),
-        ("alias_3", "ALIAS", 98),
-        ("alias_4", "ALIAS", 98),
-        ("alias_5", "ALIAS", 98),
         ("short_name", "SHORT_NAME", 95),
         ("katakana_name", "KATAKANA", 94),
         ("hiragana_name", "HIRAGANA", 93),
@@ -206,6 +196,22 @@ def match_customer_name(
     raw_name = str(raw_name or "").strip()
     if not raw_name:
         raise ValueError("raw_name is required")
+
+    from src.services.tlc_customer_name_identity_service import backfill_customer_names, match_name
+    backfill_customer_names(db)
+    identity = match_name(db, raw_name)
+    if identity.get("match_status") == "MATCHED":
+        result = {
+            "raw_name": raw_name, "normalized_name": normalize_customer_name(raw_name),
+            "match_status": "MATCHED", "match_level": "NAME_IDENTITY",
+            "customer_id": identity["customer_id"], "customer_name": identity["customer_name"],
+            "matched_field": identity["name_type"], "matched_value": identity["matched_value"],
+            "match_score": 100, "candidate_count": 1, "candidates": [],
+            "manual_override": False, "identity_id": identity["identity_id"],
+            "customer_source_table": "tlc_customer_name_identity",
+        }
+        if not save_result:
+            return result
 
     table_name, mapping = _discover_customer_source(db)
     rows = _customer_rows(db, table_name, mapping)

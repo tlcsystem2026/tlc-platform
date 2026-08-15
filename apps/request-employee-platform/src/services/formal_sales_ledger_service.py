@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from src.services.request_pending_review_resolution_service import ensure_review_audit_table
 from src.services.request_pending_review_service import TABLE_NAME,get_pending_review
 from src.services.tlc_customer_master_service import ensure_customer_master_table
+from src.services.tlc_customer_name_identity_service import ensure_schema as ensure_customer_name_identity_schema
 
 LEDGER_TABLE="formal_sales_request_ledger"
 LEDGER_ADMIN_AUDIT_TABLE="formal_sales_ledger_admin_audit"
@@ -132,16 +133,12 @@ def list_sales_ledger(
     request_no:str="",
     status:str="",
     keyword:str="",
-    limit:int=0,
+    limit:int=500,
 ):
     ensure_sales_ledger_table(db)
     ensure_customer_master_table(db)
-    clauses=[]; p={}
-    requested_limit=int(limit or 0)
-    limit_sql=""
-    if requested_limit>0:
-        p["limit"]=requested_limit
-        limit_sql=" LIMIT :limit"
+    ensure_customer_name_identity_schema(db)
+    clauses=[]; p={"limit":min(max(int(limit),1),1000)}
     if customer_id:
         clauses.append("l.customer_id LIKE :customer_id");p["customer_id"]=f"%{customer_id}%"
     if customer_name:
@@ -150,9 +147,11 @@ def list_sales_ledger(
           c.formal_name LIKE :customer_name OR c.hiragana_name LIKE :customer_name OR
           c.katakana_name LIKE :customer_name OR c.katakana_name_short LIKE :customer_name OR
           c.short_name LIKE :customer_name OR c.delivery_name_1 LIKE :customer_name OR
-          c.delivery_name_2 LIKE :customer_name OR c.alias_1 LIKE :customer_name OR
-          c.alias_2 LIKE :customer_name OR c.alias_3 LIKE :customer_name OR
-          c.alias_4 LIKE :customer_name OR c.alias_5 LIKE :customer_name
+          c.delivery_name_2 LIKE :customer_name OR EXISTS (
+            SELECT 1 FROM tlc_customer_name_identity ni
+            WHERE ni.customer_record_id=c.id AND ni.active=1
+              AND ni.name_value LIKE :customer_name
+          )
         )""");p["customer_name"]=f"%{customer_name}%"
     if request_no:
         clauses.append("l.request_no LIKE :request_no");p["request_no"]=f"%{request_no}%"
@@ -170,12 +169,12 @@ def list_sales_ledger(
           "c.katakana_name_short","c.short_name","c.delivery_name_1",
           "c.delivery_name_2","c.postal_code","c.address_1","c.address_2",
           "c.phone_number","c.email_address","c.jis_municipality_code",
-          "c.shipper_code","c.alias_1","c.alias_2","c.alias_3","c.alias_4",
-          "c.alias_5","c.status_code","c.note","c.source_system",
+          "c.shipper_code","c.status_code","c.note","c.source_system",
         ]
+        master_names="EXISTS (SELECT 1 FROM tlc_customer_name_identity ni WHERE ni.customer_record_id=c.id AND ni.active=1 AND ni.name_value LIKE :keyword)"
         clauses.append("("+" OR ".join(
           f"CAST({column} AS TEXT) LIKE :keyword" for column in searchable
-        )+")");p["keyword"]=f"%{keyword}%"
+        )+" OR "+master_names+")");p["keyword"]=f"%{keyword}%"
     where="WHERE "+" AND ".join(clauses) if clauses else ""
     rows=db.execute(text(f"""
       SELECT l.*,
@@ -186,14 +185,14 @@ def list_sales_ledger(
              c.short_name AS master_short_name,
              c.delivery_name_1 AS master_delivery_name_1,
              c.delivery_name_2 AS master_delivery_name_2,
-             c.alias_1 AS master_alias_1,c.alias_2 AS master_alias_2,
-             c.alias_3 AS master_alias_3,c.alias_4 AS master_alias_4,
-             c.alias_5 AS master_alias_5
+             (SELECT GROUP_CONCAT(ni.name_value,' / ') FROM tlc_customer_name_identity ni
+               WHERE ni.customer_record_id=c.id AND ni.active=1 AND ni.name_type<>'FORMAL') AS master_alias_1,
+             '' AS master_alias_2,'' AS master_alias_3,'' AS master_alias_4,'' AS master_alias_5
       FROM {LEDGER_TABLE} l
       LEFT JOIN tlc_customer_master c ON c.customer_id=l.customer_id
       {where}
       ORDER BY l.posted_at DESC
-      {limit_sql}
+      LIMIT :limit
     """),p).all()
     return [_row(r) for r in rows]
 

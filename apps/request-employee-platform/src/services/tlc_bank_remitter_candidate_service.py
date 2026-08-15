@@ -20,6 +20,7 @@ from src.services.tlc_customer_alias_matching_service import (
     normalize_customer_name,
 )
 from src.services.tlc_customer_master_service import ensure_customer_master_table
+from src.services.tlc_customer_name_identity_service import register_name
 
 
 MARKER = "TLC_BANK_REMITTER_CANDIDATE_BATCH_R1"
@@ -402,7 +403,7 @@ def resolve_candidate(db: Session, candidate_id: str, action: str, reviewer: str
     if not reviewer:
         raise ValueError("reviewer is required")
     target_code = str(customer_id or candidate.get("matched_customer_id") or "").strip()
-    alias_field = ""
+    alias_field = "NAME_IDENTITY"
     if action in {"CONFIRM_MATCH", "ADD_ALIAS"}:
         customer_row = db.execute(text("SELECT * FROM tlc_customer_master WHERE id=:value OR customer_id=:value LIMIT 1"), {"value": target_code}).first()
         if not customer_row:
@@ -411,26 +412,9 @@ def resolve_candidate(db: Session, candidate_id: str, action: str, reviewer: str
         target_code = str(customer["customer_id"])
         if action == "ADD_ALIAS":
             remitter = str(candidate["raw_remitter_name"])
-            normalized = normalize_customer_name(remitter)
-            for row in db.execute(text("SELECT id,customer_id,alias_1,alias_2,alias_3,alias_4,alias_5 FROM tlc_customer_master WHERE active=1")).all():
-                existing = _row(row)
-                for field in ("alias_1", "alias_2", "alias_3", "alias_4", "alias_5"):
-                    value = str(existing.get(field) or "")
-                    if value and normalize_customer_name(value) == normalized and existing["id"] != customer["id"]:
-                        raise ValueError(f"Remitter alias is already assigned to customer {existing['customer_id']}")
-            for field in ("alias_1", "alias_2", "alias_3", "alias_4", "alias_5"):
-                value = str(customer.get(field) or "")
-                if value and normalize_customer_name(value) == normalized:
-                    alias_field = field
-                    break
-                if not value and not alias_field:
-                    alias_field = field
-            if not alias_field:
-                raise ValueError("Customer alias_1 through alias_5 are full")
-            if not str(customer.get(alias_field) or ""):
-                db.execute(text(f"UPDATE tlc_customer_master SET {alias_field}=:alias,updated_at=:stamp WHERE id=:id"), {
-                    "alias": remitter, "stamp": now(), "id": customer["id"],
-                })
+            register_name(db, customer_record_id=str(customer["id"]), customer_id=target_code,
+                          name_value=remitter, name_type="BANK_REMITTER",
+                          source_system="BANK_REMITTER_CANDIDATE", actor=reviewer)
     elif action != "IGNORE":
         raise ValueError("Unsupported resolution action")
     status = "IGNORED" if action == "IGNORE" else "RESOLVED"
