@@ -4,7 +4,9 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from src.db.session import get_db
-from src.services.tlc_customer_identity_audit_service import impact_preview, resolve_conflict, scan_conflicts
+from src.services.tlc_customer_identity_audit_service import (
+    backfill_missing_formal_identities, impact_preview, resolve_conflict, scan_conflicts,
+)
 
 router = APIRouter(tags=["customer-identity-audit"])
 
@@ -15,6 +17,15 @@ def page():
 @router.get("/api/customer-identity-audit/scan")
 def scan(db: Session=Depends(get_db)):
     return scan_conflicts(db)
+
+
+@router.post("/api/customer-identity-audit/backfill-formal")
+def backfill_formal(payload: dict, db: Session=Depends(get_db)):
+    try:
+        return backfill_missing_formal_identities(
+            db, str(payload.get("actor") or ""), str(payload.get("confirmation") or ""))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
 @router.get("/api/customer-identity-audit/{identity_id}/impact")
 def impact(identity_id: str, db: Session=Depends(get_db)):

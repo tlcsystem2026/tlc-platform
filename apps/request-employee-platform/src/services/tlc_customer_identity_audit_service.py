@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import sqlite3
+from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
@@ -8,7 +10,10 @@ from uuid import uuid4
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from src.services.tlc_customer_name_identity_service import AUDIT_TABLE, TABLE, ensure_schema
+from src.services.tlc_customer_name_identity_service import (
+    AUDIT_TABLE, TABLE, ensure_schema, normalize_identity_name,
+    resolve_language_code,
+)
 from src.services.tlc_customer_master_service import ensure_customer_master_table
 
 
@@ -66,6 +71,104 @@ def scan_conflicts(db: Session) -> dict[str, Any]:
             "ready_for_column_removal": blocking == 0 and not counts.get("MISSING_FORMAL_IDENTITY"),
             "counts": counts, "items": issues}
 
+
+
+FORMAL_BACKFILL_MARKER = "TLC_CUSTOMER_FORMAL_IDENTITY_BACKFILL_R1"
+FORMAL_BACKFILL_CONFIRMATION = "BACKFILL_FORMAL_IDENTITIES"
+
+
+def _backup_application_database(db: Session) -> str:
+    database_rows = db.execute(text("PRAGMA database_list")).all()
+    database_path = ""
+    for row in database_rows:
+        item = row._mapping
+        if str(item.get("name") or "") == "main":
+            database_path = str(item.get("file") or "")
+            break
+    if not database_path or database_path == ":memory:":
+        return "MEMORY_DATABASE_NO_FILE_BACKUP"
+    source_path = Path(database_path).resolve()
+    backup_dir = source_path.parent / "backups" / "customer-formal-identity"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    backup_path = backup_dir / ("before_formal_backfill_" + datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f") + ".db")
+    source = db.connection().connection.driver_connection
+    target = sqlite3.connect(str(backup_path))
+    try:
+        source.backup(target)
+    finally:
+        target.close()
+    return str(backup_path)
+
+
+def backfill_missing_formal_identities(db: Session, actor: str,
+                                       confirmation: str) -> dict[str, Any]:
+    actor = str(actor or "").strip()
+    if not actor:
+        raise ValueError("Actor is required")
+    if str(confirmation or "").strip() != FORMAL_BACKFILL_CONFIRMATION:
+        raise ValueError("Formal identity backfill confirmation is required")
+    _prepare(db)
+    backup_path = _backup_application_database(db)
+    missing = db.execute(text(f"""SELECT c.id,c.customer_id,c.formal_name
+      FROM tlc_customer_master c WHERE c.active=1
+      AND NOT EXISTS(SELECT 1 FROM {TABLE} i WHERE i.customer_record_id=c.id
+        AND i.active=1 AND i.name_type='FORMAL') ORDER BY c.customer_id""")).all()
+    created = promoted = skipped = 0
+    conflicts: list[dict[str, str]] = []
+    stamp = _now()
+    try:
+        for raw in missing:
+            customer = dict(raw._mapping)
+            name_value = str(customer.get("formal_name") or "").strip()
+            normalized = normalize_identity_name(name_value)
+            if not normalized:
+                skipped += 1
+                conflicts.append({"customer_id": str(customer["customer_id"]), "reason": "EMPTY_FORMAL_NAME"})
+                continue
+            existing = db.execute(text(f"SELECT * FROM {TABLE} WHERE normalized_name=:name AND active=1"),
+                                  {"name": normalized}).first()
+            if existing:
+                item = dict(existing._mapping)
+                if str(item["customer_record_id"]) != str(customer["id"]):
+                    conflicts.append({"customer_id": str(customer["customer_id"]),
+                                      "reason": "NAME_ASSIGNED_TO_OTHER_CUSTOMER",
+                                      "assigned_customer_id": str(item["customer_id"])})
+                    continue
+                db.execute(text(f"""UPDATE {TABLE} SET name_type='FORMAL',name_value=:value,
+                  language_code=:language,source_system='CUSTOMER_MASTER',created_by=:actor,updated_at=:stamp
+                  WHERE id=:id"""), {"value": name_value,
+                    "language": resolve_language_code(name_value, "auto"), "actor": actor,
+                    "stamp": stamp, "id": item["id"]})
+                db.execute(text(f"""INSERT INTO {AUDIT_TABLE}
+                  (id,identity_id,customer_id,action,actor,detail,created_at)
+                  VALUES(:id,:identity,:customer,'PROMOTE_FORMAL_IDENTITY',:actor,:detail,:stamp)"""),
+                  {"id": uuid4().hex, "identity": item["id"], "customer": customer["customer_id"],
+                   "actor": actor, "detail": name_value, "stamp": stamp})
+                promoted += 1
+                continue
+            identity_id = uuid4().hex
+            db.execute(text(f"""INSERT INTO {TABLE}(id,customer_record_id,customer_id,name_value,
+              normalized_name,name_type,language_code,source_system,active,created_by,created_at,updated_at)
+              VALUES(:id,:record,:customer,:value,:normalized,'FORMAL',:language,
+              'CUSTOMER_MASTER',1,:actor,:stamp,:stamp)"""), {
+                "id": identity_id, "record": customer["id"], "customer": customer["customer_id"],
+                "value": name_value, "normalized": normalized,
+                "language": resolve_language_code(name_value, "auto"), "actor": actor, "stamp": stamp})
+            db.execute(text(f"""INSERT INTO {AUDIT_TABLE}
+              (id,identity_id,customer_id,action,actor,detail,created_at)
+              VALUES(:id,:identity,:customer,'BACKFILL_FORMAL_IDENTITY',:actor,:detail,:stamp)"""),
+              {"id": uuid4().hex, "identity": identity_id, "customer": customer["customer_id"],
+               "actor": actor, "detail": name_value, "stamp": stamp})
+            created += 1
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    remaining = scan_conflicts(db)["counts"].get("MISSING_FORMAL_IDENTITY", 0)
+    return {"marker": FORMAL_BACKFILL_MARKER, "backup_path": backup_path,
+            "missing_before": len(missing), "created": created, "promoted": promoted,
+            "skipped": skipped, "conflict_count": len(conflicts),
+            "conflicts": conflicts[:20], "remaining": remaining}
 
 def impact_preview(db: Session, identity_id: str) -> dict[str, Any]:
     _prepare(db)
