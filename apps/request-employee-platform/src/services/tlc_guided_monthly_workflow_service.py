@@ -13,7 +13,7 @@ STEPS = [
     {"code":"BUSINESS_REVIEW","name":"请求书业务审核","path":"/requests/review-workbench","description":"审核金额、重复、取消、现收等业务内容；通过后自动登记正式销售台账。"},
     {"code":"SALES_LEDGER","name":"正式销售与统计","path":"/sales","description":"确认正式销售台账，并按月份、客户和税率查看销售统计。"},
     {"code":"BANK_IMPORT","name":"银行流水导入","path":"/bank-import","description":"按银行账户导入真实流水，检查日期、金额、重复数据和原始文件。"},
-    {"code":"CUSTOMER_MATCHING","name":"银行流水客户匹配","path":"/customer-recommended-matching-center","description":"执行客户别名、自动及推荐匹配，人工确认未匹配或歧义记录。"},
+    {"code":"CUSTOMER_MATCHING","name":"银行流水客户匹配","path":"/customer-recommended-matching-center","description":"执行客户名称、自动及推荐匹配，人工确认未匹配或歧义记录。"},
     {"code":"RECONCILIATION","name":"客户销售与入金对账","path":"/customer-payment-reconciliation","description":"核对销售、入金和差额，并在客户对账工作台完成确认与结转。"},
     {"code":"MONTHLY_CLOSE","name":"月结检查与签核","path":"/monthly-close-center","description":"完成异常检查、对账确认、月结授权、签核及跨月结转。"},
 ]
@@ -80,10 +80,10 @@ def guided_monthly_workflow(db:Session,*,business_month:str="")->dict[str,Any]:
         else:sales_count=_count(db,"formal_sales_request_ledger","WHERE status='ACTIVE' AND request_date LIKE :prefix",params)
 
     bank_transaction_count=_count(db,"bank_transaction_import","WHERE transaction_date LIKE :prefix",params)
-    alias_match_count=_count(db,"tlc_customer_alias_match_result","WHERE match_status IN ('MATCHED','OVERRIDDEN')")
+    name_match_count=_count(db,"tlc_customer_name_match_result","WHERE match_status IN ('MATCHED','OVERRIDDEN')")
     auto_match_count=_count(db,"tlc_customer_auto_match","WHERE status='MATCHED'")
     accepted_match_count=_count(db,"tlc_customer_recommended_match","WHERE status='ACCEPTED'")
-    matching_count=alias_match_count+auto_match_count+accepted_match_count
+    matching_count=name_match_count+auto_match_count+accepted_match_count
 
     snapshot_count=_count(db,"tlc_customer_reconciliation_snapshot","WHERE created_at LIKE :prefix",params)
     confirmed_reconciliation_count=_count(db,"tlc_customer_reconciliation_confirmation","WHERE status='CONFIRMED' AND confirmed_at LIKE :prefix",params)

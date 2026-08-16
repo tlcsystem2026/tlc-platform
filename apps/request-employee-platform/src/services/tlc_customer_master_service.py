@@ -17,7 +17,6 @@ EXTRA_COLUMNS={
 "jis_municipality_code":"VARCHAR(64) NOT NULL DEFAULT ''","shipping_notice_email_flag":"VARCHAR(64) NOT NULL DEFAULT ''",
 "shipper_code":"VARCHAR(128) NOT NULL DEFAULT ''","source_system":"VARCHAR(128) NOT NULL DEFAULT ''","source_updated_at":"VARCHAR(64) NOT NULL DEFAULT ''"}
 TODOKEDL={"お届け先コード":"customer_id","郵便番号":"postal_code","お届け先名称１":"delivery_name_1","お届け先名称２":"delivery_name_2","お届け先住所１":"address_1","お届け先住所２":"address_2","お届け先電話番号":"phone_number","カナ名称":"katakana_name_short","お届け先Eメールアドレス":"email_address","JIS市町村コード":"jis_municipality_code","出荷通知メール希望区分":"shipping_notice_email_flag","荷送人コード":"shipper_code"}
-LEGACY_ALIAS_FIELDS=("alias_1","alias_2","alias_3","alias_4","alias_5")
 ALL_FIELDS=["id","customer_id","formal_name","hiragana_name","katakana_name","katakana_name_short","short_name","delivery_name_1","delivery_name_2","postal_code","address_1","address_2","phone_number","email_address","jis_municipality_code","shipping_notice_email_flag","shipper_code","normalized_formal_name","status_code","active","note","source_system","source_updated_at","created_at","updated_at"]
 
 def normalize_customer_name(v:str)->str:
@@ -140,8 +139,6 @@ def save_customer(db:Session,payload:dict[str,Any]):
     if not formal:raise ValueError('formal_name is required for manual maintenance')
     rid=str(payload.get('id','')).strip();now=datetime.now(timezone.utc).isoformat()
     formal_name_unique_key=_assert_formal_name_unique(db,formal,rid)
-    legacy_alias_supplied=any(c in payload for c in LEGACY_ALIAS_FIELDS)
-    legacy_aliases=[str(payload.get(c,'') or '').strip() for c in LEGACY_ALIAS_FIELDS]
     cols=['customer_id','formal_name','hiragana_name','katakana_name','katakana_name_short','short_name','delivery_name_1','delivery_name_2','postal_code','address_1','address_2','phone_number','email_address','jis_municipality_code','shipping_notice_email_flag','shipper_code','status_code','note','source_system','source_updated_at']
     p={c:str(payload.get(c,'') or '').strip() for c in cols};p.update({'customer_id':cid,'formal_name':formal,'normalized_formal_name':normalize_customer_name(formal),'formal_name_unique_key':formal_name_unique_key,'active':1 if payload.get('active',True) else 0,'updated_at':now})
     allcols=cols+['normalized_formal_name','formal_name_unique_key','active','updated_at']
@@ -154,17 +151,7 @@ def save_customer(db:Session,payload:dict[str,Any]):
     result=get_customer(db,rid)
     from src.services.tlc_customer_name_identity_service import synchronize_customer
     synchronize_customer(db,result,actor=str(payload.get('updated_by','SYSTEM') or 'SYSTEM'))
-    if legacy_alias_supplied:
-        from src.services.tlc_customer_name_identity_service import register_name
-        db.execute(text("""UPDATE tlc_customer_name_identity SET active=0,updated_at=:stamp
-          WHERE customer_record_id=:record AND source_system='LEGACY_API_COMPAT' AND active=1"""),
-                   {'stamp':now,'record':result['id']})
-        db.commit()
-        for alias in legacy_aliases:
-            if alias:
-                register_name(db,customer_record_id=result['id'],customer_id=result['customer_id'],
-                              name_value=alias,name_type='HISTORICAL',source_system='LEGACY_API_COMPAT',
-                              actor=str(payload.get('updated_by','SYSTEM') or 'SYSTEM'))
+
     return result
 
 def _decode(raw:bytes)->str:

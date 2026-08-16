@@ -15,7 +15,7 @@ from src.services.multi_bank_csv_import_service import (
     ensure_bank_transaction_table,
     parse_bank_csv,
 )
-from src.services.tlc_customer_alias_matching_service import (
+from src.services.tlc_customer_name_matching_service import (
     match_customer_name,
     normalize_customer_name,
 )
@@ -52,7 +52,7 @@ def ensure_schema(db: Session) -> None:
       bank_codes TEXT NOT NULL DEFAULT '',matched_customer_id VARCHAR(255) NOT NULL DEFAULT '',
       matched_customer_name VARCHAR(500) NOT NULL DEFAULT '',match_status VARCHAR(32) NOT NULL DEFAULT 'WAIT_REVIEW',
       match_level VARCHAR(64) NOT NULL DEFAULT '',review_status VARCHAR(32) NOT NULL DEFAULT 'WAIT_REVIEW',
-      resolution_action VARCHAR(32) NOT NULL DEFAULT '',alias_field VARCHAR(32) NOT NULL DEFAULT '',
+      resolution_action VARCHAR(32) NOT NULL DEFAULT '',name_identity_field VARCHAR(32) NOT NULL DEFAULT '',
       reviewer VARCHAR(255) NOT NULL DEFAULT '',review_comment TEXT NOT NULL DEFAULT '',reviewed_at VARCHAR(64) NOT NULL DEFAULT '',
       created_at VARCHAR(64) NOT NULL,updated_at VARCHAR(64) NOT NULL,
       UNIQUE(candidate_batch_id,normalized_remitter_name))"""))
@@ -295,7 +295,7 @@ def import_review_csv(db: Session, raw: bytes, actor: str) -> dict[str, Any]:
     if missing:
         raise ValueError("Missing CSV columns: " + ", ".join(missing))
 
-    allowed_actions = {"", "CONFIRM_MATCH", "ADD_ALIAS", "IGNORE"}
+    allowed_actions = {"", "CONFIRM_MATCH", "REGISTER_REMITTER_NAME", "IGNORE"}
     prepared: list[dict[str, str]] = []
     seen: set[str] = set()
     errors: list[str] = []
@@ -327,7 +327,7 @@ def import_review_csv(db: Session, raw: bytes, actor: str) -> dict[str, Any]:
             errors.append(f"row {row_no}: unsupported resolution_action {action}")
         customer_value = str(row.get("matched_customer_id") or "").strip()
         customer_id = customer_name = ""
-        if action in {"CONFIRM_MATCH", "ADD_ALIAS"}:
+        if action in {"CONFIRM_MATCH", "REGISTER_REMITTER_NAME"}:
             if not customer_value:
                 errors.append(f"row {row_no}: matched_customer_id is required for {action}")
             else:
@@ -403,14 +403,14 @@ def resolve_candidate(db: Session, candidate_id: str, action: str, reviewer: str
     if not reviewer:
         raise ValueError("reviewer is required")
     target_code = str(customer_id or candidate.get("matched_customer_id") or "").strip()
-    alias_field = "NAME_IDENTITY"
-    if action in {"CONFIRM_MATCH", "ADD_ALIAS"}:
+    name_identity_field = "NAME_IDENTITY"
+    if action in {"CONFIRM_MATCH", "REGISTER_REMITTER_NAME"}:
         customer_row = db.execute(text("SELECT * FROM tlc_customer_master WHERE id=:value OR customer_id=:value LIMIT 1"), {"value": target_code}).first()
         if not customer_row:
             raise ValueError("Customer was not found")
         customer = _row(customer_row)
         target_code = str(customer["customer_id"])
-        if action == "ADD_ALIAS":
+        if action == "REGISTER_REMITTER_NAME":
             remitter = str(candidate["raw_remitter_name"])
             register_name(db, customer_record_id=str(customer["id"]), customer_id=target_code,
                           name_value=remitter, name_type="BANK_REMITTER",
@@ -420,14 +420,14 @@ def resolve_candidate(db: Session, candidate_id: str, action: str, reviewer: str
     status = "IGNORED" if action == "IGNORE" else "RESOLVED"
     stamp = now()
     db.execute(text(f"""UPDATE {CANDIDATE_TABLE} SET review_status=:status,resolution_action=:action,
-      matched_customer_id=:customer,alias_field=:alias_field,reviewer=:reviewer,review_comment=:comment,
+      matched_customer_id=:customer,name_identity_field=:name_identity_field,reviewer=:reviewer,review_comment=:comment,
       reviewed_at=:stamp,updated_at=:stamp WHERE id=:id"""), {
         "status": status, "action": action, "customer": target_code if action != "IGNORE" else "",
-        "alias_field": alias_field, "reviewer": reviewer, "comment": str(comment or ""), "stamp": stamp, "id": candidate_id,
+        "name_identity_field": name_identity_field, "reviewer": reviewer, "comment": str(comment or ""), "stamp": stamp, "id": candidate_id,
     })
     db.execute(text(f"INSERT INTO {AUDIT_TABLE}(candidate_id,actor,action,detail,created_at) VALUES(:id,:actor,:action,:detail,:stamp)"), {
         "id": candidate_id, "actor": reviewer, "action": action,
-        "detail": f"customer_id={target_code}; alias_field={alias_field}", "stamp": stamp,
+        "detail": f"customer_id={target_code}; name_identity_field={name_identity_field}", "stamp": stamp,
     })
     db.commit()
     return _row(db.execute(text(f"SELECT * FROM {CANDIDATE_TABLE} WHERE id=:id"), {"id": candidate_id}).first())

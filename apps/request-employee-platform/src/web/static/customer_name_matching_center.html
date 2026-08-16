@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Customer Alias Matching Center</title>
+<title>Customer Name Matching Center</title>
 <style>
 body{font-family:Arial,"Microsoft YaHei",sans-serif;margin:0;background:#f4f6f8;color:#222}
 header{background:#203b55;color:#fff;padding:20px 26px}
@@ -23,8 +23,8 @@ a.button{display:inline-block;text-decoration:none;color:#222;border:1px solid #
 </head>
 <body>
 <header>
-<h1>Customer Alias Matching Center</h1>
-<div>基于客户正式名称、读音、略称和 Alias1～Alias5 自动识别客户</div>
+<h1>Customer Name Matching Center</h1>
+<div>基于客户正式名称、读音、略称和已登记客户名称自动识别客户</div>
 </header>
 <main>
 <section class="card">
@@ -84,7 +84,7 @@ function renderResult(x){
 async function runMatch(){
  if(!rawName.value.trim()){alert("请输入摘要或对方名称");return}
  try{
-  const result=await jsonFetch("/api/tlc-customer-alias-matching/match",{
+  const result=await jsonFetch("/api/tlc-customer-name-matching/match",{
    method:"POST",headers:{"Content-Type":"application/json"},
    body:JSON.stringify({
     raw_name:rawName.value,
@@ -100,7 +100,7 @@ async function manualOverride(id){
  if(!customerId)return;
  const note=prompt("修正说明：","")||"";
  try{
-  await jsonFetch(`/api/tlc-customer-alias-matching/${id}/override`,{
+  await jsonFetch(`/api/tlc-customer-name-matching/${id}/override`,{
    method:"PUT",headers:{"Content-Type":"application/json"},
    body:JSON.stringify({customer_id:customerId,operator:operator.value,note})
   });
@@ -111,7 +111,7 @@ async function loadHistory(){
  const status=statusFilter.value;
  const query=status?`?status=${encodeURIComponent(status)}`:"";
  try{
-  const rows=await jsonFetch("/api/tlc-customer-alias-matching"+query);
+  const rows=await jsonFetch("/api/tlc-customer-name-matching"+query);
   history.innerHTML='<table><tr><th>时间</th><th>原始名称</th><th>标准化</th><th>状态</th><th>客户</th><th>等级</th><th>字段</th><th>候选</th><th>操作</th></tr>'+
    rows.map(x=>`<tr><td>${esc(x.created_at)}</td><td>${esc(x.raw_name)}</td><td>${esc(x.normalized_name)}</td><td class="${String(x.match_status).toLowerCase()}">${esc(x.match_status)}</td><td>${esc(x.customer_id)}<br>${esc(x.customer_name)}</td><td>${esc(x.match_level)}</td><td>${esc(x.matched_field)}<br>${esc(x.matched_value)}</td><td>${x.candidate_count}</td><td>${x.match_status!=="MATCHED"?`<button onclick="manualOverride('${x.id}')">人工指定</button>`:""}</td></tr>`).join("")+
    '</table>';

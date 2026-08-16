@@ -16,7 +16,7 @@ def test_remitter_candidate_has_customer_reference_picker():
     assert 'q.set("customer_id"' in page
     assert 'q.set("formal_name"' in page
     assert "delivery_name_1" in page
-    assert "alias_5" in page
+    assert "registered_names" in page
     assert "chooseCustomer" in page
     assert "decodeURIComponent" in page
     assert '>参照</button>' in page

@@ -17,7 +17,7 @@ def test_dashboard_has_complete_business_workflow_links():
         "/sales",
         "/sales-ledger-evidence-center",
         "/bank-import",
-        "/customer-alias-matching-center",
+        "/customer-name-matching-center",
         "/customer-auto-matching-center",
         "/customer-recommended-matching-center",
         "/customer-payment-reconciliation",

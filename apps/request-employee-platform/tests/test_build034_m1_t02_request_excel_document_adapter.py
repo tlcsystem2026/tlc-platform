@@ -55,7 +55,7 @@ def _minimal_xlsx() -> bytes:
     return buffer.getvalue()
 
 
-def test_request_document_from_mapping_multilang_aliases():
+def test_request_document_from_mapping_multilang_header_variants():
     document = request_document_from_mapping(
         {
             "請求書番号": "JP-001",

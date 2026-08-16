@@ -11,7 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 
-MATCH_TABLE = "tlc_customer_alias_match_result"
+MATCH_TABLE = "tlc_customer_name_match_result"
 CUSTOMER_TABLE_CANDIDATES = [
     "tlc_customer_master",
     "tlc_customer",

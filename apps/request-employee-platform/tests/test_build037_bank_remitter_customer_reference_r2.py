@@ -14,7 +14,7 @@ def test_customer_reference_search_is_partial_and_all_field(tmp_path):
     save_customer(db, {
         "customer_id": "REF-001", "formal_name": "株式会社藤原商店",
         "short_name": "ふじ店", "delivery_name_1": "東京配送センター",
-        "alias_3": "FUJI REMITTER", "active": False,
+        "registered_names": "FUJI REMITTER", "active": False,
     })
     assert list_customers(db, formal_name="藤原")[0]["customer_id"] == "REF-001"
     assert list_customers(db, query="東京配送")[0]["customer_id"] == "REF-001"

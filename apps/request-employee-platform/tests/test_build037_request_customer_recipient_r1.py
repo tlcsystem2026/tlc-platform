@@ -39,18 +39,18 @@ def test_customer_master_delivery_name_can_match_recipient(tmp_path: Path):
                 short_name TEXT,
                 delivery_name_1 TEXT,
                 delivery_name_2 TEXT,
-                alias_1 TEXT,
-                alias_2 TEXT,
-                alias_3 TEXT,
-                alias_4 TEXT,
-                alias_5 TEXT
+                legacy_name_1 TEXT,
+                legacy_name_2 TEXT,
+                legacy_name_3 TEXT,
+                legacy_name_4 TEXT,
+                legacy_name_5 TEXT
             )
         """))
         db.execute(text("""
             INSERT INTO tlc_customer_master(
                 id,customer_id,formal_name,hiragana_name,katakana_name,
                 katakana_name_short,short_name,delivery_name_1,
-                delivery_name_2,alias_1,alias_2,alias_3,alias_4,alias_5
+                delivery_name_2,legacy_name_1,legacy_name_2,legacy_name_3,legacy_name_4,legacy_name_5
             ) VALUES(
                 '1','C001','正式客户名','','','','',
                 'さばいさばいストア','','','','','',''

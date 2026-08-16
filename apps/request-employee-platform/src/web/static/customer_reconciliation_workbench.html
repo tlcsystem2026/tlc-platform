@@ -25,18 +25,6 @@ th,td{border:1px solid #ddd;padding:7px;text-align:left;vertical-align:top}
 th{background:#eef3f8}
 .small{font-size:12px;color:#666}.error{color:#b00020}.ok{color:#136f3a}.status{font-size:18px;font-weight:bold}
 @media(max-width:1000px){.layout,.grid{grid-template-columns:1fr}.summary{grid-template-columns:1fr 1fr}}
-
-/* TLC_CUSTOMER_RECONCILIATION_LIST_INTERACTION_R1 */
-.recon-list-tools{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin:8px 0}
-.recon-list-tools input,.recon-list-tools select{min-width:150px}
-.recon-list-tools .page-info{margin-left:auto;color:#667085;font-size:12px}
-table[data-recon-list] tbody tr{cursor:pointer}
-table[data-recon-list] tbody tr:hover{background:#fff4cc}
-table[data-recon-list] tbody tr.recon-active{background:#ffe08a!important}
-table[data-recon-list] th[data-recon-sort]{cursor:pointer;user-select:none;white-space:nowrap}
-table[data-recon-list] th[data-recon-sort]::after{content:' ↕';color:#8290a3;font-size:11px}
-table[data-recon-list] th[data-recon-sort][aria-sort='ascending']::after{content:' ↑';color:#1f4e78}
-table[data-recon-list] th[data-recon-sort][aria-sort='descending']::after{content:' ↓';color:#1f4e78}
 </style>
 </head>
 <body>
@@ -49,7 +37,7 @@ table[data-recon-list] th[data-recon-sort][aria-sort='descending']::after{conten
 <section class="card">
   <h2>客户</h2>
   <div class="toolbar">
-    <input id="customerQuery" placeholder="ID / 名称 / 别名">
+    <input id="customerQuery" placeholder="ID / 正式名称 / 登记名称">
     <button onclick="loadCustomers()">检索</button>
     <button onclick="openCustomerMaster()">客户档案</button>
   </div>
@@ -154,7 +142,7 @@ async function loadCustomers(){
   const q=document.getElementById("customerQuery").value.trim();
   if(q)p.set("query",q);
   p.set("include_inactive","false");
-  p.set("limit","0");
+  p.set("limit","500");
   const rows=await api("/api/tlc-customers?"+p.toString());
   const list=document.getElementById("customerList");list.innerHTML="";
   rows.forEach(r=>{
@@ -398,46 +386,5 @@ loadCustomers().catch(e=>alert(e.message));
   });
 })();
 </script>
-
-<script>
-/* TLC_CUSTOMER_RECONCILIATION_LIST_INTERACTION_R1 */
-(function(){
-  const PAGE_SIZE=100;
-  const states=new Map();
-  const bodyIds=["salesBody","paymentBody","exceptionBody","historyBody"];
-  let timer=0;
-  function headings(table){return [...table.querySelectorAll("thead th")].filter(th=>!th.classList.contains("tlc-row-no")&&!th.classList.contains("tlc-row-check"))}
-  function cells(row){return [...row.children].filter(td=>!td.classList.contains("tlc-row-no")&&!td.classList.contains("tlc-row-check"))}
-  function stateFor(table){
-    if(states.has(table))return states.get(table);
-    const state={page:1,sortIndex:-1,direction:"asc",busy:false};states.set(table,state);
-    table.dataset.reconList="1";
-    const tools=document.createElement("div");tools.className="recon-list-tools";
-    tools.innerHTML='<input class="recon-all" placeholder="综合检索（全字段部分匹配）"><select class="recon-field"></select><input class="recon-value" placeholder="指定字段部分匹配"><button type="button" class="recon-prev">上一页</button><button type="button" class="recon-next">下一页</button><span class="page-info"></span>';
-    table.parentElement.insertBefore(tools,table);
-    const select=tools.querySelector(".recon-field");headings(table).forEach((th,index)=>{th.dataset.reconSort=String(index);const option=document.createElement("option");option.value=String(index);option.textContent=th.textContent.trim();select.appendChild(option);th.addEventListener("click",()=>{state.direction=state.sortIndex===index&&state.direction==="asc"?"desc":"asc";state.sortIndex=index;state.page=1;headings(table).forEach(x=>x.removeAttribute("aria-sort"));th.setAttribute("aria-sort",state.direction==="asc"?"ascending":"descending");apply(table)})});
-    tools.querySelector(".recon-all").addEventListener("input",()=>{state.page=1;apply(table)});tools.querySelector(".recon-value").addEventListener("input",()=>{state.page=1;apply(table)});select.addEventListener("change",()=>{state.page=1;apply(table)});
-    tools.querySelector(".recon-prev").addEventListener("click",()=>{state.page--;apply(table)});tools.querySelector(".recon-next").addEventListener("click",()=>{state.page++;apply(table)});
-    table.querySelector("tbody").addEventListener("click",event=>{if(event.target.closest("input,button,a,select"))return;const row=event.target.closest("tr");if(!row)return;table.querySelectorAll("tbody tr.recon-active").forEach(x=>x.classList.remove("recon-active"));row.classList.add("recon-active")});
-    return state;
-  }
-  function apply(table){
-    const state=stateFor(table);if(state.busy)return;state.busy=true;
-    const tools=table.previousElementSibling;const all=(tools.querySelector(".recon-all").value||"").trim().toLocaleLowerCase();const field=Number(tools.querySelector(".recon-field").value||0);const value=(tools.querySelector(".recon-value").value||"").trim().toLocaleLowerCase();
-    let rows=[...table.querySelectorAll("tbody tr")];
-    rows.forEach(row=>{row.dataset.reconMatch=(!all||row.textContent.toLocaleLowerCase().includes(all))&&(!value||String(cells(row)[field]?.textContent||"").toLocaleLowerCase().includes(value))?"1":"0"});
-    let matched=rows.filter(row=>row.dataset.reconMatch==="1");
-    if(state.sortIndex>=0){matched.sort((a,b)=>{const av=String(cells(a)[state.sortIndex]?.textContent||"").trim();const bv=String(cells(b)[state.sortIndex]?.textContent||"").trim();const an=Number(av.replace(/,/g,"")),bn=Number(bv.replace(/,/g,""));const result=Number.isFinite(an)&&Number.isFinite(bn)?an-bn:av.localeCompare(bv,undefined,{numeric:true});return state.direction==="asc"?result:-result});const current=[...table.querySelectorAll("tbody tr")].filter(row=>row.dataset.reconMatch==="1");if(matched.some((row,index)=>current[index]!==row))matched.forEach(row=>row.parentElement.appendChild(row))}
-    const pages=Math.max(1,Math.ceil(matched.length/PAGE_SIZE));state.page=Math.max(1,Math.min(state.page,pages));const visible=new Set(matched.slice((state.page-1)*PAGE_SIZE,state.page*PAGE_SIZE));rows.forEach(row=>row.style.display=visible.has(row)?"":"none");
-    tools.querySelector(".page-info").textContent=`${matched.length} 件｜第 ${state.page} / ${pages} 页`;tools.querySelector(".recon-prev").disabled=state.page<=1;tools.querySelector(".recon-next").disabled=state.page>=pages;
-    state.busy=false;
-  }
-  function refresh(){bodyIds.forEach(id=>{const body=document.getElementById(id);if(body){const table=body.closest("table");stateFor(table);apply(table)}})}
-  function schedule(){clearTimeout(timer);timer=setTimeout(refresh,30)}
-  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",refresh,{once:true});else refresh();
-  new MutationObserver(schedule).observe(document.documentElement,{childList:true,subtree:true});
-})();
-</script>
-
 </body>
 </html>

@@ -16,7 +16,7 @@ def session(tmp_path):
     return sessionmaker(bind=engine)()
 
 
-def test_extracts_credit_remitters_by_month_and_adds_alias(tmp_path):
+def test_extracts_credit_remitters_by_month_and_registers_remitter_name(tmp_path):
     db = session(tmp_path)
     ensure_bank_transaction_table(db)
     ensure_customer_master_table(db)
@@ -35,10 +35,10 @@ def test_extracts_credit_remitters_by_month_and_adds_alias(tmp_path):
     assert rows[0]["transaction_count"] == 2
     assert rows[0]["total_amount"] == "300"
     assert rows[0]["bank_codes"] == "JAPAN_POST_BANK,SUGAMO_SHINKIN"
-    result = resolve_candidate(db, rows[0]["id"], "ADD_ALIAS", "tester", customer["customer_id"])
+    result = resolve_candidate(db, rows[0]["id"], "REGISTER_REMITTER_NAME", "tester", customer["customer_id"])
     assert result["review_status"] == "RESOLVED"
-    alias = db.execute(text("SELECT alias_1 FROM tlc_customer_master WHERE id=:id"), {"id": customer["id"]}).scalar_one()
-    assert alias == ""
+    registered_name = db.execute(text("SELECT name_value FROM tlc_customer_name_identity WHERE customer_record_id=:id AND name_type='BANK_REMITTER'"), {"id": customer["id"]}).scalar_one()
+    assert registered_name == "EXAMPLE PAY"
     identity = db.execute(text("""SELECT name_value,name_type FROM tlc_customer_name_identity
       WHERE customer_record_id=:id AND active=1 AND name_type='BANK_REMITTER'"""), {"id": customer["id"]}).one()
     assert identity.name_value == "EXAMPLE PAY"

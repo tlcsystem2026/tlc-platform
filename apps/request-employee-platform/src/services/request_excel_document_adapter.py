@@ -8,7 +8,7 @@ from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
 
-HEADER_ALIASES = {
+HEADER_VARIANTS = {
     "request_no": {
         "request no", "request_no", "request number", "invoice no", "invoice number",
         "请求书编号", "請求書番号", "請求番号", "单号", "伝票番号",
@@ -43,8 +43,8 @@ def _normalize_header(value: Any) -> str:
 
 def _header_key(value: Any) -> str | None:
     normalized = _normalize_header(value)
-    for key, aliases in HEADER_ALIASES.items():
-        if normalized in aliases:
+    for key, variants in HEADER_VARIANTS.items():
+        if normalized in variants:
             return key
     return None
 

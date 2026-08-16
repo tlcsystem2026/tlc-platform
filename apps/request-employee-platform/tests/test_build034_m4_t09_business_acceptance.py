@@ -8,11 +8,11 @@ from src.main import app
 client = TestClient(app)
 
 
-def _create_customer(customer_id: str, alias: str) -> None:
+def _create_customer(customer_id: str, payer_name: str) -> None:
     response = client.post("/api/tlc-customers", json={
         "customer_id": customer_id,
-        "formal_name": f"株式会社{alias}",
-        "alias_1": alias,
+        "formal_name": f"株式会社{payer_name}",
+        "short_name": payer_name,
         "status_code": "ACTIVE",
         "active": True,
     })
@@ -87,9 +87,9 @@ def _import_bank_credit(
 def test_build034_end_to_end_business_acceptance():
     suffix = uuid4().hex[:10]
     customer_id = f"CUST-ACCEPT-{suffix}"
-    alias = f"ACCEPTANCE PAYER {suffix}"
+    payer_name = f"ACCEPTANCE PAYER {suffix}"
 
-    _create_customer(customer_id, alias)
+    _create_customer(customer_id, payer_name)
 
     ledger_id = _create_sales_request(
         customer_id,
@@ -99,7 +99,7 @@ def test_build034_end_to_end_business_acceptance():
     )
 
     _import_bank_credit(
-        alias,
+        payer_name,
         f"TX-ACCEPT-{suffix}",
         "2026-07-20",
         "600",

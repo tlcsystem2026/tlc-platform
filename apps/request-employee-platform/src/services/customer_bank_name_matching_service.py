@@ -113,7 +113,7 @@ def match_customer_by_bank_counterparty(
             normalized_counterparty="",
         )
 
-    # The identity table is authoritative. Legacy Alias1..Alias5 are only a
+    # The customer-name identity table is authoritative.
     # compatibility fallback until their database columns can be removed.
     from src.services.tlc_customer_name_identity_service import match_name
     identity = match_name(db, counterparty)

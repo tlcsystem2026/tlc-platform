@@ -31,7 +31,7 @@ def test_customer_delete_blocks_associated_data_and_is_atomic(tmp_path):
         db.execute(text("""
             INSERT INTO tlc_customer_master(
                 id,customer_id,formal_name,hiragana_name,katakana_name,
-                short_name,alias_1,alias_2,alias_3,alias_4,alias_5,
+                short_name,legacy_name_1,legacy_name_2,legacy_name_3,legacy_name_4,legacy_name_5,
                 normalized_formal_name,status_code,active,note,created_at,updated_at
             ) VALUES(
                 'c1','C001','Customer 1','','','','','','','','',
@@ -41,7 +41,7 @@ def test_customer_delete_blocks_associated_data_and_is_atomic(tmp_path):
         db.execute(text("""
             INSERT INTO tlc_customer_master(
                 id,customer_id,formal_name,hiragana_name,katakana_name,
-                short_name,alias_1,alias_2,alias_3,alias_4,alias_5,
+                short_name,legacy_name_1,legacy_name_2,legacy_name_3,legacy_name_4,legacy_name_5,
                 normalized_formal_name,status_code,active,note,created_at,updated_at
             ) VALUES(
                 'c2','C002','Customer 2','','','','','','','','',

@@ -186,8 +186,7 @@ def list_sales_ledger(
              c.delivery_name_1 AS master_delivery_name_1,
              c.delivery_name_2 AS master_delivery_name_2,
              (SELECT GROUP_CONCAT(ni.name_value,' / ') FROM tlc_customer_name_identity ni
-               WHERE ni.customer_record_id=c.id AND ni.active=1 AND ni.name_type<>'FORMAL') AS master_alias_1,
-             '' AS master_alias_2,'' AS master_alias_3,'' AS master_alias_4,'' AS master_alias_5
+               WHERE ni.customer_record_id=c.id AND ni.active=1 AND ni.name_type<>'FORMAL') AS master_registered_names
       FROM {LEDGER_TABLE} l
       LEFT JOIN tlc_customer_master c ON c.customer_id=l.customer_id
       {where}

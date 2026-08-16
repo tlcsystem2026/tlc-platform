@@ -114,8 +114,6 @@ def backfill_customer_names(db: Session, actor: str = "MIGRATION") -> dict[str, 
     field_types = {
         "formal_name": "FORMAL", "short_name": "SHORT_NAME",
         "delivery_name_1": "DELIVERY_NAME", "delivery_name_2": "DELIVERY_NAME",
-        "alias_1": "HISTORICAL", "alias_2": "HISTORICAL", "alias_3": "HISTORICAL",
-        "alias_4": "HISTORICAL", "alias_5": "HISTORICAL",
     }
     selected = [field for field in field_types if field in columns]
     rows = db.execute(text("SELECT id,customer_id," + ",".join(selected) +
@@ -137,41 +135,6 @@ def backfill_customer_names(db: Session, actor: str = "MIGRATION") -> dict[str, 
             except ValueError:
                 conflicts += 1
     return {"customers": len(rows), "created": created, "conflicts": conflicts}
-
-
-def migrate_legacy_aliases(db: Session, actor: str = "LEGACY_ALIAS_MIGRATION") -> dict[str, Any]:
-    """Copy Alias1..Alias5 into the identity table without deleting legacy columns."""
-    ensure_schema(db)
-    columns = {str(r[1]) for r in db.execute(text("PRAGMA table_info(tlc_customer_master)")).all()}
-    aliases = [field for field in ("alias_1", "alias_2", "alias_3", "alias_4", "alias_5") if field in columns]
-    if not aliases:
-        return {"customers": 0, "created": 0, "existing": 0,
-                "conflict_count": 0, "conflicts": [], "already_removed": True}
-    rows = db.execute(text("SELECT id,customer_id," + ",".join(aliases) +
-                           " FROM tlc_customer_master WHERE active=1 ORDER BY customer_id")).all()
-    created = existing = 0
-    conflicts: list[dict[str, str]] = []
-    for raw in rows:
-        customer = dict(raw._mapping)
-        for field in aliases:
-            value = str(customer.get(field) or "").strip()
-            if not value:
-                continue
-            before = db.execute(text(f"SELECT customer_id FROM {TABLE} WHERE normalized_name=:name AND active=1"),
-                                {"name": normalize_identity_name(value)}).first()
-            try:
-                register_name(db, customer_record_id=customer["id"], customer_id=customer["customer_id"],
-                              name_value=value, name_type="HISTORICAL",
-                              source_system="CUSTOMER_MASTER_LEGACY_ALIAS", actor=actor)
-                if before:
-                    existing += 1
-                else:
-                    created += 1
-            except ValueError as exc:
-                conflicts.append({"customer_id": customer["customer_id"], "field": field,
-                                  "name_value": value, "message": str(exc)})
-    return {"customers": len(rows), "created": created, "existing": existing,
-            "conflict_count": len(conflicts), "conflicts": conflicts}
 
 
 def synchronize_customer(db: Session, customer: dict[str, Any], actor: str = "SYSTEM") -> None:

@@ -6,7 +6,7 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from src.db.session import get_db
-from src.services.tlc_customer_alias_matching_service import (
+from src.services.tlc_customer_name_matching_service import (
     list_match_results,
     match_customer_name,
     override_match_result,
@@ -14,8 +14,8 @@ from src.services.tlc_customer_alias_matching_service import (
 
 
 router = APIRouter(
-    prefix="/api/tlc-customer-alias-matching",
-    tags=["tlc-customer-alias-matching"],
+    prefix="/api/tlc-customer-name-matching",
+    tags=["tlc-customer-name-matching"],
 )
 
 
@@ -68,11 +68,11 @@ def list_results(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-page_router = APIRouter(tags=["tlc-customer-alias-matching-center"])
+page_router = APIRouter(tags=["tlc-customer-name-matching-center"])
 
 
 @page_router.get(
-    "/customer-alias-matching-center",
+    "/customer-name-matching-center",
     response_class=HTMLResponse,
 )
 def page():
@@ -80,6 +80,6 @@ def page():
         Path(__file__).parents[2]
         / "web"
         / "static"
-        / "customer_alias_matching_center.html"
+        / "customer_name_matching_center.html"
     )
     return HTMLResponse(page_path.read_text(encoding="utf-8"))

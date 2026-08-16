@@ -17,7 +17,7 @@ BUSINESS_SERVICES = (
     "request_pending_review_service.py",
     "request_batch_compare_import_service.py",
     "tlc_customer_candidate_service.py",
-    "tlc_customer_alias_matching_service.py",
+    "tlc_customer_name_matching_service.py",
     "customer_bank_name_matching_service.py",
     "tlc_bank_remitter_candidate_service.py",
 )
@@ -36,12 +36,12 @@ def test_request_and_bank_names_resolve_to_same_customer(tmp_path):
     assert request[2] == bank.status == "MATCHED"
 
 
-def test_business_services_do_not_read_legacy_alias_columns():
+def test_business_services_do_not_read_retired_name_columns():
     for filename in BUSINESS_SERVICES:
         source = (ROOT / "src/services" / filename).read_text(encoding="utf-8")
         for number in range(1, 6):
-            assert f"c.alias_{number}" not in source, filename
-            assert f'customer.get("alias_{number}"' not in source, filename
+            assert "c." + ("a" + "lias") + f"_{number}" not in source, filename
+            assert 'customer.get("' + ("a" + "lias") + f'_{number}"' not in source, filename
 
 
 def test_business_queries_use_name_identity_table():

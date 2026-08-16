@@ -36,12 +36,12 @@ def _first_column(columns: set[str], *candidates: str) -> str:
 
 def _column_or_literal(
     columns: set[str],
-    alias: str,
+    qualifier: str,
     candidates: tuple[str, ...],
     literal: str = "''",
 ) -> str:
     column = _first_column(columns, *candidates)
-    return f"{alias}.{column}" if column else literal
+    return f"{qualifier}.{column}" if column else literal
 
 
 def _rows(

@@ -8,11 +8,11 @@ from src.main import app
 client = TestClient(app)
 
 
-def _create_customer(customer_id: str, alias: str):
+def _create_customer(customer_id: str, payer_name: str):
     response = client.post("/api/tlc-customers", json={
         "customer_id": customer_id,
-        "formal_name": f"株式会社{alias}",
-        "alias_1": alias,
+        "formal_name": f"株式会社{payer_name}",
+        "short_name": payer_name,
         "status_code": "ACTIVE",
         "active": True,
     })
@@ -70,8 +70,8 @@ def _import_and_match_payment(counterparty: str, tx_id: str, tx_date: str, amoun
 def test_period_reconciliation_uses_exclusive_previous_and_inclusive_current():
     suffix = uuid4().hex[:8]
     customer_id = f"CUST-PERIOD-{suffix}"
-    alias = f"PERIOD CUSTOMER {suffix}"
-    _create_customer(customer_id, alias)
+    payer_name = f"PERIOD CUSTOMER {suffix}"
+    _create_customer(customer_id, payer_name)
 
     # Outside because it equals previous request cutoff.
     _create_sales_ledger(customer_id, f"REQ-OLD-{suffix}", "2026-06-30", "100")
@@ -81,11 +81,11 @@ def test_period_reconciliation_uses_exclusive_previous_and_inclusive_current():
     _create_sales_ledger(customer_id, f"REQ-END-{suffix}", "2026-07-31", "500")
 
     # Outside because it equals previous bank cutoff.
-    _import_and_match_payment(alias, f"TX-OLD-{suffix}", "2026-06-30", "50")
+    _import_and_match_payment(payer_name, f"TX-OLD-{suffix}", "2026-06-30", "50")
     # Included.
-    _import_and_match_payment(alias, f"TX-IN-{suffix}", "2026-07-15", "900")
+    _import_and_match_payment(payer_name, f"TX-IN-{suffix}", "2026-07-15", "900")
     # Included because current cutoff is inclusive.
-    _import_and_match_payment(alias, f"TX-END-{suffix}", "2026-07-31", "200")
+    _import_and_match_payment(payer_name, f"TX-END-{suffix}", "2026-07-31", "200")
 
     response = client.get("/api/customer-payment-reconciliation/summary", params={
         "customer_id": customer_id,

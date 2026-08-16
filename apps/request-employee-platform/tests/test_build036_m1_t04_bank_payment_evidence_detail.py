@@ -47,5 +47,5 @@ def test_page_available_and_connected():
     assert "Bank Payment Evidence Center" in html
     assert "/api/tlc-bank-payment-evidence" in html
     assert 'href="/customer-reconciliation-period-center"' in html
-    assert 'href="/customer-alias-matching-center"' in html
+    assert 'href="/customer-name-matching-center"' in html
     assert 'href="/business-operations-home"' in html
