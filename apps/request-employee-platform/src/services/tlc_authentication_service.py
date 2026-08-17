@@ -88,6 +88,11 @@ def _parse(value: str) -> datetime | None:
         return None
 
 
+
+def bootstrap_available(db: Session) -> bool:
+    ensure_schema(db)
+    return int(db.execute(text("SELECT COUNT(*) FROM tlc_auth_credential")).scalar_one()) == 0
+
 def bootstrap(db: Session, employee_no: str, login_id: str, name_zh: str, password: str, client_ip: str) -> dict:
     ensure_schema(db)
     if db.execute(text("SELECT COUNT(*) FROM tlc_auth_credential")).scalar_one() > 0:

@@ -7,7 +7,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from src.db.session import SessionLocal, get_db
-from src.services.tlc_authentication_service import COOKIE_NAME, audit_rows, bootstrap, change_password, current_session, login, logout
+from src.services.tlc_authentication_service import COOKIE_NAME, audit_rows, bootstrap, change_password, current_session, login, logout, bootstrap_available
 from src.services.tlc_super_admin_service import internal_ip_allowed
 from src.services.tlc_api_permission_service import authorize, dashboard_permission_script, visible_modules  # TLC_BUSINESS_PERMISSION_COVERAGE_R1
 from src.services.tlc_security_ip_control_service import enforce_request  # TLC_SECURITY_IP_ENFORCEMENT_R2  # TLC_API_PERMISSION_ENFORCEMENT_R1
@@ -15,7 +15,7 @@ from src.services.tlc_mfa_security_service import rate_limit, valid_step_up  # T
 
 
 router = APIRouter(tags=["tlc-authentication"])
-PUBLIC_PATHS = {"/login", "/api/auth/login", "/api/auth/bootstrap", "/health", "/docs", "/openapi.json", "/favicon.ico"}
+PUBLIC_PATHS = {"/login", "/api/auth/login", "/api/auth/bootstrap", "/health", "/docs", "/openapi.json", "/favicon.ico", "/initial-super-admin-setup"}
 
 
 def _ip(request: Request) -> str:
@@ -30,6 +30,16 @@ def _session(request: Request, db: Session, touch: bool = True) -> dict:
 
 @router.get("/login", response_class=HTMLResponse)
 def login_page():return HTMLResponse((Path(__file__).parents[2]/"web/static/login.html").read_text(encoding="utf-8"))
+
+
+@router.get("/initial-super-admin-setup", response_class=HTMLResponse)
+def initial_super_admin_setup_page(request: Request, db: Session = Depends(get_db)):
+    if not internal_ip_allowed(_ip(request)):
+        raise HTTPException(status_code=404, detail="Not found")
+    if not bootstrap_available(db):
+        return RedirectResponse("/login", status_code=303)
+    page = Path(__file__).parents[2] / "web/static/initial_super_admin_setup.html"
+    return HTMLResponse(page.read_text(encoding="utf-8"))
 
 
 @router.get("/change-password", response_class=HTMLResponse)

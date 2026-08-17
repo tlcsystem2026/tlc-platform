@@ -24,6 +24,6 @@ def test_error_identifies_exact_missing_rule(password, missing):
 
 
 def test_page_has_separate_bootstrap_login_and_live_rules():
-    page = (Path(__file__).parents[1] / "src/web/static/login.html").read_text(encoding="utf-8")
+    page = (Path(__file__).parents[1] / "src/web/static/initial_super_admin_setup.html").read_text(encoding="utf-8")
     for contract in ("bootstrapLoginId", "bootstrapPasswordConfirm", "两次输入的密码完全一致", "checkPassword", "normalize('NFKC')", "当前${[...p].length}位"):
         assert contract in page

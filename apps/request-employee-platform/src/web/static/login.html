@@ -1,34 +1,19 @@
 <!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>TLC 平台登录</title>
+<title>TLC 业务平台登录</title>
 <style>
-body{margin:0;background:#eef2f7;font-family:"Microsoft YaHei",sans-serif;color:#172033}.box{max-width:550px;margin:4vh auto;background:#fff;padding:30px;border-radius:16px;box-shadow:0 15px 45px #1e293b22}h1{margin-top:0}label{display:block;margin:14px 0 6px}input{width:100%;box-sizing:border-box;padding:12px;border:1px solid #cbd5e1;border-radius:9px;font-size:16px}button{width:100%;padding:12px;background:#2554d9;color:#fff;border:0;border-radius:9px;font-weight:bold;font-size:16px;margin-top:12px;cursor:pointer}.bootstrap{margin-top:28px;padding-top:18px;border-top:1px solid #ddd}.error{color:#b91c1c;white-space:pre-wrap;margin-top:10px}.success{color:#047857}.rules{padding:10px 12px;background:#f8fafc;border-radius:8px;line-height:1.8;margin-top:8px}.ok{color:#047857}.bad{color:#b91c1c}.inline{display:flex;gap:8px;align-items:center}.inline input{flex:1}.inline button{width:auto;margin:0;background:#64748b}.hint{color:#64748b;font-size:14px}
-</style></head><body><main class="box">
+body{margin:0;background:#eef2f7;font-family:"Microsoft YaHei",sans-serif;color:#172033}.box{max-width:550px;margin:7vh auto;background:#fff;padding:30px;border-radius:16px;box-shadow:0 15px 45px #1e293b22}h1{margin-top:0}label{display:block;margin:14px 0 6px}input{width:100%;box-sizing:border-box;padding:12px;border:1px solid #cbd5e1;border-radius:9px;font-size:16px}button{width:100%;padding:12px;background:#2554d9;color:#fff;border:0;border-radius:9px;font-weight:bold;font-size:16px;margin-top:12px;cursor:pointer}.error{color:#b91c1c;white-space:pre-wrap;margin-top:10px}.success{color:#047857;margin:10px 0}.hint{color:#64748b;font-size:14px}
+</style></head><body><main class="box" data-contract="TLC_INITIAL_SUPER_ADMIN_SETUP_PAGE_SPLIT_R1">
 <h1>TLC 业务平台登录</h1>
+<div id="setupComplete" class="success" hidden>首次超级管理员设置完成，请使用新账号登录。</div>
 <label for="loginId">登录 ID</label><input id="loginId" autocomplete="username">
 <label for="password">密码</label><input id="password" type="password" autocomplete="current-password">
 <label for="mfaCode">MFA 验证码（启用后必填）</label><input id="mfaCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
 <button type="button" onclick="doLogin()">登录</button>
 <div id="loginMessage" class="error"></div>
-
-<section class="bootstrap"><h2>首次设置超级管理员</h2><p>仅系统尚未设置账号且从内部 IP 访问时可用。</p>
-<label for="employeeNo">员工编号</label><input id="employeeNo">
-<label for="bootstrapLoginId">首次登录 ID</label><input id="bootstrapLoginId" autocomplete="username"><div class="hint">以后使用这个 ID 登录。</div>
-<label for="nameZh">中文姓名</label><input id="nameZh">
-<label for="bootstrapPassword">初始密码</label>
-<div class="inline"><input id="bootstrapPassword" type="password" autocomplete="new-password" oninput="checkPassword()"><button type="button" onclick="togglePassword()">显示／隐藏</button></div>
-<label for="bootstrapPasswordConfirm">确认初始密码</label><input id="bootstrapPasswordConfirm" type="password" autocomplete="new-password" oninput="checkPassword()">
-<div class="rules" id="passwordRules"></div>
-<button type="button" onclick="doBootstrap()">首次设置</button>
-<div id="bootstrapMessage" class="error"></div></section>
 </main><script>
 const byId=id=>document.getElementById(id);
 async function api(url,payload){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});let b={};try{b=await r.json()}catch{}if(!r.ok)throw Error(b.detail||`操作失败（HTTP ${r.status}）`);return b}
-function normalizedPassword(){return byId('bootstrapPassword').value.normalize('NFKC')}
-function checks(){const p=normalizedPassword(),raw=byId('bootstrapPassword').value,confirm=byId('bootstrapPasswordConfirm').value;return [{name:`至少12位（当前${[...p].length}位）`,ok:[...p].length>=12},{name:'包含大写英文字母',ok:/[A-Z]/.test(p)},{name:'包含小写英文字母',ok:/[a-z]/.test(p)},{name:'包含数字',ok:/[0-9]/.test(p)},{name:'两次输入的密码完全一致',ok:raw.length>0&&raw===confirm}]}
-function checkPassword(){byId('passwordRules').innerHTML=checks().map(x=>`<div class="${x.ok?'ok':'bad'}">${x.ok?'✓':'✗'} ${x.name}</div>`).join('');return checks().every(x=>x.ok)}
-function togglePassword(){const first=byId('bootstrapPassword'),second=byId('bootstrapPasswordConfirm'),type=first.type==='password'?'text':'password';first.type=type;second.type=type}
 async function doLogin(){try{const b=await api('/api/auth/login',{login_id:byId('loginId').value,password:byId('password').value,mfa_code:byId('mfaCode').value});location.href=b.must_change_password?'/change-password':(new URLSearchParams(location.search).get('next')||'/dashboard')}catch(e){byId('loginMessage').textContent=e.message}}
-async function doBootstrap(){byId('bootstrapMessage').className='error';if(!checkPassword()){byId('bootstrapMessage').textContent='请先满足上面全部密码规则。';return}try{await api('/api/auth/bootstrap',{employee_no:byId('employeeNo').value.trim(),login_id:byId('bootstrapLoginId').value.trim(),name_zh:byId('nameZh').value.trim(),password:byId('bootstrapPassword').value});byId('bootstrapMessage').className='success';byId('bootstrapMessage').textContent='初始超级管理员设置成功。请使用首次登录 ID 和初始密码登录。'}catch(e){byId('bootstrapMessage').textContent=e.message}}
-checkPassword();
+if(new URLSearchParams(location.search).get('setup')==='complete')byId('setupComplete').hidden=false;
 </script></body></html>
