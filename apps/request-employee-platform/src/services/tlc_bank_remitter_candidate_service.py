@@ -258,7 +258,37 @@ def list_candidates(db: Session, business_month: str = "", status: str = "", bat
     if requested_limit > 0:
         params["limit"] = min(requested_limit, 10000)
         limit_sql = " LIMIT :limit"
-    return [_row(row) for row in db.execute(text(f"SELECT * FROM {CANDIDATE_TABLE} {where} ORDER BY created_at DESC,id{limit_sql}"), params).all()]
+    rows = [_row(row) for row in db.execute(
+        text(f"SELECT * FROM {CANDIDATE_TABLE} {where} ORDER BY created_at DESC,id{limit_sql}"),
+        params,
+    ).all()]
+    # TLC_BANK_REMITTER_ASSIGNED_CUSTOMER_NAME_R1
+    # The candidate table keeps the review-time snapshot.  Display the current
+    # customer master formal name when the selected customer still exists.
+    customer_keys = sorted({
+        str(row.get("matched_customer_id") or "").strip()
+        for row in rows if str(row.get("matched_customer_id") or "").strip()
+    })
+    if customer_keys and inspect(db.get_bind()).has_table("tlc_customer_master"):
+        customer_lookup = {}
+        for offset in range(0, len(customer_keys), 400):
+            chunk = customer_keys[offset:offset + 400]
+            key_params = {f"key_{index}": value for index, value in enumerate(chunk)}
+            placeholders = ",".join(f":key_{index}" for index in range(len(chunk)))
+            customer_rows = db.execute(text(
+                "SELECT id,customer_id,formal_name FROM tlc_customer_master "
+                f"WHERE id IN ({placeholders}) OR customer_id IN ({placeholders})"
+            ), key_params).all()
+            for customer_row in customer_rows:
+                customer = _row(customer_row)
+                formal_name = str(customer.get("formal_name") or "").strip()
+                customer_lookup[str(customer.get("id") or "")] = formal_name
+                customer_lookup[str(customer.get("customer_id") or "")] = formal_name
+        for row in rows:
+            current_name = customer_lookup.get(str(row.get("matched_customer_id") or "").strip(), "")
+            if current_name:
+                row["matched_customer_name"] = current_name
+    return rows
 
 
 def export_review_csv(records: list[dict[str, Any]]) -> bytes:
